@@ -9,6 +9,7 @@ export default function ProdutoForm({
   const [form, setForm] = useState({
     id: produto?.id || null,
     nome: produto?.nome || "",
+    tipo: produto?.tipo || "loja",
     foto: produto?.foto || "",
     quantidade: produto?.quantidade || 0,
     estoque_minimo: produto?.estoque_minimo ?? 1,
@@ -47,6 +48,31 @@ export default function ProdutoForm({
         </div>
 
         <div className="flex flex-col gap-4">
+          {/* Tipo */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-2 block">Tipo de estoque</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: "loja", label: "🛍️ Loja", desc: "Itens para venda" },
+                { id: "bar", label: "🍺 Bar", desc: "Consumo no local" },
+              ].map((op) => (
+                <button
+                  key={op.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, tipo: op.id }))}
+                  className={`flex flex-col items-center gap-0.5 py-2.5 rounded-xl border text-sm transition-all
+                    ${form.tipo === op.id
+                      ? "bg-indigo-500 border-indigo-500 text-white font-medium"
+                      : "bg-white border-gray-200 text-gray-500 hover:border-indigo-200"
+                    }`}
+                >
+                  <span className="font-medium">{op.label}</span>
+                  <span className={`text-xs ${form.tipo === op.id ? "text-indigo-100" : "text-gray-400"}`}>{op.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Nome */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">

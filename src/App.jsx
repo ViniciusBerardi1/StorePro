@@ -15,7 +15,7 @@ import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
 
-const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos"];
+const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos", "estoque_loja", "estoque_bar"];
 
 const pageVariants = {
   initial: { opacity: 0, y: 16 },
@@ -102,7 +102,8 @@ function SenhaModal({ onConfirmar, onFechar }) {
 export default function App() {
   const [view, setView] = useState(() => {
     const stored = localStorage.getItem("storepro_view") || "agenda";
-    if (stored === "dashboard") return "agenda"; // migra view antiga
+    if (stored === "dashboard") return "agenda";
+    if (stored === "estoque") return "estoque_loja"; // migra view antiga
     if (stored.startsWith("cat_") && isNaN(Number(stored.replace("cat_", "")))) return "agenda";
     return stored;
   });
@@ -277,9 +278,9 @@ export default function App() {
   }), [produtos]);
 
   const produtosFiltrados = useMemo(() => {
-    if (view === "estoque_baixo") {
-      return produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1));
-    }
+    if (view === "estoque_baixo") return produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1));
+    if (view === "estoque_bar") return produtos.filter((p) => p.tipo === "bar");
+    if (view === "estoque_loja") return produtos.filter((p) => p.tipo !== "bar");
     return produtos;
   }, [view, produtos]);
 
@@ -333,7 +334,12 @@ export default function App() {
               <Agenda onAtendimentoFinalizado={carregarDashboard} />
             ) : VIEWS_ESTOQUE.includes(view) ? (
               <ProdutoList
-                titulo={view === "estoque_baixo" ? "Estoque Baixo" : "Estoque"}
+                titulo={
+                  view === "estoque_baixo" ? "Estoque Baixo" :
+                  view === "estoque_bar" ? "Bar 🍺" :
+                  view === "estoque_loja" ? "Loja 🛍️" :
+                  "Estoque"
+                }
                 produtos={produtosFiltrados}
                 categorias={categorias}
                 onEditar={handleEditar}

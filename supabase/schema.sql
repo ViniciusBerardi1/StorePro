@@ -111,6 +111,28 @@ create table if not exists barbeiros (
   created_at    timestamptz default now()
 );
 
+-- ─── Tipo de produto (bar = consumo local, loja = venda) ─────
+-- Execute este alter se a tabela produtos já existir:
+alter table produtos add column if not exists tipo text default 'loja'
+  check (tipo in ('bar', 'loja'));
+
+-- ─── Comandas ────────────────────────────────────────────────
+create table if not exists comandas (
+  id              serial primary key,
+  atendimento_id  integer references atendimentos(id) on delete set null,
+  gcal_event_id   text unique,
+  servicos        jsonb default '[]',
+  itens_bar       jsonb default '[]',
+  itens_loja      jsonb default '[]',
+  valor_servicos  numeric(10,2) default 0,
+  valor_bar       numeric(10,2) default 0,
+  valor_loja      numeric(10,2) default 0,
+  valor_total     numeric(10,2) default 0,
+  forma_pagamento text check (forma_pagamento in ('debito','credito','pix')),
+  status          text default 'aberta' check (status in ('aberta','fechada')),
+  created_at      timestamptz default now()
+);
+
 -- ─── Row Level Security (RLS) ────────────────────────────────
 -- Por padrão desabilitado para desenvolvimento.
 -- Habilite e configure policies antes de ir para produção.
@@ -122,3 +144,4 @@ alter table atendimentos  disable row level security;
 alter table historico     disable row level security;
 alter table servicos      disable row level security;
 alter table barbeiros     disable row level security;
+alter table comandas      disable row level security;

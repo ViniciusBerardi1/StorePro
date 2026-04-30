@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   initGoogleCalendar,
@@ -12,6 +12,8 @@ import {
 } from "../../services/googleCalendar";
 import { db } from "../../services/supabaseDb";
 import { GCAL_CORES } from "./Barbeiros";
+import Comanda from "./Comanda";
+import { useEffect } from "react";
 
 const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = [
@@ -30,7 +32,7 @@ function mesmodia(d1, d2) {
 
 function getDiasDaSemana(offset) {
   const hoje = new Date();
-  const dow = hoje.getDay(); // 0 = Dom
+  const dow = hoje.getDay();
   const segunda = new Date(hoje);
   segunda.setDate(hoje.getDate() - (dow === 0 ? 6 : dow - 1) + offset * 7);
   return Array.from({ length: 7 }, (_, i) => {
@@ -45,77 +47,34 @@ function fmtHora(iso) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function fmtValor(v) {
-  return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-// ─── Formulário de evento ─────────────────────────────────────────
-function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinalizar, servicos = [], barbeiros = [], eventos = [] }) {
+// ─── Formulário de agendamento (simplificado) ─────────────────────
+function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onIniciarAtendimento, barbeiros = [], eventos = [] }) {
   const dataDefault = (diaPadrao ?? new Date()).toISOString().slice(0, 10);
+  const eConcluido = evento?.summary?.startsWith("✅");
 
   const [form, setForm] = useState({
     summary: evento?.summary || "",
-    data: evento?.start?.dateTime
-      ? evento.start.dateTime.slice(0, 10)
-      : dataDefault,
+    data: evento?.start?.dateTime ? evento.start.dateTime.slice(0, 10) : dataDefault,
     horaInicio: evento?.start?.dateTime ? fmtHora(evento.start.dateTime) : "09:00",
     horaFim: evento?.end?.dateTime ? fmtHora(evento.end.dateTime) : "10:00",
     description: evento?.description || "",
   });
 
-  const [servicosSelecionados, setServicosSelecionados] = useState([]);
-  const [formaPagamento, setFormaPagamento] = useState(null);
-  const [salvando, setSalvando] = useState(false);
-  const [finalizando, setFinalizando] = useState(false);
-  const [erroForm, setErroForm] = useState(null);
-  const [bloqueado, setBloqueado] = useState(false);
-  const [carregandoDados, setCarregandoDados] = useState(!!evento);
   const [barbeiroId, setBarbeiroId] = useState(() => {
-    // Pré-seleciona barbeiro pela cor do evento do Google Calendar
     if (!evento?.colorId) return null;
     const barb = barbeiros.find((b) => b.gcal_color_id === evento.colorId);
     return barb?.id ?? null;
   });
-  const servicosRef = useRef(servicos);
-  servicosRef.current = servicos;
+
+  const [salvando, setSalvando] = useState(false);
+  const [erroForm, setErroForm] = useState(null);
+
   const barbeirosRef = useRef(barbeiros);
   barbeirosRef.current = barbeiros;
   const eventosRef = useRef(eventos);
   eventosRef.current = eventos;
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  // Carrega dados salvos no Supabase ao abrir um evento existente
-  useEffect(() => {
-    if (!evento?.id) return;
-    setCarregandoDados(true);
-    db.getAtendimentoByGcalId(evento.id)
-      .then((salvo) => {
-        if (!salvo) return;
-        const nomesSalvos = new Set((salvo.servicos ?? []).map((s) => s.nome));
-        const ids = servicosRef.current
-          .filter((sv) => nomesSalvos.has(sv.nome))
-          .map((sv) => sv.id);
-        setServicosSelecionados(ids);
-        if (salvo.forma_pagamento) setFormaPagamento(salvo.forma_pagamento);
-        if (salvo.status === "concluido") setBloqueado(true);
-        if (salvo.barbeiro_id) setBarbeiroId(salvo.barbeiro_id);
-      })
-      .catch(() => {})
-      .finally(() => setCarregandoDados(false));
-  }, [evento?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const servicosAtivos = servicos.filter((s) => s.ativo);
-  const total = servicosAtivos
-    .filter((s) => servicosSelecionados.includes(s.id))
-    .reduce((sum, s) => sum + (Number(s.valor) || 0), 0);
-
-  const toggleServico = (id) => {
-    if (bloqueado) return;
-    setServicosSelecionados((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -128,25 +87,19 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
       return setErroForm("Horário de fim deve ser após o início.");
 
     const inicioNovo = new Date(`${form.data}T${form.horaInicio}:00`);
-    const fimNovo    = new Date(`${form.data}T${form.horaFim}:00`);
+    const fimNovo = new Date(`${form.data}T${form.horaFim}:00`);
 
-    // Bloqueia novo agendamento no passado (edição de eventos existentes é permitida)
     if (!evento && inicioNovo <= new Date())
       return setErroForm("Não é possível agendar em horários que já passaram.");
 
-    // Verifica conflito de horário para o barbeiro selecionado
     if (barbeiroId) {
       const barbSel = barbeirosRef.current.find((b) => b.id === barbeiroId);
       if (barbSel) {
         const conflito = eventosRef.current
-          .filter((ev) =>
-            ev.colorId === barbSel.gcal_color_id &&
-            ev.id !== evento?.id &&
-            ev.start?.dateTime
-          )
+          .filter((ev) => ev.colorId === barbSel.gcal_color_id && ev.id !== evento?.id && ev.start?.dateTime)
           .some((ev) => {
             const evInicio = new Date(ev.start.dateTime);
-            const evFim    = new Date(ev.end.dateTime);
+            const evFim = new Date(ev.end.dateTime);
             return inicioNovo < evFim && fimNovo > evInicio;
           });
         if (conflito)
@@ -172,20 +125,6 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
     }
   };
 
-  const handleFinalizar = async () => {
-    if (!formaPagamento) return setErroForm("Selecione a forma de pagamento.");
-    setErroForm(null);
-    setFinalizando(true);
-    try {
-      const servicosCompletos = servicosAtivos.filter((s) => servicosSelecionados.includes(s.id));
-      await onFinalizar(evento, form, servicosCompletos, total, formaPagamento, barbeiroId);
-    } catch (e) {
-      setErroForm(e.message);
-    } finally {
-      setFinalizando(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4">
       <motion.div
@@ -200,7 +139,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
             <h3 className="font-semibold text-gray-800 text-base">
               {evento ? "Agendamento" : "Novo agendamento"}
             </h3>
-            {bloqueado && (
+            {eConcluido && (
               <span className="text-xs font-medium bg-green-100 text-green-600 px-2 py-0.5 rounded-full">
                 Concluído
               </span>
@@ -209,13 +148,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
         </div>
 
-        {carregandoDados && (
-          <div className="flex items-center justify-center py-6 text-sm text-gray-400 animate-pulse">
-            Carregando dados...
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className={`flex flex-col gap-4 ${carregandoDados ? "hidden" : ""}`}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">Título *</label>
             <input
@@ -265,65 +198,6 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
             </div>
           </div>
 
-          {/* Seletor de serviços */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-2 block">
-              Serviços {servicosAtivos.length === 0 && <span className="text-gray-300 font-normal">— cadastre em Atendimento &gt; Serviços</span>}
-            </label>
-            {servicosAtivos.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {servicosAtivos.map((s) => {
-                  const selecionado = servicosSelecionados.includes(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => toggleServico(s.id)}
-                      disabled={bloqueado}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border transition-all
-                        ${bloqueado ? "cursor-default" : ""}
-                        ${selecionado
-                          ? bloqueado
-                            ? "bg-indigo-100 border-indigo-200 text-indigo-500 font-medium"
-                            : "bg-indigo-500 border-indigo-500 text-white font-medium"
-                          : "bg-white border-gray-200 text-gray-400"
-                        }
-                        ${!bloqueado && !selecionado ? "hover:border-indigo-300 hover:bg-indigo-50 hover:text-gray-600" : ""}`}
-                    >
-                      <span>{s.nome}</span>
-                      <span className={`text-xs ${selecionado ? (bloqueado ? "text-indigo-400" : "text-indigo-200") : "text-gray-300"}`}>
-                        {fmtValor(s.valor)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic">Nenhum serviço cadastrado ainda.</p>
-            )}
-
-            {/* Total */}
-            {servicosSelecionados.length > 0 && (
-              <div className="mt-3 flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2.5">
-                <span className="text-xs text-indigo-600 font-medium">
-                  {servicosSelecionados.length} serviço{servicosSelecionados.length > 1 ? "s" : ""} selecionado{servicosSelecionados.length > 1 ? "s" : ""}
-                </span>
-                <span className="text-sm font-bold text-indigo-700">{fmtValor(total)}</span>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Observações</label>
-            <textarea
-              value={form.description}
-              onChange={set("description")}
-              placeholder="Cliente, serviço, anotações..."
-              rows={2}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
-            />
-          </div>
-
           {/* Seletor de barbeiro */}
           {barbeiros.length > 0 && (
             <div>
@@ -336,22 +210,12 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
                     <button
                       key={b.id}
                       type="button"
-                      onClick={() => !bloqueado && setBarbeiroId(sel ? null : b.id)}
-                      disabled={bloqueado}
+                      onClick={() => setBarbeiroId(sel ? null : b.id)}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm border transition-all
-                        ${bloqueado ? "cursor-default" : ""}
-                        ${sel
-                          ? "border-transparent text-white font-medium"
-                          : bloqueado
-                            ? "bg-white border-gray-200 text-gray-300"
-                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
-                        }`}
+                        ${sel ? "border-transparent text-white font-medium" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}
                       style={sel ? { backgroundColor: cor.hex } : {}}
                     >
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: sel ? "rgba(255,255,255,0.6)" : cor.hex }}
-                      />
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sel ? "rgba(255,255,255,0.6)" : cor.hex }} />
                       {b.nome}
                     </button>
                   );
@@ -360,38 +224,16 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
             </div>
           )}
 
-          {/* Forma de pagamento — só aparece ao editar evento existente */}
-          {evento && (
-            <div>
-              <label className="text-xs font-medium text-gray-500 mb-2 block">Forma de pagamento</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "pix",     label: "Pix",     emoji: "🔑" },
-                  { id: "debito",  label: "Débito",  emoji: "💳" },
-                  { id: "credito", label: "Crédito", emoji: "💳" },
-                ].map((op) => (
-                  <button
-                    key={op.id}
-                    type="button"
-                    onClick={() => !bloqueado && setFormaPagamento(op.id)}
-                    disabled={bloqueado}
-                    className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border text-sm transition-all
-                      ${bloqueado ? "cursor-default" : ""}
-                      ${formaPagamento === op.id
-                        ? bloqueado
-                          ? "bg-indigo-100 border-indigo-200 text-indigo-500 font-medium"
-                          : "bg-indigo-500 border-indigo-500 text-white font-medium"
-                        : "bg-white border-gray-200 text-gray-400"
-                      }
-                      ${!bloqueado && formaPagamento !== op.id ? "hover:border-indigo-300 hover:bg-indigo-50 hover:text-gray-600" : ""}`}
-                  >
-                    <span className="text-base">{op.emoji}</span>
-                    <span>{op.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Observações</label>
+            <textarea
+              value={form.description}
+              onChange={set("description")}
+              placeholder="Anotações do cliente..."
+              rows={2}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+            />
+          </div>
 
           {erroForm && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
@@ -399,28 +241,14 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
             </div>
           )}
 
-          {/* Botão editar (quando concluído) ou finalizar (quando pendente/editando) */}
-          {evento && bloqueado && (
+          {/* Botão iniciar atendimento — só para eventos existentes */}
+          {evento && (
             <button
               type="button"
-              onClick={() => setBloqueado(false)}
-              className="w-full border-2 border-indigo-300 text-indigo-600 py-2.5 rounded-xl text-sm font-semibold transition-colors hover:bg-indigo-50 flex items-center justify-center gap-2"
+              onClick={() => onIniciarAtendimento(evento)}
+              className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
             >
-              ✏️ Editar atendimento
-            </button>
-          )}
-          {evento && !bloqueado && (
-            <button
-              type="button"
-              onClick={handleFinalizar}
-              disabled={finalizando}
-              className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {finalizando
-                ? "Salvando..."
-                : total > 0
-                  ? `✅ Finalizar — ${fmtValor(total)}`
-                  : "✅ Finalizar atendimento"}
+              {eConcluido ? "🧾 Ver Comanda" : "▶ Iniciar Atendimento"}
             </button>
           )}
 
@@ -469,7 +297,7 @@ function TelaConectar({ gisReady, sessionExpired }) {
       </h3>
       <p className="text-sm text-gray-500 leading-relaxed mb-6">
         {sessionExpired
-          ? "Sua sessão com o Google Calendar expirou. Clique no botão abaixo para reconectar e voltar a criar agendamentos."
+          ? "Sua sessão com o Google Calendar expirou. Clique no botão abaixo para reconectar."
           : "Gerencie seus agendamentos pelo StorePro, sincronizado em tempo real com o Google Calendar."}
       </p>
       <button
@@ -496,26 +324,23 @@ export default function Agenda({ onAtendimentoFinalizado }) {
   const [conectado, setConectado] = useState(false);
   const [gisReady, setGisReady] = useState(false);
   const [reconectando, setReconectando] = useState(() => !!localStorage.getItem(LS_KEY));
-  // True quando a sessão era válida mas expirou/foi bloqueada (vs. primeira conexão)
   const [sessionExpired, setSessionExpired] = useState(() => !!localStorage.getItem(LS_KEY));
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [diaSelecionado, setDiaSelecionado] = useState(new Date());
   const [eventos, setEventos] = useState([]);
-  const [servicos, setServicos] = useState([]);
   const [barbeiros, setBarbeiros] = useState([]);
   const [filtroBarbeiro, setFiltroBarbeiro] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState(null);
+  const [showComanda, setShowComanda] = useState(false);
+  const [eventoComanda, setEventoComanda] = useState(null);
 
-  // Carrega serviços e barbeiros
   useEffect(() => {
-    db.getServicos().then(setServicos).catch(() => {});
     db.getBarbeiros().then(setBarbeiros).catch(() => {});
   }, []);
 
-  // Aguarda GIS carregar
   useEffect(() => {
     let tentativas = 0;
     const check = () => {
@@ -523,15 +348,10 @@ export default function Agenda({ onAtendimentoFinalizado }) {
         initGoogleCalendar((token) => {
           setConectado(!!token);
           setReconectando(false);
-          // Se recebeu token válido, não é mais "sessão expirada"
           if (token) setSessionExpired(false);
         });
         setGisReady(true);
-        // Garante que o spinner desaparece mesmo que o GCal não responda
-        // (o timeout interno do googleCalendar.js também remove o LS_KEY em 5s)
-        if (localStorage.getItem(LS_KEY)) {
-          setTimeout(() => setReconectando(false), 5500);
-        }
+        if (localStorage.getItem(LS_KEY)) setTimeout(() => setReconectando(false), 5500);
       } else if (tentativas++ < 30) {
         setTimeout(check, 300);
       } else {
@@ -562,20 +382,14 @@ export default function Agenda({ onAtendimentoFinalizado }) {
 
   useEffect(() => {
     if (!conectado) return;
-
     carregarEventos();
-
-    // Polling a cada 30s para manter sincronizado com o Google Calendar
     const intervalo = setInterval(() => {
       if (isGoogleConnected()) carregarEventos();
     }, 30_000);
-
-    // Recarrega ao voltar para a aba
     const handleVisibilidade = () => {
       if (document.visibilityState === "visible" && isGoogleConnected()) carregarEventos();
     };
     document.addEventListener("visibilitychange", handleVisibilidade);
-
     return () => {
       clearInterval(intervalo);
       document.removeEventListener("visibilitychange", handleVisibilidade);
@@ -601,90 +415,90 @@ export default function Agenda({ onAtendimentoFinalizado }) {
   }
 
   async function handleSalvar(eventoGcal) {
-    // Atualização otimista para edição (feedback imediato)
     if (editando) {
-      setEventos((prev) => prev.map((e) =>
-        e.id === editando.id ? { ...editando, ...eventoGcal } : e
-      ));
+      setEventos((prev) => prev.map((e) => e.id === editando.id ? { ...editando, ...eventoGcal } : e));
     }
     setShowForm(false);
     setEditando(null);
-
     try {
       if (editando) {
         await atualizarEvento(editando.id, eventoGcal);
       } else {
-        // Para novo evento: adiciona imediatamente com dados locais
         const tempId = `temp-${Date.now()}`;
         setEventos((prev) => [...prev, { id: tempId, ...eventoGcal, colorId: "9" }]);
         const criado = await criarEvento(eventoGcal);
-        // Substitui o placeholder pelo evento real do GCal
         setEventos((prev) => prev.map((e) => e.id === tempId ? criado : e));
       }
-      // Recarrega a semana para garantir sincronização completa com o GCal
       carregarEventos();
     } catch (e) {
       setErro(e.message);
-      if (_isAuthError(e.message)) {
-        setConectado(false);
-        setReconectando(false);
-      } else {
-        carregarEventos(); // reverte otimismo se falhou
-      }
+      if (_isAuthError(e.message)) { setConectado(false); setReconectando(false); }
+      else carregarEventos();
     }
   }
 
   async function handleDeletar(id) {
-    // Remove local imediatamente (otimista)
     setEventos((prev) => prev.filter((e) => e.id !== id));
     setShowForm(false);
     setEditando(null);
-
     try {
       await deletarEvento(id);
-      // Confirma com reload para garantir que o GCal está sincronizado
       carregarEventos();
     } catch (e) {
       setErro(e.message);
-      if (_isAuthError(e.message)) {
-        setConectado(false);
-        setReconectando(false);
-      } else {
-        carregarEventos(); // reverte se falhou
-      }
+      if (_isAuthError(e.message)) { setConectado(false); setReconectando(false); }
+      else carregarEventos();
     }
   }
 
-  async function handleFinalizar(ev, form, servicosCompletos = [], total = 0, formaPagamento = null, barbeiroId = null) {
+  function handleIniciarAtendimento(ev) {
+    setShowForm(false);
+    setEditando(null);
+    setEventoComanda(ev);
+    setShowComanda(true);
+  }
+
+  async function handleFinalizar(ev, comandaData) {
+    const { servicos, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, barbeiroId } = comandaData;
+
     const tituloAtual = ev.summary || "";
     const tituloFinal = tituloAtual.startsWith("✅") ? tituloAtual : `✅ ${tituloAtual}`;
     const clienteNome = tituloAtual.replace(/^✅\s*/, "").split(/[-—]/)[0].trim();
+    const dataHora = ev.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : new Date().toISOString();
 
-    const servicosSalvar = servicosCompletos.length > 0
-      ? servicosCompletos.map((s) => ({ nome: s.nome, valor: Number(s.valor) }))
-      : [{ nome: tituloAtual.replace(/^✅\s*/, "").trim(), valor: 0 }];
+    // Feedback imediato
+    setEventos((prev) => prev.map((e) => e.id === ev.id ? { ...e, summary: tituloFinal, colorId: "2" } : e));
+    setShowComanda(false);
+    setEventoComanda(null);
+    onAtendimentoFinalizado?.();
 
-    // Feedback imediato — tudo antes de qualquer await
-    setEventos((prev) =>
-      prev.map((e) => e.id === ev.id ? { ...e, summary: tituloFinal, colorId: "2" } : e)
-    );
-    setShowForm(false);
-    setEditando(null);
-    onAtendimentoFinalizado?.(); // atualiza dashboard na hora
-
-    // Supabase + Google Calendar em paralelo, em background
     const [supabaseResult, gcalResult] = await Promise.allSettled([
-      db.addAtendimento({
-        gcal_event_id: ev.id,
-        data_hora: new Date(`${form.data}T${form.horaInicio}:00`).toISOString(),
-        cliente_nome: clienteNome,
-        servicos: servicosSalvar,
-        valor_total: total,
-        forma_pagamento: formaPagamento,
-        status: "concluido",
-        observacoes: form.description || "",
-        ...(barbeiroId ? { barbeiro_id: barbeiroId } : {}),
-      }),
+      (async () => {
+        const atendId = await db.addAtendimento({
+          gcal_event_id: ev.id,
+          data_hora: dataHora,
+          cliente_nome: clienteNome,
+          servicos,
+          valor_total,
+          forma_pagamento,
+          status: "concluido",
+          observacoes: ev.description || "",
+          ...(barbeiroId ? { barbeiro_id: barbeiroId } : {}),
+        });
+        await db.saveComanda({
+          gcal_event_id: ev.id,
+          atendimento_id: typeof atendId === "number" ? atendId : null,
+          servicos,
+          itens_bar,
+          itens_loja,
+          valor_servicos,
+          valor_bar,
+          valor_loja,
+          valor_total,
+          forma_pagamento,
+          status: "fechada",
+        });
+      })(),
       atualizarEvento(ev.id, {
         summary: tituloFinal,
         start: ev.start,
@@ -694,21 +508,15 @@ export default function Agenda({ onAtendimentoFinalizado }) {
       }),
     ]);
 
-    if (supabaseResult.status === "rejected") {
+    if (supabaseResult.status === "rejected")
       setErro("Erro ao salvar no Supabase: " + supabaseResult.reason?.message);
-    }
 
     if (gcalResult.status === "rejected") {
       const gcalMsg = gcalResult.reason?.message ?? "";
       setErro("Aviso: não foi possível atualizar o Google Calendar." + (gcalMsg ? " " + gcalMsg : ""));
-      if (_isAuthError(gcalMsg)) {
-        setConectado(false);
-        setReconectando(false);
-      } else {
-        carregarEventos(); // reverte estado otimista se GCal falhou por outro motivo
-      }
+      if (_isAuthError(gcalMsg)) { setConectado(false); setReconectando(false); }
+      else carregarEventos();
     } else {
-      // GCal atualizado com sucesso — recarrega para confirmar sincronização
       carregarEventos();
     }
   }
@@ -732,7 +540,6 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             <button
               onClick={carregarEventos}
               className="text-xs text-gray-400 hover:text-indigo-500 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
-              title="Sincronizar com Google Calendar"
             >
               🔄 Sincronizar
             </button>
@@ -772,15 +579,11 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                 <button
                   onClick={() => setSemanaOffset((o) => o - 1)}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-lg"
-                >
-                  ‹
-                </button>
+                >‹</button>
                 <button
                   onClick={() => setSemanaOffset((o) => o + 1)}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-lg"
-                >
-                  ›
-                </button>
+                >›</button>
               </div>
             </div>
 
@@ -793,11 +596,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                     key={i}
                     onClick={() => setDiaSelecionado(new Date(d))}
                     className={`flex flex-col items-center gap-1 py-2 rounded-xl transition-all
-                      ${isSelecionado
-                        ? "bg-indigo-500 text-white"
-                        : isHoje
-                          ? "bg-indigo-50 text-indigo-600"
-                          : "text-gray-600 hover:bg-gray-100"}`}
+                      ${isSelecionado ? "bg-indigo-500 text-white" : isHoje ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-100"}`}
                   >
                     <span className="text-xs font-medium">{DIAS_SEMANA_CURTO[d.getDay()]}</span>
                     <span className="text-sm font-bold leading-none">{d.getDate()}</span>
@@ -823,9 +622,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-semibold text-gray-800 capitalize">
-                  {diaSelecionado.toLocaleDateString("pt-BR", {
-                    weekday: "long", day: "numeric", month: "long",
-                  })}
+                  {diaSelecionado.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
                 </h3>
                 <p className="text-xs text-gray-400 mt-0.5">
                   {carregando ? "Carregando..." : `${eventosPendentes.length} pendente${eventosPendentes.length !== 1 ? "s" : ""} · ${eventosConcluidos.length} concluído${eventosConcluidos.length !== 1 ? "s" : ""}`}
@@ -844,11 +641,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
               <div className="flex gap-1.5 flex-wrap mb-4">
                 <button
                   onClick={() => setFiltroBarbeiro(null)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    !filtroBarbeiro
-                      ? "bg-gray-800 text-white"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  }`}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${!filtroBarbeiro ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
                 >
                   Todos
                 </button>
@@ -860,15 +653,9 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                       key={b.id}
                       onClick={() => setFiltroBarbeiro(ativo ? null : b.id)}
                       className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all"
-                      style={ativo
-                        ? { backgroundColor: cor.hex, color: "#fff" }
-                        : { backgroundColor: cor.hex + "22", color: cor.hex }
-                      }
+                      style={ativo ? { backgroundColor: cor.hex, color: "#fff" } : { backgroundColor: cor.hex + "22", color: cor.hex }}
                     >
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: cor.hex }}
-                      />
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cor.hex }} />
                       {b.nome}
                     </button>
                   );
@@ -877,9 +664,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             )}
 
             {carregando ? (
-              <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
-                Buscando eventos...
-              </div>
+              <div className="py-10 text-center text-sm text-gray-400 animate-pulse">Buscando eventos...</div>
             ) : eventosDoDia.length === 0 ? (
               <div className="py-10 text-center">
                 <div className="text-3xl mb-2">📭</div>
@@ -893,8 +678,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-
-                {/* Agendamentos pendentes — agrupados por barbeiro */}
+                {/* Agendados — agrupados por barbeiro */}
                 {eventosPendentes.length > 0 && (() => {
                   const renderCard = (ev, corHex = "#818CF8") => {
                     const ehDiaTodo = !!ev.start?.date && !ev.start?.dateTime;
@@ -908,15 +692,9 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                       >
                         <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: corHex }} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate text-gray-800">
-                            {ev.summary || "(sem título)"}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {ehDiaTodo ? "Dia todo" : `${inicio} – ${fim}`}
-                          </p>
-                          {ev.description && (
-                            <p className="text-xs text-gray-500 mt-1 truncate">{ev.description}</p>
-                          )}
+                          <p className="text-sm font-medium truncate text-gray-800">{ev.summary || "(sem título)"}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{ehDiaTodo ? "Dia todo" : `${inicio} – ${fim}`}</p>
+                          {ev.description && <p className="text-xs text-gray-500 mt-1 truncate">{ev.description}</p>}
                         </div>
                       </button>
                     );
@@ -925,27 +703,17 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                   if (barbeiros.length === 0) {
                     return (
                       <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                          Agendados ({eventosPendentes.length})
-                        </p>
-                        <div className="flex flex-col gap-2">
-                          {eventosPendentes.map((ev) => renderCard(ev))}
-                        </div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Agendados ({eventosPendentes.length})</p>
+                        <div className="flex flex-col gap-2">{eventosPendentes.map((ev) => renderCard(ev))}</div>
                       </div>
                     );
                   }
 
                   const grupos = barbeiros
-                    .map((b) => ({
-                      barbeiro: b,
-                      cor: GCAL_CORES[b.gcal_color_id] ?? GCAL_CORES["9"],
-                      eventos: eventosPendentes.filter((ev) => ev.colorId === b.gcal_color_id),
-                    }))
+                    .map((b) => ({ barbeiro: b, cor: GCAL_CORES[b.gcal_color_id] ?? GCAL_CORES["9"], eventos: eventosPendentes.filter((ev) => ev.colorId === b.gcal_color_id) }))
                     .filter((g) => g.eventos.length > 0);
 
-                  const semBarbeiro = eventosPendentes.filter(
-                    (ev) => !barbeiros.some((b) => b.gcal_color_id === ev.colorId)
-                  );
+                  const semBarbeiro = eventosPendentes.filter((ev) => !barbeiros.some((b) => b.gcal_color_id === ev.colorId));
 
                   return (
                     <>
@@ -957,31 +725,23 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                               {g.barbeiro.nome} ({g.eventos.length})
                             </p>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            {g.eventos.map((ev) => renderCard(ev, g.cor.hex))}
-                          </div>
+                          <div className="flex flex-col gap-2">{g.eventos.map((ev) => renderCard(ev, g.cor.hex))}</div>
                         </div>
                       ))}
                       {semBarbeiro.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                            Outros ({semBarbeiro.length})
-                          </p>
-                          <div className="flex flex-col gap-2">
-                            {semBarbeiro.map((ev) => renderCard(ev, "#D1D5DB"))}
-                          </div>
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outros ({semBarbeiro.length})</p>
+                          <div className="flex flex-col gap-2">{semBarbeiro.map((ev) => renderCard(ev, "#D1D5DB"))}</div>
                         </div>
                       )}
                     </>
                   );
                 })()}
 
-                {/* Atendimentos concluídos */}
+                {/* Concluídos — abrem comanda diretamente */}
                 {eventosConcluidos.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-2">
-                      Concluídos ({eventosConcluidos.length})
-                    </p>
+                    <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-2">Concluídos ({eventosConcluidos.length})</p>
                     <div className="flex flex-col gap-2">
                       {eventosConcluidos.map((ev) => {
                         const ehDiaTodo = !!ev.start?.date && !ev.start?.dateTime;
@@ -990,28 +750,22 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                         return (
                           <button
                             key={ev.id}
-                            onClick={() => { setEditando(ev); setShowForm(true); }}
+                            onClick={() => { setEventoComanda(ev); setShowComanda(true); }}
                             className="flex items-start gap-3 p-3 border border-green-100 rounded-xl bg-green-50 hover:bg-green-100 transition-all text-left"
                           >
                             <div className="w-1 self-stretch rounded-full shrink-0 bg-green-400" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate text-green-700">
-                                {ev.summary || "(sem título)"}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {ehDiaTodo ? "Dia todo" : `${inicio} – ${fim}`}
-                              </p>
-                              {ev.description && (
-                                <p className="text-xs text-gray-500 mt-1 truncate">{ev.description}</p>
-                              )}
+                              <p className="text-sm font-medium truncate text-green-700">{ev.summary || "(sem título)"}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">{ehDiaTodo ? "Dia todo" : `${inicio} – ${fim}`}</p>
+                              {ev.description && <p className="text-xs text-gray-500 mt-1 truncate">{ev.description}</p>}
                             </div>
+                            <span className="text-xs text-green-400 shrink-0 self-center">🧾</span>
                           </button>
                         );
                       })}
                     </div>
                   </div>
                 )}
-
               </div>
             )}
 
@@ -1032,10 +786,20 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             onSalvar={handleSalvar}
             onFechar={() => { setShowForm(false); setEditando(null); }}
             onDeletar={handleDeletar}
-            onFinalizar={handleFinalizar}
-            servicos={servicos}
+            onIniciarAtendimento={handleIniciarAtendimento}
             barbeiros={barbeiros}
             eventos={eventos}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showComanda && (
+          <Comanda
+            evento={eventoComanda}
+            barbeiros={barbeiros}
+            onFechar={() => { setShowComanda(false); setEventoComanda(null); }}
+            onFinalizar={handleFinalizar}
           />
         )}
       </AnimatePresence>

@@ -345,6 +345,50 @@ async function getConfiguracao(chave) {
   return data?.valor ?? null;
 }
 
+// ─── Comandas ────────────────────────────────────────────────────
+async function getComandaByGcalId(gcalEventId) {
+  const { data, error } = await supabase
+    .from("comandas")
+    .select("*")
+    .eq("gcal_event_id", gcalEventId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function saveComanda(comanda) {
+  const { gcal_event_id } = comanda;
+  const { data: existente } = await supabase
+    .from("comandas")
+    .select("id")
+    .eq("gcal_event_id", gcal_event_id)
+    .maybeSingle();
+
+  if (existente?.id) {
+    const { error } = await supabase.from("comandas").update(comanda).eq("id", existente.id);
+    if (error) throw error;
+    return existente.id;
+  }
+
+  const { data, error } = await supabase.from("comandas").insert(comanda).select().single();
+  if (error) throw error;
+  return data.id;
+}
+
+// ─── Produtos por tipo (bar / loja) ──────────────────────────────
+async function getProdutosByTipo(tipo) {
+  const [{ data: produtos, error: e1 }, { data: cats, error: e2 }] = await Promise.all([
+    supabase.from("produtos").select("*").eq("tipo", tipo).order("nome"),
+    supabase.from("categorias").select("id, nome"),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+  return (produtos ?? []).map((p) => ({
+    ...p,
+    categoria_nome: cats?.find((c) => c.id === p.categoria_id)?.nome ?? "",
+  }));
+}
+
 // ─── Barbeiros ───────────────────────────────────────────────────
 async function getBarbeiros() {
   const { data, error } = await supabase
@@ -405,6 +449,9 @@ export const db = {
   addBarbeiro,
   updateBarbeiro,
   deleteBarbeiro,
+  getComandaByGcalId,
+  saveComanda,
+  getProdutosByTipo,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],
   addDesejo: async () => {},

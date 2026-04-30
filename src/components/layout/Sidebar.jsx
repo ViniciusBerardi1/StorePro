@@ -34,11 +34,14 @@ const MENU = [
     icon: "💰",
   },
   {
-    type: "item",
-    view: "estoque",
+    type: "group",
     label: "Estoque",
     icon: "📦",
     badge: "estoqueBaixo",
+    itens: [
+      { view: "estoque_loja", label: "Loja 🛍️" },
+      { view: "estoque_bar", label: "Bar 🍺" },
+    ],
   },
   {
     type: "item",
@@ -54,7 +57,7 @@ const MENU = [
   },
 ];
 
-const VIEWS_ATIVAS = ["agenda", "estoque", "financeiro", "servicos", "barbeiros"];
+const VIEWS_ATIVAS = ["agenda", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros"];
 
 function isAtivo(entrada, view) {
   if (entrada.type === "item") return view === entrada.view;
@@ -122,6 +125,7 @@ function ItemSingle({ entrada, view, navegar, alertas }) {
 function ItemGroup({ entrada, view, navegar, alertas }) {
   const [aberto, setAberto] = useState(isAtivo(entrada, view));
   const ativoNoGrupo = isAtivo(entrada, view);
+  const badgeCount = entrada.badge ? (alertas?.[entrada.badge] ?? 0) : 0;
 
   return (
     <div>
@@ -134,7 +138,14 @@ function ItemGroup({ entrada, view, navegar, alertas }) {
           <span className="text-base">{entrada.icon}</span>
           {entrada.label}
         </span>
-        <span className="text-gray-300 text-xs">{aberto ? "▾" : "▸"}</span>
+        <span className="flex items-center gap-1.5">
+          {badgeCount > 0 && (
+            <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-medium">
+              {badgeCount}
+            </span>
+          )}
+          <span className="text-gray-300 text-xs">{aberto ? "▾" : "▸"}</span>
+        </span>
       </button>
       {aberto && (
         <div className="flex flex-col gap-0.5 mt-0.5">
