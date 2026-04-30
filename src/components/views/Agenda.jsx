@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   initGoogleCalendar,
@@ -67,7 +67,31 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
   const [salvando, setSalvando] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
   const [erroForm, setErroForm] = useState(null);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [carregandoDados, setCarregandoDados] = useState(!!evento);
+  const servicosRef = useRef(servicos);
+  servicosRef.current = servicos;
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Carrega dados salvos no Supabase ao abrir um evento existente
+  useEffect(() => {
+    if (!evento?.id) return;
+    setCarregandoDados(true);
+    db.getAtendimentoByGcalId(evento.id)
+      .then((salvo) => {
+        if (!salvo) return;
+        const nomesSalvos = new Set((salvo.servicos ?? []).map((s) => s.nome));
+        const ids = servicosRef.current
+          .filter((sv) => nomesSalvos.has(sv.nome))
+          .map((sv) => sv.id);
+        setServicosSelecionados(ids);
+        if (salvo.forma_pagamento) setFormaPagamento(salvo.forma_pagamento);
+        if (salvo.status === "concluido") setBloqueado(true);
+      })
+      .catch(() => {})
+      .finally(() => setCarregandoDados(false));
+  }, [evento?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const servicosAtivos = servicos.filter((s) => s.ativo);
   const total = servicosAtivos
@@ -75,6 +99,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
     .reduce((sum, s) => sum + (Number(s.valor) || 0), 0);
 
   const toggleServico = (id) => {
+    if (bloqueado) return;
     setServicosSelecionados((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
@@ -129,13 +154,26 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
         className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-semibold text-gray-800 text-base">
-            {evento ? "Editar agendamento" : "Novo agendamento"}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-gray-800 text-base">
+              {evento ? "Agendamento" : "Novo agendamento"}
+            </h3>
+            {bloqueado && (
+              <span className="text-xs font-medium bg-green-100 text-green-600 px-2 py-0.5 rounded-full">
+                Concluído
+              </span>
+            )}
+          </div>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {carregandoDados && (
+          <div className="flex items-center justify-center py-6 text-sm text-gray-400 animate-pulse">
+            Carregando dados...
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className={`flex flex-col gap-4 ${carregandoDados ? "hidden" : ""}`}>
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">Título *</label>
             <input
@@ -199,14 +237,19 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
                       key={s.id}
                       type="button"
                       onClick={() => toggleServico(s.id)}
+                      disabled={bloqueado}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border transition-all
+                        ${bloqueado ? "cursor-default" : ""}
                         ${selecionado
-                          ? "bg-indigo-500 border-indigo-500 text-white font-medium"
-                          : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50"
-                        }`}
+                          ? bloqueado
+                            ? "bg-indigo-100 border-indigo-200 text-indigo-500 font-medium"
+                            : "bg-indigo-500 border-indigo-500 text-white font-medium"
+                          : "bg-white border-gray-200 text-gray-400"
+                        }
+                        ${!bloqueado && !selecionado ? "hover:border-indigo-300 hover:bg-indigo-50 hover:text-gray-600" : ""}`}
                     >
                       <span>{s.nome}</span>
-                      <span className={`text-xs ${selecionado ? "text-indigo-200" : "text-gray-400"}`}>
+                      <span className={`text-xs ${selecionado ? (bloqueado ? "text-indigo-400" : "text-indigo-200") : "text-gray-300"}`}>
                         {fmtValor(s.valor)}
                       </span>
                     </button>
@@ -252,12 +295,17 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
                   <button
                     key={op.id}
                     type="button"
-                    onClick={() => setFormaPagamento(op.id)}
+                    onClick={() => !bloqueado && setFormaPagamento(op.id)}
+                    disabled={bloqueado}
                     className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border text-sm transition-all
+                      ${bloqueado ? "cursor-default" : ""}
                       ${formaPagamento === op.id
-                        ? "bg-indigo-500 border-indigo-500 text-white font-medium"
-                        : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50"
-                      }`}
+                        ? bloqueado
+                          ? "bg-indigo-100 border-indigo-200 text-indigo-500 font-medium"
+                          : "bg-indigo-500 border-indigo-500 text-white font-medium"
+                        : "bg-white border-gray-200 text-gray-400"
+                      }
+                      ${!bloqueado && formaPagamento !== op.id ? "hover:border-indigo-300 hover:bg-indigo-50 hover:text-gray-600" : ""}`}
                   >
                     <span className="text-base">{op.emoji}</span>
                     <span>{op.label}</span>
@@ -273,8 +321,17 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
             </div>
           )}
 
-          {/* Botão finalizar — só aparece ao editar evento existente */}
-          {evento && (
+          {/* Botão editar (quando concluído) ou finalizar (quando pendente/editando) */}
+          {evento && bloqueado && (
+            <button
+              type="button"
+              onClick={() => setBloqueado(false)}
+              className="w-full border-2 border-indigo-300 text-indigo-600 py-2.5 rounded-xl text-sm font-semibold transition-colors hover:bg-indigo-50 flex items-center justify-center gap-2"
+            >
+              ✏️ Editar atendimento
+            </button>
+          )}
+          {evento && !bloqueado && (
             <button
               type="button"
               onClick={handleFinalizar}
@@ -282,7 +339,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
               className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {finalizando
-                ? "Finalizando..."
+                ? "Salvando..."
                 : total > 0
                   ? `✅ Finalizar — ${fmtValor(total)}`
                   : "✅ Finalizar atendimento"}

@@ -110,6 +110,16 @@ async function deleteCliente(id) {
 }
 
 // ─── Atendimentos ────────────────────────────────────────────────
+async function getAtendimentoByGcalId(gcalEventId) {
+  const { data, error } = await supabase
+    .from("atendimentos")
+    .select("*")
+    .eq("gcal_event_id", gcalEventId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 async function getAtendimentos() {
   const { data, error } = await supabase
     .from("atendimentos")
@@ -338,6 +348,7 @@ export const db = {
   addCliente,
   updateCliente,
   deleteCliente,
+  getAtendimentoByGcalId,
   getAtendimentos,
   getAtendimentosHoje,
   getAtendimentosMes,
