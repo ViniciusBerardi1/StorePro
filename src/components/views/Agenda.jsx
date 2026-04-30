@@ -50,7 +50,7 @@ function fmtValor(v) {
 }
 
 // ─── Formulário de evento ─────────────────────────────────────────
-function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinalizar, servicos = [], barbeiros = [] }) {
+function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinalizar, servicos = [], barbeiros = [], eventos = [] }) {
   const dataDefault = (diaPadrao ?? new Date()).toISOString().slice(0, 10);
 
   const [form, setForm] = useState({
@@ -80,6 +80,8 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
   servicosRef.current = servicos;
   const barbeirosRef = useRef(barbeiros);
   barbeirosRef.current = barbeiros;
+  const eventosRef = useRef(eventos);
+  eventosRef.current = eventos;
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -124,6 +126,34 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
       return setErroForm("Horário de fim deve ser entre 09:00 e 20:00.");
     if (form.horaFim <= form.horaInicio)
       return setErroForm("Horário de fim deve ser após o início.");
+
+    const inicioNovo = new Date(`${form.data}T${form.horaInicio}:00`);
+    const fimNovo    = new Date(`${form.data}T${form.horaFim}:00`);
+
+    // Bloqueia novo agendamento no passado (edição de eventos existentes é permitida)
+    if (!evento && inicioNovo <= new Date())
+      return setErroForm("Não é possível agendar em horários que já passaram.");
+
+    // Verifica conflito de horário para o barbeiro selecionado
+    if (barbeiroId) {
+      const barbSel = barbeirosRef.current.find((b) => b.id === barbeiroId);
+      if (barbSel) {
+        const conflito = eventosRef.current
+          .filter((ev) =>
+            ev.colorId === barbSel.gcal_color_id &&
+            ev.id !== evento?.id &&
+            ev.start?.dateTime
+          )
+          .some((ev) => {
+            const evInicio = new Date(ev.start.dateTime);
+            const evFim    = new Date(ev.end.dateTime);
+            return inicioNovo < evFim && fimNovo > evInicio;
+          });
+        if (conflito)
+          return setErroForm(`${barbSel.nome} já tem agendamento neste horário. Escolha outro horário ou barbeiro.`);
+      }
+    }
+
     setErroForm(null);
     setSalvando(true);
     try {
@@ -1005,6 +1035,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             onFinalizar={handleFinalizar}
             servicos={servicos}
             barbeiros={barbeiros}
+            eventos={eventos}
           />
         )}
       </AnimatePresence>
