@@ -4,16 +4,15 @@ import { Home } from "lucide-react";
 const MENU = [
   {
     type: "item",
-    view: "dashboard",
-    label: "Dashboard",
-    icon: "🏠",
+    view: "agenda",
+    label: "Agenda",
+    icon: "📅",
   },
   {
     type: "group",
     label: "Atendimento",
     icon: "✂️",
     itens: [
-      { view: "agenda", label: "Agenda" },
       { view: "servicos", label: "Serviços" },
       { view: "barbeiros", label: "Barbeiros" },
       { view: "novo_atendimento", label: "Novo atendimento" },
