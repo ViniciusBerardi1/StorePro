@@ -55,17 +55,18 @@ create index if not exists clientes_nome_idx on clientes(nome);
 -- ─── Atendimentos ────────────────────────────────────────────
 -- servicos: [{ nome: string, valor: number }]
 create table if not exists atendimentos (
-  id            serial primary key,
-  data_hora     timestamptz not null,
-  cliente_nome  text,
-  cliente_id    integer references clientes(id) on delete set null,
-  servicos      jsonb default '[]',
-  valor_total   numeric(10,2) default 0,
-  status        text default 'agendado'
-                  check (status in ('agendado','em_andamento','concluido','cancelado')),
+  id              serial primary key,
+  gcal_event_id   text unique,
+  data_hora       timestamptz not null,
+  cliente_nome    text,
+  cliente_id      integer references clientes(id) on delete set null,
+  servicos        jsonb default '[]',
+  valor_total     numeric(10,2) default 0,
+  status          text default 'agendado'
+                    check (status in ('agendado','em_andamento','concluido','cancelado')),
   forma_pagamento text check (forma_pagamento in ('debito','credito','pix')),
-  observacoes   text,
-  data_cadastro timestamptz default now()
+  observacoes     text,
+  data_cadastro   timestamptz default now()
 );
 
 create index if not exists atendimentos_data_idx   on atendimentos(data_hora);

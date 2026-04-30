@@ -256,6 +256,18 @@ async function getDashboardData() {
 
 async function addAtendimento(a) {
   const { id: _id, ...payload } = a;
+
+  if (payload.gcal_event_id) {
+    // Upsert pelo ID do evento do Google Calendar — evita duplicatas ao finalizar o mesmo evento mais de uma vez
+    const { data, error } = await supabase
+      .from("atendimentos")
+      .upsert(payload, { onConflict: "gcal_event_id", ignoreDuplicates: false })
+      .select()
+      .single();
+    if (error) throw error;
+    return data.id;
+  }
+
   const { data, error } = await supabase.from("atendimentos").insert(payload).select().single();
   if (error) throw error;
   return data.id;

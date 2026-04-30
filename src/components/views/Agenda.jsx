@@ -534,6 +534,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
     // Supabase + Google Calendar em paralelo, em background
     const [supabaseResult, gcalResult] = await Promise.allSettled([
       db.addAtendimento({
+        gcal_event_id: ev.id,
         data_hora: new Date(`${form.data}T${form.horaInicio}:00`).toISOString(),
         cliente_nome: clienteNome,
         servicos: servicosSalvar,
