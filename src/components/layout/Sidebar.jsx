@@ -1,25 +1,166 @@
 import { useState, memo } from "react";
 import { Home } from "lucide-react";
 
-const CATEGORIA_ICONS = {
-  skincare: "✨",
-  cabelo: "💇",
-  maquiagem: "💄",
-  corpo: "🧴",
-  perfumaria: "🌸",
-  outros: "📦",
-};
+const MENU = [
+  {
+    type: "item",
+    view: "dashboard",
+    label: "Dashboard",
+    icon: "🏠",
+  },
+  {
+    type: "group",
+    label: "Atendimento",
+    icon: "✂️",
+    itens: [
+      { view: "agenda", label: "Agenda" },
+      { view: "servicos", label: "Serviços" },
+      { view: "novo_atendimento", label: "Novo atendimento" },
+    ],
+  },
+  {
+    type: "group",
+    label: "Clientes",
+    icon: "👥",
+    itens: [
+      { view: "clientes_lista", label: "Lista" },
+      { view: "clientes_historico", label: "Histórico" },
+    ],
+  },
+  {
+    type: "group",
+    label: "Financeiro",
+    icon: "💰",
+    itens: [
+      { view: "caixa", label: "Caixa" },
+      { view: "financeiro_movimentacoes", label: "Movimentações" },
+      { view: "financeiro_relatorios", label: "Relatórios" },
+    ],
+  },
+  {
+    type: "item",
+    view: "estoque",
+    label: "Estoque",
+    icon: "📦",
+    badge: "estoqueBaixo",
+  },
+  {
+    type: "item",
+    view: "relatorios",
+    label: "Relatórios",
+    icon: "📊",
+  },
+  {
+    type: "item",
+    view: "configuracoes",
+    label: "Configurações",
+    icon: "⚙️",
+  },
+];
 
-function Logo({ altura }) {
+const VIEWS_ATIVAS = ["dashboard", "estoque", "agenda", "servicos"];
+
+function isAtivo(entrada, view) {
+  if (entrada.type === "item") return view === entrada.view;
+  return entrada.itens.some((i) => i.view === view);
+}
+
+function Logo() {
   return (
-    <div className="flex items-center gap-2">
-      <img src="/logo.png" alt="Beleza by Mih" className={`${altura} w-auto`} />
-      <h1
-        className="font-semibold text-gray-800"
-        style={{ fontFamily: "Playfair Display, serif" }}
+    <div className="flex items-center gap-2 px-2">
+      <span className="text-2xl">🏪</span>
+      <h1 className="font-semibold text-gray-800 text-lg">StorePro</h1>
+    </div>
+  );
+}
+
+function SubItem({ item, view, navegar }) {
+  const ativo = view === item.view;
+  const emBreve = !VIEWS_ATIVAS.includes(item.view);
+
+  return (
+    <button
+      onClick={() => !emBreve && navegar(item.view)}
+      disabled={emBreve}
+      className={`flex items-center justify-between w-full pl-9 pr-3 py-2 rounded-xl text-sm transition-colors text-left
+        ${ativo ? "bg-indigo-50 text-indigo-600 font-medium" : "text-gray-500 hover:bg-gray-100"}
+        ${emBreve ? "opacity-40 cursor-default" : ""}`}
+    >
+      <span>{item.label}</span>
+      {emBreve && (
+        <span className="text-xs text-gray-300 font-normal">em breve</span>
+      )}
+    </button>
+  );
+}
+
+function ItemSingle({ entrada, view, navegar, alertas }) {
+  const ativo = view === entrada.view;
+  const emBreve = !VIEWS_ATIVAS.includes(entrada.view);
+  const badgeCount = entrada.badge ? (alertas?.[entrada.badge] ?? 0) : 0;
+
+  return (
+    <button
+      onClick={() => !emBreve && navegar(entrada.view)}
+      disabled={emBreve}
+      className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left
+        ${ativo ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-100"}
+        ${emBreve ? "opacity-40 cursor-default" : ""}`}
+    >
+      <span className="flex items-center gap-3">
+        <span className="text-base">{entrada.icon}</span>
+        {entrada.label}
+      </span>
+      {emBreve && (
+        <span className="text-xs text-gray-300 font-normal">em breve</span>
+      )}
+      {badgeCount > 0 && (
+        <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
+          {badgeCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ItemGroup({ entrada, view, navegar, alertas }) {
+  const [aberto, setAberto] = useState(isAtivo(entrada, view));
+  const ativoNoGrupo = isAtivo(entrada, view);
+
+  return (
+    <div>
+      <button
+        onClick={() => setAberto((v) => !v)}
+        className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left
+          ${ativoNoGrupo ? "text-indigo-600" : "text-gray-600 hover:bg-gray-100"}`}
       >
-        Beleza by Mih
-      </h1>
+        <span className="flex items-center gap-3">
+          <span className="text-base">{entrada.icon}</span>
+          {entrada.label}
+        </span>
+        <span className="text-gray-300 text-xs">{aberto ? "▾" : "▸"}</span>
+      </button>
+      {aberto && (
+        <div className="flex flex-col gap-0.5 mt-0.5">
+          {entrada.itens.map((item) => (
+            <SubItem key={item.view} item={item} view={view} navegar={navegar} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuConteudo({ view, navegar, alertas }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      {MENU.map((entrada) =>
+        entrada.type === "item" ? (
+          <ItemSingle key={entrada.view} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />
+        ) : (
+          <ItemGroup key={entrada.label} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />
+        )
+      )}
     </div>
   );
 }
@@ -30,195 +171,42 @@ function BotaoSobre({ view, navegar }) {
       <button
         onClick={() => navegar("sobre")}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left
-          ${view === "sobre" ? "bg-rose-50 text-rose-600" : "text-gray-500 hover:bg-gray-100"}`}
+          ${view === "sobre" ? "bg-indigo-50 text-indigo-600" : "text-gray-500 hover:bg-gray-100"}`}
       >
-        <span className="text-lg">ℹ️</span> Sobre
+        <span className="text-base">ℹ️</span> Sobre
       </button>
     </div>
   );
 }
 
-function MenuConteudo({
-  view,
-  navegar,
-  categorias,
-  categoriasAberto,
-  setCategoriasAberto,
-  alertasAberto,
-  setAlertasAberto,
-  totalVencendo,
-  totalVencidos,
-  totalEstoqueBaixo,
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <button
-        onClick={() => navegar("produtos")}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left
-          ${view === "produtos" ? "bg-rose-50 text-rose-600" : "text-gray-500 hover:bg-gray-100"}`}
-      >
-        <span className="text-lg">🧴</span> Todos os produtos
-      </button>
-
-      <button
-        onClick={() => navegar("dashboard")}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left
-          ${view === "dashboard" ? "bg-rose-50 text-rose-600" : "text-gray-500 hover:bg-gray-100"}`}
-      >
-        <span className="text-lg">📊</span> Dashboard
-      </button>
-
-      <button
-        onClick={() => navegar("historico")}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left
-          ${view === "historico" ? "bg-rose-50 text-rose-600" : "text-gray-500 hover:bg-gray-100"}`}
-      >
-        <span className="text-lg">📋</span> Histórico
-      </button>
-
-      <button
-        onClick={() => navegar("desejos")}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left
-          ${view === "desejos" ? "bg-rose-50 text-rose-600" : "text-gray-500 hover:bg-gray-100"}`}
-      >
-        <span className="text-lg">💝</span> Lista de desejos
-      </button>
-
-      <div className="mt-3">
-        <button
-          onClick={() => setCategoriasAberto(!categoriasAberto)}
-          className="flex items-center justify-between w-full px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors"
-        >
-          <span>Categorias</span>
-          <span>{categoriasAberto ? "▾" : "▸"}</span>
-        </button>
-        {categoriasAberto && (
-          <div className="flex flex-col gap-0.5 mt-1">
-            {categorias.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => navegar(`cat_${cat.id}`)}
-                className={`flex items-center gap-3 px-4 py-2 rounded-xl text-sm transition-colors w-full text-left
-                  ${view === `cat_${cat.id}` ? "bg-rose-50 text-rose-600" : "text-gray-500 hover:bg-gray-100"}`}
-              >
-                <span className="text-base">
-                  {CATEGORIA_ICONS[cat.nome.toLowerCase()] || "🏷️"}
-                </span>
-                {cat.nome}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-3">
-        <button
-          onClick={() => setAlertasAberto(!alertasAberto)}
-          className="flex items-center justify-between w-full px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors"
-        >
-          <span>Alertas</span>
-          <span>{alertasAberto ? "▾" : "▸"}</span>
-        </button>
-        {alertasAberto && (
-          <div className="flex flex-col gap-0.5 mt-1">
-            <button
-              onClick={() => navegar("vencendo")}
-              className={`flex items-center justify-between px-4 py-2 rounded-xl text-sm transition-colors w-full text-left ${view === "vencendo" ? "bg-yellow-50 text-yellow-600" : "text-gray-500 hover:bg-gray-100"}`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-base">⚠️</span> Vencendo
-              </span>
-              {totalVencendo > 0 && (
-                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
-                  {totalVencendo}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => navegar("vencidos")}
-              className={`flex items-center justify-between px-4 py-2 rounded-xl text-sm transition-colors w-full text-left ${view === "vencidos" ? "bg-red-50 text-red-600" : "text-gray-500 hover:bg-gray-100"}`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-base">🔴</span> Vencidos
-              </span>
-              {totalVencidos > 0 && (
-                <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">
-                  {totalVencidos}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => navegar("estoque_baixo")}
-              className={`flex items-center justify-between px-4 py-2 rounded-xl text-sm transition-colors w-full text-left ${view === "estoque_baixo" ? "bg-orange-50 text-orange-600" : "text-gray-500 hover:bg-gray-100"}`}
-            >
-              <span className="flex items-center gap-3">
-                <span className="text-base">📦</span> Estoque baixo
-              </span>
-              {totalEstoqueBaixo > 0 && (
-                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
-                  {totalEstoqueBaixo}
-                </span>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Sidebar({ view, setView, alertas, categorias = [] }) {
+function Sidebar({ view, setView, alertas }) {
   const [menuAberto, setMenuAberto] = useState(false);
-  const [categoriasAberto, setCategoriasAberto] = useState(true);
-  const [alertasAberto, setAlertasAberto] = useState(true);
-
-  const totalVencendo = alertas?.vencendo ?? 0;
-  const totalVencidos = alertas?.vencidos ?? 0;
-  const totalEstoqueBaixo = alertas?.estoqueBaixo ?? 0;
 
   const navegar = (v) => {
     setView(v);
     setMenuAberto(false);
   };
 
-  const menuProps = {
-    view,
-    navegar,
-    categorias,
-    categoriasAberto,
-    setCategoriasAberto,
-    alertasAberto,
-    setAlertasAberto,
-    totalVencendo,
-    totalVencidos,
-    totalEstoqueBaixo,
-  };
-
   return (
     <>
       <aside className="hidden md:flex fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 flex-col py-6 px-4 gap-1 z-40">
-        <div className="mb-6 px-2">
-          <Logo altura="h-10" />
+        <div className="mb-6">
+          <Logo />
         </div>
         <div className="flex-1 overflow-y-auto">
-          <MenuConteudo {...menuProps} />
+          <MenuConteudo view={view} navegar={navegar} alertas={alertas} />
         </div>
         <BotaoSobre view={view} navegar={navegar} />
       </aside>
 
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between">
-        <button
-          onClick={() => setMenuAberto(!menuAberto)}
-          className="flex items-center gap-2"
-        >
-          <img src="/logo.png" alt="Beleza by Mih" className="h-8 w-auto" />
-          <h1 className="text-base font-semibold text-gray-700">
-            Beleza by Mih
-          </h1>
+        <button onClick={() => setMenuAberto(!menuAberto)} className="flex items-center gap-2">
+          <span className="text-xl">🏪</span>
+          <h1 className="text-base font-semibold text-gray-700">StorePro</h1>
         </button>
         <button
           onClick={() => navegar("dashboard")}
-          className="text-gray-500 hover:text-rose-500 transition-colors p-2 h-10 w-10 flex items-center justify-center"
+          className="text-gray-500 hover:text-indigo-500 transition-colors p-2 h-10 w-10 flex items-center justify-center"
         >
           <Home size={22} />
         </button>
@@ -226,22 +214,16 @@ function Sidebar({ view, setView, alertas, categorias = [] }) {
 
       {menuAberto && (
         <>
-          <div
-            className="md:hidden fixed inset-0 bg-black/30 z-40"
-            onClick={() => setMenuAberto(false)}
-          />
+          <div className="md:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMenuAberto(false)} />
           <div className="md:hidden fixed top-0 left-0 h-full w-72 bg-white z-50 flex flex-col py-6 px-4 shadow-xl">
-            <div className="flex items-center justify-between mb-6 px-2">
-              <Logo altura="h-10" />
-              <button
-                onClick={() => setMenuAberto(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl"
-              >
+            <div className="flex items-center justify-between mb-6">
+              <Logo />
+              <button onClick={() => setMenuAberto(false)} className="text-gray-400 hover:text-gray-600 text-xl">
                 ✕
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <MenuConteudo {...menuProps} />
+              <MenuConteudo view={view} navegar={navegar} alertas={alertas} />
             </div>
             <BotaoSobre view={view} navegar={navegar} />
           </div>

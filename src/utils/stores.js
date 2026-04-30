@@ -1,10 +1,10 @@
-export function getLojaUrl(nomeProduto, lojaId) {
+export function getFornecedorUrl(nomeProduto, fornecedorId) {
   const busca = encodeURIComponent(nomeProduto);
   const urls = {
-    sephora: `https://www.sephora.com.br/search?q=${busca}`,
-    belezanaweb: `https://www.belezanaweb.com.br/busca?q=${busca}`,
-    epoca: `https://www.epocacosmeticos.com.br/busca?q=${busca}`,
-    boticario: `https://www.boticario.com.br/busca?q=${busca}`,
+    mercadolivre: `https://lista.mercadolivre.com.br/${busca}`,
+    americanas: `https://www.americanas.com.br/busca/${busca}`,
+    shopee: `https://shopee.com.br/search?keyword=${busca}`,
+    amazon: `https://www.amazon.com.br/s?k=${busca}`,
   };
-  return urls[lojaId] || urls.sephora;
+  return urls[fornecedorId] || urls.mercadolivre;
 }

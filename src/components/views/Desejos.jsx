@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { db } from "../../services/db";
+import { db } from "../../services/supabaseDb";
 
 function DesejoForm({ desejo, categorias, onSalvar, onFechar }) {
   const [form, setForm] = useState({

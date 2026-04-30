@@ -1,3 +1,3 @@
-# beleza-by-mih-pwa
+# store-pro-pwa
 
-PWA de gestão de estoque de produtos de beleza, desenvolvida com React + Vite + IndexedDB.
+PWA de gestão de loja — controle de estoque, clientes e faturamento. Desenvolvida com React + Vite + IndexedDB.

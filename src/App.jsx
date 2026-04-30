@@ -7,18 +7,14 @@ import Dashboard from "./components/views/Dashboard";
 import Sobre from "./components/views/Sobre";
 import Historico from "./components/views/Historico";
 import Desejos from "./components/views/Desejos";
+import EmBreve from "./components/views/EmBreve";
+import Agenda from "./components/views/Agenda";
+import Servicos from "./components/views/Servicos";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
-import { differenceInDays, parseISO } from "date-fns";
-import { db } from "./services/db";
+import { db } from "./services/supabaseDb";
 
-const TITULO_VIEW = {
-  produtos: "Todos os Produtos",
-  vencendo: "⚠️ Vencendo em breve",
-  vencidos: "🔴 Produtos Vencidos",
-  estoque_baixo: "📦 Estoque Baixo",
-  historico: "📋 Histórico de consumo",
-};
+const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos"];
 
 const pageVariants = {
   initial: { opacity: 0, y: 16 },
@@ -30,7 +26,7 @@ const pageTransition = { duration: 0.2, ease: "easeInOut" };
 
 export default function App() {
   const [view, setView] = useState(() => {
-    const stored = localStorage.getItem("beleza_view") || "dashboard";
+    const stored = localStorage.getItem("storepro_view") || "dashboard";
     if (stored.startsWith("cat_") && isNaN(Number(stored.replace("cat_", "")))) return "dashboard";
     return stored;
   });
@@ -43,8 +39,14 @@ export default function App() {
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [desejoOrigemId, setDesejoOrigemId] = useState(null);
 
+  // ─── Dados do Dashboard (ficam no App para nunca pararem de atualizar) ────
+  const [atendimentosHoje, setAtendimentosHoje] = useState([]);
+  const [atendimentosMes, setAtendimentosMes]   = useState([]);
+  const [grafico, setGrafico]                   = useState([]);
+  const [loadingDash, setLoadingDash]           = useState(true);
+
   useEffect(() => {
-    localStorage.setItem("beleza_view", view);
+    localStorage.setItem("storepro_view", view);
   }, [view]);
 
   const carregar = useCallback(async () => {
@@ -63,6 +65,43 @@ export default function App() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  // ─── Polling do Dashboard — roda sempre, mesmo fora da aba Dashboard ─────
+  const carregarDashboard = useCallback(async () => {
+    const agora = new Date();
+    try {
+      const [hoje, mes, graf] = await Promise.all([
+        db.getAtendimentosHoje(),
+        db.getAtendimentosMes(agora.getFullYear(), agora.getMonth() + 1),
+        db.getFaturamentoUltimosDias(7),
+      ]);
+      setAtendimentosHoje(hoje);
+      setAtendimentosMes(mes);
+      setGrafico(graf);
+    } catch (err) {
+      console.error("[Dashboard] Erro ao carregar:", err);
+    } finally {
+      setLoadingDash(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarDashboard();
+
+    // Polling a cada 30s
+    const intervalo = setInterval(carregarDashboard, 30_000);
+
+    // Atualiza ao voltar para a aba do browser
+    const handleVisibilidade = () => {
+      if (document.visibilityState === "visible") carregarDashboard();
+    };
+    document.addEventListener("visibilitychange", handleVisibilidade);
+
+    return () => {
+      clearInterval(intervalo);
+      document.removeEventListener("visibilitychange", handleVisibilidade);
+    };
+  }, [carregarDashboard]);
 
   const handleSalvar = useCallback(async (produto) => {
     try {
@@ -147,60 +186,30 @@ export default function App() {
     }
   }, [carregar]);
 
-  const alertas = useMemo(() => {
-    const hoje = new Date();
-    return {
-      vencendo: produtos.filter((p) => {
-        if (!p.data_validade) return false;
-        const dias = differenceInDays(parseISO(p.data_validade), hoje);
-        return dias >= 0 && dias <= 60;
-      }).length,
-      vencidos: produtos.filter((p) => {
-        if (!p.data_validade) return false;
-        return differenceInDays(parseISO(p.data_validade), hoje) < 0;
-      }).length,
-      estoqueBaixo: produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1)).length,
-    };
-  }, [produtos]);
+  const alertas = useMemo(() => ({
+    estoqueBaixo: produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1)).length,
+  }), [produtos]);
 
   const produtosFiltrados = useMemo(() => {
-    const hoje = new Date();
-    if (view === "vencendo") {
-      return produtos.filter((p) => {
-        if (!p.data_validade) return false;
-        const dias = differenceInDays(parseISO(p.data_validade), hoje);
-        return dias >= 0 && dias <= 60;
-      });
-    }
-    if (view === "vencidos") {
-      return produtos.filter((p) => {
-        if (!p.data_validade) return false;
-        return differenceInDays(parseISO(p.data_validade), hoje) < 0;
-      });
-    }
     if (view === "estoque_baixo") {
       return produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1));
-    }
-    if (view.startsWith("cat_")) {
-      const catId = Number(view.replace("cat_", ""));
-      return produtos.filter((p) => Number(p.categoria_id) === catId);
     }
     return produtos;
   }, [view, produtos]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
-      <Sidebar view={view} setView={setView} alertas={alertas} categorias={categorias} />
+      <Sidebar view={view} setView={setView} alertas={alertas} />
 
       <AnimatePresence>
-        {(view === "produtos" || view.startsWith("cat_")) && (
+        {VIEWS_ESTOQUE.includes(view) && (
           <motion.button
             onClick={handleNovo}
             initial={{ opacity: 0, scale: 0.8, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: -8 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed top-2 right-14 md:right-4 z-50 bg-rose-500 hover:bg-rose-600 text-white font-semibold px-4 h-10 rounded-2xl transition-colors shadow-lg text-sm md:text-base flex items-center"
+            className="fixed top-2 right-14 md:right-4 z-50 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-4 h-10 rounded-2xl transition-colors shadow-lg text-sm md:text-base flex items-center"
           >
             ✨ Novo produto
           </motion.button>
@@ -219,28 +228,34 @@ export default function App() {
           >
             {view === "sobre" ? (
               <Sobre />
-            ) : view === "desejos" ? (
-              <Desejos categorias={categorias} onAdicionarAoEstoque={handleAdicionarDesejo} />
-            ) : view === "historico" ? (
-              <Historico />
+            ) : view === "servicos" ? (
+              <Servicos />
+            ) : view === "agenda" ? (
+              <Agenda onAtendimentoFinalizado={carregarDashboard} />
             ) : view === "dashboard" ? (
               <Dashboard
+                atendimentosHoje={atendimentosHoje}
+                atendimentosMes={atendimentosMes}
+                grafico={grafico}
+                loadingDash={loadingDash}
+                onRefresh={carregarDashboard}
                 produtos={produtos}
-                categorias={categorias}
                 setView={setView}
                 carregando={carregando}
               />
-            ) : (
+            ) : VIEWS_ESTOQUE.includes(view) ? (
               <ProdutoList
-                titulo={TITULO_VIEW[view] || categorias.find((c) => `cat_${c.id}` === view)?.nome || "Produtos"}
+                titulo={view === "estoque_baixo" ? "Estoque Baixo" : "Estoque"}
                 produtos={produtosFiltrados}
                 categorias={categorias}
                 onEditar={handleEditar}
                 onDeletar={handleDeletar}
                 onNovo={handleNovo}
                 onAtualizarQuantidade={handleAtualizarQuantidade}
-                mostrarBotaoNovo={view === "produtos"}
+                mostrarBotaoNovo={true}
               />
+            ) : (
+              <EmBreve modulo={view} />
             )}
           </motion.div>
         </AnimatePresence>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { formatDistanceToNow, parseISO, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
-import { db } from "../../services/db";
+import { db } from "../../services/supabaseDb";
 
 export default function Historico() {
   const [historico, setHistorico] = useState([]);

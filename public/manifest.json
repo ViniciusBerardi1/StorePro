@@ -1,8 +1,8 @@
 {
-  "name": "Beleza by Mih",
-  "short_name": "Beleza by Mih",
-  "description": "Gestão de estoque de produtos de beleza",
-  "theme_color": "#f43f5e",
+  "name": "StorePro",
+  "short_name": "StorePro",
+  "description": "Gestão de loja — estoque, clientes e faturamento",
+  "theme_color": "#6366f1",
   "background_color": "#ffffff",
   "display": "standalone",
   "orientation": "portrait",

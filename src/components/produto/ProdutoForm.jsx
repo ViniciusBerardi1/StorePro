@@ -10,25 +10,20 @@ export default function ProdutoForm({
     id: produto?.id || null,
     nome: produto?.nome || "",
     foto: produto?.foto || "",
-    data_validade: produto?.data_validade || "",
     quantidade: produto?.quantidade || 0,
     estoque_minimo: produto?.estoque_minimo ?? 1,
     categoria_id: produto?.categoria_id || categorias[0]?.id || "",
     tem_cor: produto?.tem_cor || 0,
     cor: produto?.cor || "",
-    loja_compra: produto?.loja_compra || "sephora",
-    avaliacao: produto?.avaliacao || 0,
     tem_tamanho: produto?.tem_tamanho || 0,
     tamanho_quantidade: produto?.tamanho_quantidade || "",
-    tamanho_unidade: produto?.tamanho_unidade || "ml",
-    preco_pago: produto?.preco_pago ?? "",
+    tamanho_unidade: produto?.tamanho_unidade || "un",
+    preco_custo: produto?.preco_custo ?? "",
+    preco_venda: produto?.preco_venda ?? "",
   });
 
   const handleSubmit = () => {
     if (!form.nome.trim()) return alert("Informe o nome do produto.");
-    if (!form.data_validade) return alert("Informe a data de validade.");
-    if (isNaN(new Date(form.data_validade).getTime()))
-      return alert("Data de validade inválida.");
     if (form.quantidade < 0) return alert("Quantidade não pode ser negativa.");
     if (form.estoque_minimo < 0) return alert("Estoque mínimo não pode ser negativo.");
     if (form.tem_tamanho && !String(form.tamanho_quantidade).trim())
@@ -52,19 +47,20 @@ export default function ProdutoForm({
         </div>
 
         <div className="flex flex-col gap-4">
+          {/* Nome */}
           <div>
-            <label htmlFor="produto-nome" className="text-xs font-medium text-gray-500 mb-1 block">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
               Nome do produto *
             </label>
             <input
-              id="produto-nome"
               type="text"
               value={form.nome}
               onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
             />
           </div>
 
+          {/* Categoria */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
               Categoria
@@ -74,7 +70,7 @@ export default function ProdutoForm({
               onChange={(e) =>
                 setForm((f) => ({ ...f, categoria_id: Number(e.target.value) }))
               }
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
             >
               {categorias.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -84,24 +80,9 @@ export default function ProdutoForm({
             </select>
           </div>
 
+          {/* Quantidade + Estoque mínimo */}
           <div className="flex gap-3">
             <div className="flex-1">
-              <label htmlFor="produto-data-validade" className="text-xs font-medium text-gray-500 mb-1 block">
-                Data de validade *
-              </label>
-              <input
-                id="produto-data-validade"
-                type="date"
-                value={form.data_validade}
-                min="2000-01-01"
-                max="2099-12-31"
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, data_validade: e.target.value }))
-                }
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
-              />
-            </div>
-            <div className="w-24">
               <label className="text-xs font-medium text-gray-500 mb-1 block">
                 Quantidade
               </label>
@@ -110,15 +91,12 @@ export default function ProdutoForm({
                 min="0"
                 value={form.quantidade}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    quantidade: parseInt(e.target.value) || 0,
-                  }))
+                  setForm((f) => ({ ...f, quantidade: parseInt(e.target.value) || 0 }))
                 }
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
             </div>
-            <div className="w-24">
+            <div className="flex-1">
               <label className="text-xs font-medium text-gray-500 mb-1 block">
                 Mín. repor
               </label>
@@ -127,16 +105,62 @@ export default function ProdutoForm({
                 min="0"
                 value={form.estoque_minimo}
                 onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    estoque_minimo: parseInt(e.target.value) || 0,
-                  }))
+                  setForm((f) => ({ ...f, estoque_minimo: parseInt(e.target.value) || 0 }))
                 }
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
             </div>
           </div>
 
+          {/* Preço custo + Preço venda */}
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">
+                Preço de custo
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={form.preco_custo}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      preco_custo: e.target.value === "" ? "" : parseFloat(e.target.value) || "",
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                />
+              </div>
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">
+                Preço de venda
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={form.preco_venda}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      preco_venda: e.target.value === "" ? "" : parseFloat(e.target.value) || "",
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Foto */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
               Foto do produto
@@ -166,22 +190,12 @@ export default function ProdutoForm({
                           const MAX = 600;
                           let w = img.width;
                           let h = img.height;
-                          if (w > h && w > MAX) {
-                            h = (h * MAX) / w;
-                            w = MAX;
-                          } else if (h > MAX) {
-                            w = (w * MAX) / h;
-                            h = MAX;
-                          }
+                          if (w > h && w > MAX) { h = (h * MAX) / w; w = MAX; }
+                          else if (h > MAX) { w = (w * MAX) / h; h = MAX; }
                           canvas.width = w;
                           canvas.height = h;
-                          const ctx = canvas.getContext("2d");
-                          ctx.drawImage(img, 0, 0, w, h);
-                          const compressed = canvas.toDataURL(
-                            "image/jpeg",
-                            0.7,
-                          );
-                          setForm((f) => ({ ...f, foto: compressed }));
+                          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+                          setForm((f) => ({ ...f, foto: canvas.toDataURL("image/jpeg", 0.7) }));
                         };
                         img.src = ev.target.result;
                       };
@@ -202,6 +216,7 @@ export default function ProdutoForm({
             </div>
           </div>
 
+          {/* Cor */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
               Cor do produto
@@ -209,165 +224,64 @@ export default function ProdutoForm({
             <div className="flex items-center gap-3 mb-2">
               <button
                 type="button"
-                onClick={() =>
-                  setForm((f) => ({
-                    ...f,
-                    tem_cor: f.tem_cor ? 0 : 1,
-                    cor: "",
-                  }))
-                }
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.tem_cor ? "bg-rose-500" : "bg-gray-200"}`}
+                onClick={() => setForm((f) => ({ ...f, tem_cor: f.tem_cor ? 0 : 1, cor: "" }))}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.tem_cor ? "bg-indigo-500" : "bg-gray-200"}`}
               >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${form.tem_cor ? "translate-x-4" : "translate-x-1"}`}
-                />
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${form.tem_cor ? "translate-x-4" : "translate-x-1"}`} />
               </button>
-              <span className="text-sm text-gray-500">
-                {form.tem_cor ? "Tem cor" : "Sem cor"}
-              </span>
+              <span className="text-sm text-gray-500">{form.tem_cor ? "Tem cor" : "Sem cor"}</span>
             </div>
-            {form.tem_cor ? (
+            {!!form.tem_cor && (
               <input
                 type="text"
-                placeholder="Ex: Rosa, Vermelho, Nude..."
+                placeholder="Ex: Azul, Vermelho, Preto..."
                 value={form.cor}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, cor: e.target.value }))
-                }
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                onChange={(e) => setForm((f) => ({ ...f, cor: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
-            ) : null}
+            )}
           </div>
 
+          {/* Tamanho */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">
-              Tamanho do produto
+              Tamanho / Unidade
             </label>
             <div className="flex items-center gap-3 mb-2">
               <button
                 type="button"
-                data-testid="toggle-tamanho"
                 onClick={() =>
-                  setForm((f) => ({
-                    ...f,
-                    tem_tamanho: f.tem_tamanho ? 0 : 1,
-                    tamanho_quantidade: "",
-                    tamanho_unidade: "ml",
-                  }))
+                  setForm((f) => ({ ...f, tem_tamanho: f.tem_tamanho ? 0 : 1, tamanho_quantidade: "", tamanho_unidade: "un" }))
                 }
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.tem_tamanho ? "bg-rose-500" : "bg-gray-200"}`}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.tem_tamanho ? "bg-indigo-500" : "bg-gray-200"}`}
               >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${form.tem_tamanho ? "translate-x-4" : "translate-x-1"}`}
-                />
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${form.tem_tamanho ? "translate-x-4" : "translate-x-1"}`} />
               </button>
-              <span className="text-sm text-gray-500">
-                {form.tem_tamanho ? "Tem tamanho" : "Sem tamanho"}
-              </span>
+              <span className="text-sm text-gray-500">{form.tem_tamanho ? "Tem tamanho" : "Sem tamanho"}</span>
             </div>
-            {form.tem_tamanho ? (
+            {!!form.tem_tamanho && (
               <div className="flex gap-2">
                 <input
                   type="number"
                   min="0"
-                  placeholder="Ex: 200"
+                  placeholder="Ex: 500"
                   value={form.tamanho_quantidade}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      tamanho_quantidade: e.target.value,
-                    }))
-                  }
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                  onChange={(e) => setForm((f) => ({ ...f, tamanho_quantidade: e.target.value }))}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 />
                 <select
                   value={form.tamanho_unidade}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, tamanho_unidade: e.target.value }))
-                  }
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                  onChange={(e) => setForm((f) => ({ ...f, tamanho_unidade: e.target.value }))}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 >
+                  <option value="un">un</option>
                   <option value="ml">ml</option>
                   <option value="L">L</option>
                   <option value="g">g</option>
                   <option value="kg">kg</option>
                   <option value="oz">oz</option>
-                  <option value="un">un</option>
                 </select>
               </div>
-            ) : null}
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">
-              Loja preferida para compra
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { id: "sephora", label: "🖤 Sephora" },
-                { id: "belezanaweb", label: "💜 Beleza na Web" },
-                { id: "epoca", label: "🩷 Época Cosméticos" },
-                { id: "boticario", label: "🟠 O Boticário" },
-              ].map((loja) => (
-                <button
-                  key={loja.id}
-                  type="button"
-                  onClick={() =>
-                    setForm((f) => ({ ...f, loja_compra: loja.id }))
-                  }
-                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors text-left
-                    ${form.loja_compra === loja.id ? "bg-rose-50 border-rose-300 text-rose-600" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                >
-                  {loja.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">
-              Preço pago <span className="text-gray-400 font-normal">(opcional)</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">R$</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0,00"
-                value={form.preco_pago}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, preco_pago: e.target.value === "" ? "" : parseFloat(e.target.value) || "" }))
-                }
-                className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">
-              Avaliação do produto
-            </label>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, avaliacao: star }))}
-                  className="text-2xl transition-transform hover:scale-110"
-                >
-                  {star <= (form.avaliacao || 0) ? "⭐" : "☆"}
-                </button>
-              ))}
-            </div>
-            {form.avaliacao > 0 && (
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, avaliacao: 0 }))}
-                className="text-xs text-gray-400 hover:text-red-400 mt-1"
-              >
-                Limpar avaliação
-              </button>
             )}
           </div>
         </div>
@@ -381,7 +295,7 @@ export default function ProdutoForm({
           </button>
           <button
             onClick={handleSubmit}
-            className="flex-1 bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+            className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg transition-colors"
           >
             Salvar
           </button>

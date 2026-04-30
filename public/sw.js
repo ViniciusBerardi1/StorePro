@@ -1,4 +1,4 @@
-const CACHE_NAME = 'beleza-by-mih-v3';
+const CACHE_NAME = 'storepro-v2';
 
 const APP_SHELL = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.svg'];
 
@@ -19,7 +19,13 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
-  const { pathname } = new URL(e.request.url);
+  const url = new URL(e.request.url);
+
+  // Ignora requisições para APIs externas (Supabase, Google, etc.)
+  // O SW só gerencia arquivos do próprio app
+  if (url.origin !== self.location.origin) return;
+
+  const { pathname } = url;
   const isDynamic = pathname === '/' || /\.(html|js|jsx|ts|tsx|css)$/.test(pathname);
 
   if (isDynamic) {
@@ -34,7 +40,7 @@ self.addEventListener('fetch', (e) => {
         .catch(() => caches.match(e.request))
     );
   } else {
-    // Cache-first: imagens e fontes (performance)
+    // Cache-first: imagens e assets estáticos locais
     e.respondWith(
       caches.match(e.request).then(
         (cached) =>

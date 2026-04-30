@@ -2,8 +2,7 @@
 
 :root {
   color-scheme: light;
-  --font-display: "Playfair Display", serif;
-  --font-body: "Lato", sans-serif;
+  --font-body: "Inter", sans-serif;
 }
 
 body {
@@ -15,7 +14,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
 }
 
 button {

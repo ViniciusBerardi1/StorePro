@@ -1,36 +1,6 @@
 import { useState, useEffect, useRef, memo } from "react";
-import { getLojaUrl } from "../../utils/stores";
-import { AnimatePresence } from "framer-motion";
-import { differenceInDays, parseISO, format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import ProdutoDetalhe from "./ProdutoDetalhe";
-
-function StatusBadge({ dataValidade }) {
-  if (!dataValidade || dataValidade === "") return null;
-  try {
-    const dias = differenceInDays(parseISO(dataValidade), new Date());
-    if (dias < 0)
-      return (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">
-          Vencido
-        </span>
-      );
-    if (dias <= 60)
-      return (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">
-          Vence em {dias}d
-        </span>
-      );
-    return (
-      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-        OK
-      </span>
-    );
-  } catch {
-    return null;
-  }
-}
 
 function EstoqueBadge({ quantidade, estoqueMinimo }) {
   if (quantidade <= estoqueMinimo)
@@ -40,17 +10,6 @@ function EstoqueBadge({ quantidade, estoqueMinimo }) {
       </span>
     );
   return null;
-}
-
-function BotaoComprar({ nome, loja }) {
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); window.open(getLojaUrl(nome, loja), "_blank"); }}
-      className="text-xs text-white bg-black hover:bg-gray-800 px-3 py-1.5 rounded-lg transition-colors"
-    >
-      🛍️ Comprar
-    </button>
-  );
 }
 
 function ControladorQuantidade({ produto, onAtualizar, onDeletar }) {
@@ -113,16 +72,10 @@ function ProdutoList({
   onAtualizarQuantidade,
 }) {
   const [filtroCategoria, setFiltroCategoria] = useState("");
-  const [busca, setBusca] = useState(() => localStorage.getItem("beleza_busca") || "");
-  const [ordenacao, setOrdenacao] = useState(() => localStorage.getItem("beleza_ordenacao") || "recentes");
-  const [ordem, setOrdem] = useState(() => localStorage.getItem("beleza_ordem") || "desc");
+  const [busca, setBusca] = useState("");
+  const [ordenacao, setOrdenacao] = useState("recentes");
+  const [ordem, setOrdem] = useState("desc");
   const [produtoAberto, setProdutoAberto] = useState(null);
-
-  useEffect(() => {
-    localStorage.setItem("beleza_busca", busca);
-    localStorage.setItem("beleza_ordenacao", ordenacao);
-    localStorage.setItem("beleza_ordem", ordem);
-  }, [busca, ordenacao, ordem]);
 
   const filtrados = produtos
     .filter((p) => {
@@ -139,11 +92,8 @@ function ProdutoList({
       let comparacao = 0;
       if (ordenacao === "alfabetica") {
         comparacao = a.nome.localeCompare(b.nome);
-      } else if (ordenacao === "recentes") {
-        comparacao =
-          new Date(a.data_cadastro || 0) - new Date(b.data_cadastro || 0);
-      } else if (ordenacao === "avaliacao") {
-        comparacao = (a.avaliacao || 0) - (b.avaliacao || 0);
+      } else {
+        comparacao = new Date(a.data_cadastro || 0) - new Date(b.data_cadastro || 0);
       }
       return ordem === "desc" ? -comparacao : comparacao;
     });
@@ -181,7 +131,6 @@ function ProdutoList({
           {[
             { id: "recentes", label: "🕐 Recentes" },
             { id: "alfabetica", label: "🔤 A-Z" },
-            { id: "avaliacao", label: "⭐ Avaliação" },
           ].map((op) => (
             <button
               key={op.id}
@@ -264,23 +213,15 @@ function ProdutoList({
                       ? ` ${p.tamanho_quantidade}${p.tamanho_unidade}`
                       : ""}
                   </span>
-                  <StatusBadge dataValidade={p.data_validade} />
                   <EstoqueBadge quantidade={p.quantidade} estoqueMinimo={p.estoque_minimo ?? 1} />
                 </div>
                 <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1 flex-wrap">
                   <span>{p.categoria_nome}</span>
-                  {p.data_validade &&
-                    <span>· {format(parseISO(p.data_validade), "dd/MM/yy", { locale: ptBR })}</span>}
-                  {p.avaliacao > 0 && <span>· {"⭐".repeat(p.avaliacao)}</span>}
+                  {p.preco_venda > 0 && <span>· R$ {Number(p.preco_venda).toFixed(2)}</span>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <ControladorQuantidade produto={p} onAtualizar={onAtualizarQuantidade} onDeletar={onDeletar} />
-                {(p.quantidade <= (p.estoque_minimo ?? 1) ||
-                  (p.data_validade &&
-                    differenceInDays(parseISO(p.data_validade), new Date()) < 0)) && (
-                  <BotaoComprar nome={p.nome} loja={p.loja_compra} />
-                )}
                 <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => onEditar(p)}
