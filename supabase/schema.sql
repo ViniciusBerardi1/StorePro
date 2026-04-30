@@ -121,6 +121,8 @@ create table if not exists comandas (
   id              serial primary key,
   atendimento_id  integer references atendimentos(id) on delete set null,
   gcal_event_id   text unique,
+  cliente_nome    text,
+  evento_gcal     jsonb,
   servicos        jsonb default '[]',
   itens_bar       jsonb default '[]',
   itens_loja      jsonb default '[]',
@@ -132,6 +134,10 @@ create table if not exists comandas (
   status          text default 'aberta' check (status in ('aberta','fechada')),
   created_at      timestamptz default now()
 );
+
+-- Execute se a tabela já existir sem as novas colunas:
+alter table comandas add column if not exists cliente_nome text;
+alter table comandas add column if not exists evento_gcal jsonb;
 
 -- ─── Row Level Security (RLS) ────────────────────────────────
 -- Por padrão desabilitado para desenvolvimento.

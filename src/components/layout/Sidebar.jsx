@@ -1,6 +1,5 @@
 import { useState, memo } from "react";
 import { Home } from "lucide-react";
-import ComandaLateral from "../views/ComandaLateral";
 
 const MENU = [
   {
@@ -8,6 +7,12 @@ const MENU = [
     view: "agenda",
     label: "Agenda",
     icon: "📅",
+  },
+  {
+    type: "item",
+    view: "comandas",
+    label: "Comandas",
+    icon: "🧾",
   },
   {
     type: "group",
@@ -58,7 +63,7 @@ const MENU = [
   },
 ];
 
-const VIEWS_ATIVAS = ["agenda", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros"];
+const VIEWS_ATIVAS = ["agenda", "comandas", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros"];
 
 function isAtivo(entrada, view) {
   if (entrada.type === "item") return view === entrada.view;
@@ -183,22 +188,13 @@ function BotaoSobre({ view, navegar }) {
   );
 }
 
-function Sidebar({ view, setView, alertas, comandaAtiva, barbeiros, onFinalizarComanda, onCancelarComanda }) {
+function Sidebar({ view, setView, alertas }) {
   const [menuAberto, setMenuAberto] = useState(false);
 
   const navegar = (v) => {
     setView(v);
     setMenuAberto(false);
   };
-
-  const painelComanda = comandaAtiva ? (
-    <ComandaLateral
-      evento={comandaAtiva.evento}
-      barbeiros={barbeiros}
-      onFinalizar={onFinalizarComanda}
-      onCancelar={onCancelarComanda}
-    />
-  ) : null;
 
   return (
     <>
@@ -210,24 +206,14 @@ function Sidebar({ view, setView, alertas, comandaAtiva, barbeiros, onFinalizarC
         <div className="flex-1 overflow-y-auto min-h-0">
           <MenuConteudo view={view} navegar={navegar} alertas={alertas} />
         </div>
-        {painelComanda}
         <BotaoSobre view={view} navegar={navegar} />
       </aside>
 
       {/* Mobile header */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between">
         <button onClick={() => setMenuAberto(!menuAberto)} className="flex items-center gap-2">
-          {comandaAtiva ? (
-            <>
-              <span className="text-xl">🧾</span>
-              <h1 className="text-base font-semibold text-indigo-600">Comanda aberta</h1>
-            </>
-          ) : (
-            <>
-              <span className="text-xl">🏪</span>
-              <h1 className="text-base font-semibold text-gray-700">StorePro</h1>
-            </>
-          )}
+          <span className="text-xl">🏪</span>
+          <h1 className="text-base font-semibold text-gray-700">StorePro</h1>
         </button>
         <button
           onClick={() => navegar("agenda")}
@@ -249,7 +235,6 @@ function Sidebar({ view, setView, alertas, comandaAtiva, barbeiros, onFinalizarC
             <div className="flex-1 overflow-y-auto min-h-0">
               <MenuConteudo view={view} navegar={navegar} alertas={alertas} />
             </div>
-            {painelComanda}
             <BotaoSobre view={view} navegar={navegar} />
           </div>
         </>

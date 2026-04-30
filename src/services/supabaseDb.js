@@ -356,6 +356,54 @@ async function getComandaByGcalId(gcalEventId) {
   return data;
 }
 
+async function getComandasAbertas() {
+  const { data, error } = await supabase
+    .from("comandas")
+    .select("*")
+    .eq("status", "aberta")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function criarComanda(comanda) {
+  const { gcal_event_id } = comanda;
+
+  if (gcal_event_id) {
+    const { data: existente } = await supabase
+      .from("comandas")
+      .select("*")
+      .eq("gcal_event_id", gcal_event_id)
+      .maybeSingle();
+
+    if (existente) {
+      if (existente.status === "aberta") return existente;
+      const { data: updated, error } = await supabase
+        .from("comandas")
+        .update({ ...comanda, status: "aberta" })
+        .eq("id", existente.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return updated;
+    }
+  }
+
+  const { data, error } = await supabase.from("comandas").insert(comanda).select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function updateComanda(id, updates) {
+  const { error } = await supabase.from("comandas").update(updates).eq("id", id);
+  if (error) throw error;
+}
+
+async function deleteComanda(id) {
+  const { error } = await supabase.from("comandas").delete().eq("id", id);
+  if (error) throw error;
+}
+
 async function saveComanda(comanda) {
   const { gcal_event_id } = comanda;
   const { data: existente } = await supabase
@@ -450,6 +498,10 @@ export const db = {
   updateBarbeiro,
   deleteBarbeiro,
   getComandaByGcalId,
+  getComandasAbertas,
+  criarComanda,
+  updateComanda,
+  deleteComanda,
   saveComanda,
   getProdutosByTipo,
   // compatibilidade com código legado que usa desejos
