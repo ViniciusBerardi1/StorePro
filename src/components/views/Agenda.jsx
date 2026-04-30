@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   initGoogleCalendar,
@@ -13,7 +13,6 @@ import {
 import { db } from "../../services/supabaseDb";
 import { GCAL_CORES } from "./Barbeiros";
 import Comanda from "./Comanda";
-import { useEffect } from "react";
 
 const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = [
@@ -45,6 +44,42 @@ function getDiasDaSemana(offset) {
 function fmtHora(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ─── Modal de confirmação para abrir comanda ──────────────────────
+function ConfirmacaoComanda({ evento, onConfirmar, onCancelar }) {
+  const clienteNome = evento?.summary?.replace(/^✅\s*/, "").split(/[-—]/)[0].trim() || "cliente";
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.15 }}
+        className="bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl text-center"
+      >
+        <div className="text-4xl mb-3">🧾</div>
+        <h3 className="font-semibold text-gray-800 mb-1">Abrir comanda?</h3>
+        <p className="text-sm text-gray-500 mb-5">
+          para <span className="font-medium text-gray-700">{clienteNome}</span>
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancelar}
+            className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            Não
+          </button>
+          <button
+            onClick={onConfirmar}
+            className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            ✅ Abrir
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
 }
 
 // ─── Formulário de agendamento (simplificado) ─────────────────────
@@ -320,7 +355,7 @@ function TelaConectar({ gisReady, sessionExpired }) {
 // ─── Agenda principal ─────────────────────────────────────────────
 const LS_KEY = "gcal_was_connected";
 
-export default function Agenda({ onAtendimentoFinalizado }) {
+export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refreshTick = 0 }) {
   const [conectado, setConectado] = useState(false);
   const [gisReady, setGisReady] = useState(false);
   const [reconectando, setReconectando] = useState(() => !!localStorage.getItem(LS_KEY));
@@ -334,12 +369,18 @@ export default function Agenda({ onAtendimentoFinalizado }) {
   const [erro, setErro] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState(null);
-  const [showComanda, setShowComanda] = useState(false);
-  const [eventoComanda, setEventoComanda] = useState(null);
+  const [confirmacaoComanda, setConfirmacaoComanda] = useState(null);
+  const [showComandaModal, setShowComandaModal] = useState(false);
+  const [eventoComandaModal, setEventoComandaModal] = useState(null);
 
   useEffect(() => {
     db.getBarbeiros().then(setBarbeiros).catch(() => {});
   }, []);
+
+  // Recarrega eventos quando a comanda lateral finaliza um atendimento
+  useEffect(() => {
+    if (refreshTick > 0 && isGoogleConnected()) carregarEventos();
+  }, [refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let tentativas = 0;
@@ -454,71 +495,25 @@ export default function Agenda({ onAtendimentoFinalizado }) {
   function handleIniciarAtendimento(ev) {
     setShowForm(false);
     setEditando(null);
-    setEventoComanda(ev);
-    setShowComanda(true);
+    setConfirmacaoComanda(ev);
   }
 
-  async function handleFinalizar(ev, comandaData) {
+  function handleConfirmarComanda() {
+    const ev = confirmacaoComanda;
+    setConfirmacaoComanda(null);
+    onAbrirComanda?.(ev);
+  }
+
+  // Finalização de comanda concluída (modal de visualização — só Supabase, GCal já tem ✅)
+  async function handleFinalizarComandaModal(ev, comandaData) {
     const { servicos, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, barbeiroId } = comandaData;
-
-    const tituloAtual = ev.summary || "";
-    const tituloFinal = tituloAtual.startsWith("✅") ? tituloAtual : `✅ ${tituloAtual}`;
-    const clienteNome = tituloAtual.replace(/^✅\s*/, "").split(/[-—]/)[0].trim();
+    const clienteNome = ev.summary?.replace(/^✅\s*/, "").split(/[-—]/)[0].trim();
     const dataHora = ev.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : new Date().toISOString();
-
-    // Feedback imediato
-    setEventos((prev) => prev.map((e) => e.id === ev.id ? { ...e, summary: tituloFinal, colorId: "2" } : e));
-    setShowComanda(false);
-    setEventoComanda(null);
+    const atendId = await db.addAtendimento({ gcal_event_id: ev.id, data_hora: dataHora, cliente_nome: clienteNome, servicos, valor_total, forma_pagamento, status: "concluido", observacoes: ev.description || "", ...(barbeiroId ? { barbeiro_id: barbeiroId } : {}) });
+    await db.saveComanda({ gcal_event_id: ev.id, atendimento_id: typeof atendId === "number" ? atendId : null, servicos, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, status: "fechada" });
+    setShowComandaModal(false);
+    setEventoComandaModal(null);
     onAtendimentoFinalizado?.();
-
-    const [supabaseResult, gcalResult] = await Promise.allSettled([
-      (async () => {
-        const atendId = await db.addAtendimento({
-          gcal_event_id: ev.id,
-          data_hora: dataHora,
-          cliente_nome: clienteNome,
-          servicos,
-          valor_total,
-          forma_pagamento,
-          status: "concluido",
-          observacoes: ev.description || "",
-          ...(barbeiroId ? { barbeiro_id: barbeiroId } : {}),
-        });
-        await db.saveComanda({
-          gcal_event_id: ev.id,
-          atendimento_id: typeof atendId === "number" ? atendId : null,
-          servicos,
-          itens_bar,
-          itens_loja,
-          valor_servicos,
-          valor_bar,
-          valor_loja,
-          valor_total,
-          forma_pagamento,
-          status: "fechada",
-        });
-      })(),
-      atualizarEvento(ev.id, {
-        summary: tituloFinal,
-        start: ev.start,
-        end: ev.end,
-        description: ev.description,
-        colorId: "2",
-      }),
-    ]);
-
-    if (supabaseResult.status === "rejected")
-      setErro("Erro ao salvar no Supabase: " + supabaseResult.reason?.message);
-
-    if (gcalResult.status === "rejected") {
-      const gcalMsg = gcalResult.reason?.message ?? "";
-      setErro("Aviso: não foi possível atualizar o Google Calendar." + (gcalMsg ? " " + gcalMsg : ""));
-      if (_isAuthError(gcalMsg)) { setConectado(false); setReconectando(false); }
-      else carregarEventos();
-    } else {
-      carregarEventos();
-    }
   }
 
   const hoje = new Date();
@@ -738,7 +733,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                   );
                 })()}
 
-                {/* Concluídos — abrem comanda diretamente */}
+                {/* Concluídos — abrem comanda em modal (visualização/edição) */}
                 {eventosConcluidos.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-green-500 uppercase tracking-wide mb-2">Concluídos ({eventosConcluidos.length})</p>
@@ -750,7 +745,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                         return (
                           <button
                             key={ev.id}
-                            onClick={() => { setEventoComanda(ev); setShowComanda(true); }}
+                            onClick={() => { setEventoComandaModal(ev); setShowComandaModal(true); }}
                             className="flex items-start gap-3 p-3 border border-green-100 rounded-xl bg-green-50 hover:bg-green-100 transition-all text-left"
                           >
                             <div className="w-1 self-stretch rounded-full shrink-0 bg-green-400" />
@@ -794,12 +789,22 @@ export default function Agenda({ onAtendimentoFinalizado }) {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showComanda && (
+        {confirmacaoComanda && (
+          <ConfirmacaoComanda
+            evento={confirmacaoComanda}
+            onConfirmar={handleConfirmarComanda}
+            onCancelar={() => setConfirmacaoComanda(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showComandaModal && (
           <Comanda
-            evento={eventoComanda}
+            evento={eventoComandaModal}
             barbeiros={barbeiros}
-            onFechar={() => { setShowComanda(false); setEventoComanda(null); }}
-            onFinalizar={handleFinalizar}
+            onFechar={() => { setShowComandaModal(false); setEventoComandaModal(null); }}
+            onFinalizar={handleFinalizarComandaModal}
           />
         )}
       </AnimatePresence>

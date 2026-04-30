@@ -1,5 +1,6 @@
 import { useState, memo } from "react";
 import { Home } from "lucide-react";
+import ComandaLateral from "../views/ComandaLateral";
 
 const MENU = [
   {
@@ -86,9 +87,7 @@ function SubItem({ item, view, navegar }) {
         ${emBreve ? "opacity-40 cursor-default" : ""}`}
     >
       <span>{item.label}</span>
-      {emBreve && (
-        <span className="text-xs text-gray-300 font-normal">em breve</span>
-      )}
+      {emBreve && <span className="text-xs text-gray-300 font-normal">em breve</span>}
     </button>
   );
 }
@@ -110,9 +109,7 @@ function ItemSingle({ entrada, view, navegar, alertas }) {
         <span className="text-base">{entrada.icon}</span>
         {entrada.label}
       </span>
-      {emBreve && (
-        <span className="text-xs text-gray-300 font-normal">em breve</span>
-      )}
+      {emBreve && <span className="text-xs text-gray-300 font-normal">em breve</span>}
       {badgeCount > 0 && (
         <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
           {badgeCount}
@@ -174,7 +171,7 @@ function MenuConteudo({ view, navegar, alertas }) {
 
 function BotaoSobre({ view, navegar }) {
   return (
-    <div className="pt-4 border-t border-gray-100">
+    <div className="pt-3 border-t border-gray-100">
       <button
         onClick={() => navegar("sobre")}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left
@@ -186,7 +183,7 @@ function BotaoSobre({ view, navegar }) {
   );
 }
 
-function Sidebar({ view, setView, alertas }) {
+function Sidebar({ view, setView, alertas, comandaAtiva, barbeiros, onFinalizarComanda, onCancelarComanda }) {
   const [menuAberto, setMenuAberto] = useState(false);
 
   const navegar = (v) => {
@@ -194,44 +191,65 @@ function Sidebar({ view, setView, alertas }) {
     setMenuAberto(false);
   };
 
+  const painelComanda = comandaAtiva ? (
+    <ComandaLateral
+      evento={comandaAtiva.evento}
+      barbeiros={barbeiros}
+      onFinalizar={onFinalizarComanda}
+      onCancelar={onCancelarComanda}
+    />
+  ) : null;
+
   return (
     <>
-      <aside className="hidden md:flex fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 flex-col py-6 px-4 gap-1 z-40">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 flex-col py-6 px-4 z-40">
         <div className="mb-6">
           <Logo />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           <MenuConteudo view={view} navegar={navegar} alertas={alertas} />
         </div>
+        {painelComanda}
         <BotaoSobre view={view} navegar={navegar} />
       </aside>
 
+      {/* Mobile header */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between">
         <button onClick={() => setMenuAberto(!menuAberto)} className="flex items-center gap-2">
-          <span className="text-xl">🏪</span>
-          <h1 className="text-base font-semibold text-gray-700">StorePro</h1>
+          {comandaAtiva ? (
+            <>
+              <span className="text-xl">🧾</span>
+              <h1 className="text-base font-semibold text-indigo-600">Comanda aberta</h1>
+            </>
+          ) : (
+            <>
+              <span className="text-xl">🏪</span>
+              <h1 className="text-base font-semibold text-gray-700">StorePro</h1>
+            </>
+          )}
         </button>
         <button
-          onClick={() => navegar("dashboard")}
+          onClick={() => navegar("agenda")}
           className="text-gray-500 hover:text-indigo-500 transition-colors p-2 h-10 w-10 flex items-center justify-center"
         >
           <Home size={22} />
         </button>
       </header>
 
+      {/* Mobile menu drawer */}
       {menuAberto && (
         <>
           <div className="md:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMenuAberto(false)} />
           <div className="md:hidden fixed top-0 left-0 h-full w-72 bg-white z-50 flex flex-col py-6 px-4 shadow-xl">
             <div className="flex items-center justify-between mb-6">
               <Logo />
-              <button onClick={() => setMenuAberto(false)} className="text-gray-400 hover:text-gray-600 text-xl">
-                ✕
-              </button>
+              <button onClick={() => setMenuAberto(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               <MenuConteudo view={view} navegar={navegar} alertas={alertas} />
             </div>
+            {painelComanda}
             <BotaoSobre view={view} navegar={navegar} />
           </div>
         </>

@@ -14,6 +14,7 @@ import Barbeiros from "./components/views/Barbeiros";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
+import { atualizarEvento } from "./services/googleCalendar";
 
 const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos", "estoque_loja", "estoque_bar"];
 
@@ -117,6 +118,9 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [desejoOrigemId, setDesejoOrigemId] = useState(null);
+  const [comandaAtiva, setComandaAtiva] = useState(null); // { evento }
+  const [agendaRefreshTick, setAgendaRefreshTick] = useState(0);
+  const [barbeiros, setBarbeiros] = useState([]);
 
   // ─── Dados do Dashboard (ficam no App para nunca pararem de atualizar) ────
   const [atendimentosHoje, setAtendimentosHoje] = useState([]);
@@ -143,6 +147,7 @@ export default function App() {
 
   useEffect(() => {
     carregar();
+    db.getBarbeiros().then(setBarbeiros).catch(() => {});
   }, [carregar]);
 
   // ─── Polling do Dashboard — roda sempre, mesmo fora da aba Dashboard ─────
@@ -265,6 +270,62 @@ export default function App() {
     }
   }, [carregar]);
 
+  const onAbrirComanda = useCallback((evento) => {
+    setComandaAtiva({ evento });
+  }, []);
+
+  const onCancelarComanda = useCallback(() => {
+    setComandaAtiva(null);
+  }, []);
+
+  const onFinalizarComanda = useCallback(async (evento, comandaData) => {
+    const { servicos, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, barbeiroId } = comandaData;
+    const tituloAtual = evento.summary || "";
+    const tituloFinal = tituloAtual.startsWith("✅") ? tituloAtual : `✅ ${tituloAtual}`;
+    const clienteNome = tituloAtual.replace(/^✅\s*/, "").split(/[-—]/)[0].trim();
+    const dataHora = evento.start?.dateTime ? new Date(evento.start.dateTime).toISOString() : new Date().toISOString();
+
+    setComandaAtiva(null);
+    setAgendaRefreshTick((t) => t + 1);
+    carregarDashboard();
+
+    await Promise.allSettled([
+      (async () => {
+        const atendId = await db.addAtendimento({
+          gcal_event_id: evento.id,
+          data_hora: dataHora,
+          cliente_nome: clienteNome,
+          servicos,
+          valor_total,
+          forma_pagamento,
+          status: "concluido",
+          observacoes: evento.description || "",
+          ...(barbeiroId ? { barbeiro_id: barbeiroId } : {}),
+        });
+        await db.saveComanda({
+          gcal_event_id: evento.id,
+          atendimento_id: typeof atendId === "number" ? atendId : null,
+          servicos,
+          itens_bar,
+          itens_loja,
+          valor_servicos,
+          valor_bar,
+          valor_loja,
+          valor_total,
+          forma_pagamento,
+          status: "fechada",
+        });
+      })(),
+      atualizarEvento(evento.id, {
+        summary: tituloFinal,
+        start: evento.start,
+        end: evento.end,
+        description: evento.description,
+        colorId: "2",
+      }),
+    ]);
+  }, [carregarDashboard]);
+
   const navegar = useCallback((destino) => {
     if (destino === "financeiro" && !financeiroDesbloqueado) {
       setShowSenhaModal(true);
@@ -286,7 +347,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
-      <Sidebar view={view} setView={navegar} alertas={alertas} />
+      <Sidebar
+        view={view}
+        setView={navegar}
+        alertas={alertas}
+        comandaAtiva={comandaAtiva}
+        barbeiros={barbeiros}
+        onFinalizarComanda={onFinalizarComanda}
+        onCancelarComanda={onCancelarComanda}
+      />
 
       <AnimatePresence>
         {VIEWS_ESTOQUE.includes(view) && (
@@ -331,7 +400,11 @@ export default function App() {
                 carregando={carregando}
               />
             ) : view === "agenda" ? (
-              <Agenda onAtendimentoFinalizado={carregarDashboard} />
+              <Agenda
+                onAtendimentoFinalizado={carregarDashboard}
+                onAbrirComanda={onAbrirComanda}
+                refreshTick={agendaRefreshTick}
+              />
             ) : VIEWS_ESTOQUE.includes(view) ? (
               <ProdutoList
                 titulo={
