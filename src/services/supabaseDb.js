@@ -258,17 +258,29 @@ async function addAtendimento(a) {
   const { id: _id, ...payload } = a;
 
   if (payload.gcal_event_id) {
-    // Upsert pelo ID do evento do Google Calendar — evita duplicatas ao finalizar o mesmo evento mais de uma vez
-    const { data, error } = await supabase
+    // Verifica se já existe um registro para esse evento do Google Calendar
+    const { data: existente } = await supabase
       .from("atendimentos")
-      .upsert(payload, { onConflict: "gcal_event_id", ignoreDuplicates: false })
-      .select()
-      .single();
-    if (error) throw error;
-    return data.id;
+      .select("id")
+      .eq("gcal_event_id", payload.gcal_event_id)
+      .maybeSingle();
+
+    if (existente?.id) {
+      // Já existe — atualiza em vez de inserir
+      const { error } = await supabase
+        .from("atendimentos")
+        .update(payload)
+        .eq("id", existente.id);
+      if (error) throw error;
+      return existente.id;
+    }
   }
 
-  const { data, error } = await supabase.from("atendimentos").insert(payload).select().single();
+  const { data, error } = await supabase
+    .from("atendimentos")
+    .insert(payload)
+    .select()
+    .single();
   if (error) throw error;
   return data.id;
 }
