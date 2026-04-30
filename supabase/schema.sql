@@ -93,6 +93,15 @@ create table if not exists servicos (
   created_at timestamptz default now()
 );
 
+-- ─── Configurações ───────────────────────────────────────────
+-- Insira a senha do financeiro manualmente:
+-- INSERT INTO configuracoes (chave, valor) VALUES ('financeiro_senha', 'sua_senha');
+create table if not exists configuracoes (
+  chave text primary key,
+  valor text not null
+);
+alter table configuracoes disable row level security;
+
 -- ─── Barbeiros ───────────────────────────────────────────────
 create table if not exists barbeiros (
   id            serial primary key,

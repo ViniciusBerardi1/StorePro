@@ -29,14 +29,10 @@ const MENU = [
     ],
   },
   {
-    type: "group",
+    type: "item",
+    view: "financeiro",
     label: "Financeiro",
     icon: "💰",
-    itens: [
-      { view: "caixa", label: "Caixa" },
-      { view: "financeiro_movimentacoes", label: "Movimentações" },
-      { view: "financeiro_relatorios", label: "Relatórios" },
-    ],
   },
   {
     type: "item",
@@ -59,7 +55,7 @@ const MENU = [
   },
 ];
 
-const VIEWS_ATIVAS = ["dashboard", "estoque", "agenda", "servicos", "barbeiros"];
+const VIEWS_ATIVAS = ["agenda", "estoque", "financeiro", "servicos", "barbeiros"];
 
 function isAtivo(entrada, view) {
   if (entrada.type === "item") return view === entrada.view;

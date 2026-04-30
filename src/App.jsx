@@ -25,12 +25,89 @@ const pageVariants = {
 
 const pageTransition = { duration: 0.2, ease: "easeInOut" };
 
+function SenhaModal({ onConfirmar, onFechar }) {
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState(null);
+  const [verificando, setVerificando] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!senha.trim()) return;
+    setVerificando(true);
+    setErro(null);
+    try {
+      const senhaCorreta = await db.getConfiguracao("financeiro_senha");
+      if (!senhaCorreta) return setErro("Senha não configurada. Insira em: configuracoes → financeiro_senha.");
+      if (senha === senhaCorreta) {
+        onConfirmar();
+      } else {
+        setErro("Senha incorreta.");
+        setSenha("");
+      }
+    } catch {
+      setErro("Erro ao verificar. Tente novamente.");
+    } finally {
+      setVerificando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.15 }}
+        className="bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl"
+      >
+        <div className="text-center mb-5">
+          <div className="text-3xl mb-2">🔒</div>
+          <h3 className="font-semibold text-gray-800">Área Financeira</h3>
+          <p className="text-xs text-gray-400 mt-1">Digite a senha para continuar</p>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            type="password"
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            placeholder="Senha"
+            autoFocus
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+          {erro && (
+            <p className="text-xs text-red-500 text-center">{erro}</p>
+          )}
+          <div className="flex gap-2 mt-1">
+            <button
+              type="button"
+              onClick={onFechar}
+              className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm text-gray-500 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={verificando}
+              className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium disabled:opacity-60"
+            >
+              {verificando ? "..." : "Entrar"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState(() => {
-    const stored = localStorage.getItem("storepro_view") || "dashboard";
-    if (stored.startsWith("cat_") && isNaN(Number(stored.replace("cat_", "")))) return "dashboard";
+    const stored = localStorage.getItem("storepro_view") || "agenda";
+    if (stored === "dashboard") return "agenda"; // migra view antiga
+    if (stored.startsWith("cat_") && isNaN(Number(stored.replace("cat_", "")))) return "agenda";
     return stored;
   });
+  const [financeiroDesbloqueado, setFinanceiroDesbloqueado] = useState(false);
+  const [showSenhaModal, setShowSenhaModal] = useState(false);
   const [produtos, setProdutos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -187,6 +264,14 @@ export default function App() {
     }
   }, [carregar]);
 
+  const navegar = useCallback((destino) => {
+    if (destino === "financeiro" && !financeiroDesbloqueado) {
+      setShowSenhaModal(true);
+    } else {
+      setView(destino);
+    }
+  }, [financeiroDesbloqueado]);
+
   const alertas = useMemo(() => ({
     estoqueBaixo: produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1)).length,
   }), [produtos]);
@@ -200,7 +285,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
-      <Sidebar view={view} setView={setView} alertas={alertas} />
+      <Sidebar view={view} setView={navegar} alertas={alertas} />
 
       <AnimatePresence>
         {VIEWS_ESTOQUE.includes(view) && (
@@ -233,9 +318,7 @@ export default function App() {
               <Servicos />
             ) : view === "barbeiros" ? (
               <Barbeiros />
-            ) : view === "agenda" ? (
-              <Agenda onAtendimentoFinalizado={carregarDashboard} />
-            ) : view === "dashboard" ? (
+            ) : view === "financeiro" ? (
               <Dashboard
                 atendimentosHoje={atendimentosHoje}
                 atendimentosMes={atendimentosMes}
@@ -243,9 +326,11 @@ export default function App() {
                 loadingDash={loadingDash}
                 onRefresh={carregarDashboard}
                 produtos={produtos}
-                setView={setView}
+                setView={navegar}
                 carregando={carregando}
               />
+            ) : view === "agenda" ? (
+              <Agenda onAtendimentoFinalizado={carregarDashboard} />
             ) : VIEWS_ESTOQUE.includes(view) ? (
               <ProdutoList
                 titulo={view === "estoque_baixo" ? "Estoque Baixo" : "Estoque"}
@@ -297,6 +382,19 @@ export default function App() {
       <AnimatePresence>
         {toast && (
           <Toast mensagem={toast} onFechar={() => setToast(null)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSenhaModal && (
+          <SenhaModal
+            onConfirmar={() => {
+              setFinanceiroDesbloqueado(true);
+              setShowSenhaModal(false);
+              setView("financeiro");
+            }}
+            onFechar={() => setShowSenhaModal(false)}
+          />
         )}
       </AnimatePresence>
     </div>

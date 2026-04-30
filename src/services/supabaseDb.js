@@ -334,6 +334,17 @@ async function deleteServico(id) {
   if (error) throw error;
 }
 
+// ─── Configurações ───────────────────────────────────────────────
+async function getConfiguracao(chave) {
+  const { data, error } = await supabase
+    .from("configuracoes")
+    .select("valor")
+    .eq("chave", chave)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.valor ?? null;
+}
+
 // ─── Barbeiros ───────────────────────────────────────────────────
 async function getBarbeiros() {
   const { data, error } = await supabase
@@ -389,6 +400,7 @@ export const db = {
   addServico,
   updateServico,
   deleteServico,
+  getConfiguracao,
   getBarbeiros,
   addBarbeiro,
   updateBarbeiro,
