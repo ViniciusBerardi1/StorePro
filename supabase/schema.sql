@@ -93,6 +93,15 @@ create table if not exists servicos (
   created_at timestamptz default now()
 );
 
+-- ─── Barbeiros ───────────────────────────────────────────────
+create table if not exists barbeiros (
+  id            serial primary key,
+  nome          text not null,
+  gcal_color_id text not null default '9',
+  ativo         boolean not null default true,
+  created_at    timestamptz default now()
+);
+
 -- ─── Row Level Security (RLS) ────────────────────────────────
 -- Por padrão desabilitado para desenvolvimento.
 -- Habilite e configure policies antes de ir para produção.
@@ -103,3 +112,4 @@ alter table clientes      disable row level security;
 alter table atendimentos  disable row level security;
 alter table historico     disable row level security;
 alter table servicos      disable row level security;
+alter table barbeiros     disable row level security;

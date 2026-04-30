@@ -10,6 +10,7 @@ import Desejos from "./components/views/Desejos";
 import EmBreve from "./components/views/EmBreve";
 import Agenda from "./components/views/Agenda";
 import Servicos from "./components/views/Servicos";
+import Barbeiros from "./components/views/Barbeiros";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
@@ -230,6 +231,8 @@ export default function App() {
               <Sobre />
             ) : view === "servicos" ? (
               <Servicos />
+            ) : view === "barbeiros" ? (
+              <Barbeiros />
             ) : view === "agenda" ? (
               <Agenda onAtendimentoFinalizado={carregarDashboard} />
             ) : view === "dashboard" ? (

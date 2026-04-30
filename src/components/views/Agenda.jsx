@@ -11,6 +11,7 @@ import {
   deletarEvento,
 } from "../../services/googleCalendar";
 import { db } from "../../services/supabaseDb";
+import { GCAL_CORES } from "./Barbeiros";
 
 const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = [
@@ -49,7 +50,7 @@ function fmtValor(v) {
 }
 
 // ─── Formulário de evento ─────────────────────────────────────────
-function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinalizar, servicos = [] }) {
+function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinalizar, servicos = [], barbeiros = [] }) {
   const dataDefault = (diaPadrao ?? new Date()).toISOString().slice(0, 10);
 
   const [form, setForm] = useState({
@@ -69,8 +70,16 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
   const [erroForm, setErroForm] = useState(null);
   const [bloqueado, setBloqueado] = useState(false);
   const [carregandoDados, setCarregandoDados] = useState(!!evento);
+  const [barbeiroId, setBarbeiroId] = useState(() => {
+    // Pré-seleciona barbeiro pela cor do evento do Google Calendar
+    if (!evento?.colorId) return null;
+    const barb = barbeiros.find((b) => b.gcal_color_id === evento.colorId);
+    return barb?.id ?? null;
+  });
   const servicosRef = useRef(servicos);
   servicosRef.current = servicos;
+  const barbeirosRef = useRef(barbeiros);
+  barbeirosRef.current = barbeiros;
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -88,6 +97,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
         setServicosSelecionados(ids);
         if (salvo.forma_pagamento) setFormaPagamento(salvo.forma_pagamento);
         if (salvo.status === "concluido") setBloqueado(true);
+        if (salvo.barbeiro_id) setBarbeiroId(salvo.barbeiro_id);
       })
       .catch(() => {})
       .finally(() => setCarregandoDados(false));
@@ -117,11 +127,13 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
     setErroForm(null);
     setSalvando(true);
     try {
+      const barbSel = barbeirosRef.current.find((b) => b.id === barbeiroId);
       await onSalvar({
         summary: form.summary.trim(),
         description: form.description,
         start: { dateTime: `${form.data}T${form.horaInicio}:00`, timeZone: TZ },
         end: { dateTime: `${form.data}T${form.horaFim}:00`, timeZone: TZ },
+        ...(barbSel ? { colorId: barbSel.gcal_color_id } : {}),
       });
     } catch (e) {
       setErroForm(e.message);
@@ -136,7 +148,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
     setFinalizando(true);
     try {
       const servicosCompletos = servicosAtivos.filter((s) => servicosSelecionados.includes(s.id));
-      await onFinalizar(evento, form, servicosCompletos, total, formaPagamento);
+      await onFinalizar(evento, form, servicosCompletos, total, formaPagamento, barbeiroId);
     } catch (e) {
       setErroForm(e.message);
     } finally {
@@ -282,6 +294,42 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onFinali
             />
           </div>
 
+          {/* Seletor de barbeiro */}
+          {barbeiros.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-2 block">Barbeiro</label>
+              <div className="flex flex-wrap gap-2">
+                {barbeiros.map((b) => {
+                  const cor = GCAL_CORES[b.gcal_color_id] ?? GCAL_CORES["9"];
+                  const sel = barbeiroId === b.id;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => !bloqueado && setBarbeiroId(sel ? null : b.id)}
+                      disabled={bloqueado}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm border transition-all
+                        ${bloqueado ? "cursor-default" : ""}
+                        ${sel
+                          ? "border-transparent text-white font-medium"
+                          : bloqueado
+                            ? "bg-white border-gray-200 text-gray-300"
+                            : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      style={sel ? { backgroundColor: cor.hex } : {}}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: sel ? "rgba(255,255,255,0.6)" : cor.hex }}
+                      />
+                      {b.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Forma de pagamento — só aparece ao editar evento existente */}
           {evento && (
             <div>
@@ -424,14 +472,17 @@ export default function Agenda({ onAtendimentoFinalizado }) {
   const [diaSelecionado, setDiaSelecionado] = useState(new Date());
   const [eventos, setEventos] = useState([]);
   const [servicos, setServicos] = useState([]);
+  const [barbeiros, setBarbeiros] = useState([]);
+  const [filtroBarbeiro, setFiltroBarbeiro] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState(null);
 
-  // Carrega serviços cadastrados
+  // Carrega serviços e barbeiros
   useEffect(() => {
     db.getServicos().then(setServicos).catch(() => {});
+    db.getBarbeiros().then(setBarbeiros).catch(() => {});
   }, []);
 
   // Aguarda GIS carregar
@@ -501,8 +552,11 @@ export default function Agenda({ onAtendimentoFinalizado }) {
     };
   }, [conectado, semanaOffset]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const barbFiltro = filtroBarbeiro ? barbeiros.find((b) => b.id === filtroBarbeiro) : null;
+
   const eventosDoDia = eventos
     .filter((ev) => mesmodia(new Date(ev.start?.dateTime || ev.start?.date), diaSelecionado))
+    .filter((ev) => !barbFiltro || ev.colorId === barbFiltro.gcal_color_id)
     .sort((a, b) => new Date(a.start?.dateTime || a.start?.date) - new Date(b.start?.dateTime || b.start?.date));
 
   const eventosPendentes = eventosDoDia.filter((ev) => !ev.summary?.startsWith("✅"));
@@ -571,7 +625,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
     }
   }
 
-  async function handleFinalizar(ev, form, servicosCompletos = [], total = 0, formaPagamento = null) {
+  async function handleFinalizar(ev, form, servicosCompletos = [], total = 0, formaPagamento = null, barbeiroId = null) {
     const tituloAtual = ev.summary || "";
     const tituloFinal = tituloAtual.startsWith("✅") ? tituloAtual : `✅ ${tituloAtual}`;
     const clienteNome = tituloAtual.replace(/^✅\s*/, "").split(/[-—]/)[0].trim();
@@ -599,6 +653,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
         forma_pagamento: formaPagamento,
         status: "concluido",
         observacoes: form.description || "",
+        ...(barbeiroId ? { barbeiro_id: barbeiroId } : {}),
       }),
       atualizarEvento(ev.id, {
         summary: tituloFinal,
@@ -735,7 +790,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             transition={{ duration: 0.2 }}
             className="bg-white border border-gray-200 rounded-2xl p-5 flex-1"
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-semibold text-gray-800 capitalize">
                   {diaSelecionado.toLocaleDateString("pt-BR", {
@@ -753,6 +808,43 @@ export default function Agenda({ onAtendimentoFinalizado }) {
                 + Novo
               </button>
             </div>
+
+            {/* Filtro por barbeiro */}
+            {barbeiros.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap mb-4">
+                <button
+                  onClick={() => setFiltroBarbeiro(null)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    !filtroBarbeiro
+                      ? "bg-gray-800 text-white"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  Todos
+                </button>
+                {barbeiros.map((b) => {
+                  const cor = GCAL_CORES[b.gcal_color_id] ?? GCAL_CORES["9"];
+                  const ativo = filtroBarbeiro === b.id;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => setFiltroBarbeiro(ativo ? null : b.id)}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all"
+                      style={ativo
+                        ? { backgroundColor: cor.hex, color: "#fff" }
+                        : { backgroundColor: cor.hex + "22", color: cor.hex }
+                      }
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: cor.hex }}
+                      />
+                      {b.nome}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {carregando ? (
               <div className="py-10 text-center text-sm text-gray-400 animate-pulse">
@@ -866,6 +958,7 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             onDeletar={handleDeletar}
             onFinalizar={handleFinalizar}
             servicos={servicos}
+            barbeiros={barbeiros}
           />
         )}
       </AnimatePresence>

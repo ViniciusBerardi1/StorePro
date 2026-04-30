@@ -15,6 +15,7 @@ const MENU = [
     itens: [
       { view: "agenda", label: "Agenda" },
       { view: "servicos", label: "Serviços" },
+      { view: "barbeiros", label: "Barbeiros" },
       { view: "novo_atendimento", label: "Novo atendimento" },
     ],
   },
@@ -58,7 +59,7 @@ const MENU = [
   },
 ];
 
-const VIEWS_ATIVAS = ["dashboard", "estoque", "agenda", "servicos"];
+const VIEWS_ATIVAS = ["dashboard", "estoque", "agenda", "servicos", "barbeiros"];
 
 function isAtivo(entrada, view) {
   if (entrada.type === "item") return view === entrada.view;

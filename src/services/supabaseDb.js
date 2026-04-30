@@ -334,6 +334,35 @@ async function deleteServico(id) {
   if (error) throw error;
 }
 
+// ─── Barbeiros ───────────────────────────────────────────────────
+async function getBarbeiros() {
+  const { data, error } = await supabase
+    .from("barbeiros")
+    .select("*")
+    .eq("ativo", true)
+    .order("nome");
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function addBarbeiro(b) {
+  const { id: _id, created_at: _ca, ...payload } = b;
+  const { data, error } = await supabase.from("barbeiros").insert(payload).select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function updateBarbeiro(b) {
+  const { created_at: _ca, ...payload } = b;
+  const { error } = await supabase.from("barbeiros").update(payload).eq("id", b.id);
+  if (error) throw error;
+}
+
+async function deleteBarbeiro(id) {
+  const { error } = await supabase.from("barbeiros").update({ ativo: false }).eq("id", id);
+  if (error) throw error;
+}
+
 // ─── Export (mesma interface do db.js) ───────────────────────────
 export const db = {
   getCategorias,
@@ -360,6 +389,10 @@ export const db = {
   addServico,
   updateServico,
   deleteServico,
+  getBarbeiros,
+  addBarbeiro,
+  updateBarbeiro,
+  deleteBarbeiro,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],
   addDesejo: async () => {},
