@@ -864,41 +864,87 @@ export default function Agenda({ onAtendimentoFinalizado }) {
             ) : (
               <div className="flex flex-col gap-4">
 
-                {/* Agendamentos pendentes */}
-                {eventosPendentes.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
-                      Agendados ({eventosPendentes.length})
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      {eventosPendentes.map((ev) => {
-                        const ehDiaTodo = !!ev.start?.date && !ev.start?.dateTime;
-                        const inicio = ehDiaTodo ? "Dia todo" : fmtHora(ev.start?.dateTime);
-                        const fim = ehDiaTodo ? "" : fmtHora(ev.end?.dateTime);
-                        return (
-                          <button
-                            key={ev.id}
-                            onClick={() => { setEditando(ev); setShowForm(true); }}
-                            className="flex items-start gap-3 p-3 border border-transparent rounded-xl bg-gray-50 hover:bg-indigo-50 hover:border-indigo-100 transition-all text-left"
-                          >
-                            <div className="w-1 self-stretch rounded-full shrink-0 bg-indigo-400" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate text-gray-800">
-                                {ev.summary || "(sem título)"}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {ehDiaTodo ? "Dia todo" : `${inicio} – ${fim}`}
-                              </p>
-                              {ev.description && (
-                                <p className="text-xs text-gray-500 mt-1 truncate">{ev.description}</p>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                {/* Agendamentos pendentes — agrupados por barbeiro */}
+                {eventosPendentes.length > 0 && (() => {
+                  const renderCard = (ev, corHex = "#818CF8") => {
+                    const ehDiaTodo = !!ev.start?.date && !ev.start?.dateTime;
+                    const inicio = ehDiaTodo ? "Dia todo" : fmtHora(ev.start?.dateTime);
+                    const fim = ehDiaTodo ? "" : fmtHora(ev.end?.dateTime);
+                    return (
+                      <button
+                        key={ev.id}
+                        onClick={() => { setEditando(ev); setShowForm(true); }}
+                        className="flex items-start gap-3 p-3 border border-transparent rounded-xl bg-gray-50 hover:bg-indigo-50 hover:border-indigo-100 transition-all text-left"
+                      >
+                        <div className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: corHex }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate text-gray-800">
+                            {ev.summary || "(sem título)"}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {ehDiaTodo ? "Dia todo" : `${inicio} – ${fim}`}
+                          </p>
+                          {ev.description && (
+                            <p className="text-xs text-gray-500 mt-1 truncate">{ev.description}</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  };
+
+                  if (barbeiros.length === 0) {
+                    return (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                          Agendados ({eventosPendentes.length})
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          {eventosPendentes.map((ev) => renderCard(ev))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const grupos = barbeiros
+                    .map((b) => ({
+                      barbeiro: b,
+                      cor: GCAL_CORES[b.gcal_color_id] ?? GCAL_CORES["9"],
+                      eventos: eventosPendentes.filter((ev) => ev.colorId === b.gcal_color_id),
+                    }))
+                    .filter((g) => g.eventos.length > 0);
+
+                  const semBarbeiro = eventosPendentes.filter(
+                    (ev) => !barbeiros.some((b) => b.gcal_color_id === ev.colorId)
+                  );
+
+                  return (
+                    <>
+                      {grupos.map((g) => (
+                        <div key={g.barbeiro.id}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.cor.hex }} />
+                            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: g.cor.hex }}>
+                              {g.barbeiro.nome} ({g.eventos.length})
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {g.eventos.map((ev) => renderCard(ev, g.cor.hex))}
+                          </div>
+                        </div>
+                      ))}
+                      {semBarbeiro.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                            Outros ({semBarbeiro.length})
+                          </p>
+                          <div className="flex flex-col gap-2">
+                            {semBarbeiro.map((ev) => renderCard(ev, "#D1D5DB"))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {/* Atendimentos concluídos */}
                 {eventosConcluidos.length > 0 && (
