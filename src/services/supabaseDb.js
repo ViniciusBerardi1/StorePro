@@ -572,6 +572,16 @@ async function deleteBarbeiro(id) {
   if (error) throw error;
 }
 
+// ─── Limpeza de dados operacionais (uso em testes) ───────────────
+async function limparDadosOperacionais() {
+  // Ordem respeita dependências: primeiro tabelas filhas, depois pais
+  const tabelas = ["historico", "comandas", "atendimentos", "clientes"];
+  for (const tabela of tabelas) {
+    const { error } = await supabase.from(tabela).delete().neq("id", 0);
+    if (error) throw error;
+  }
+}
+
 // ─── Export (mesma interface do db.js) ───────────────────────────
 export const db = {
   getCategorias,
@@ -615,6 +625,7 @@ export const db = {
   getAtendimentosPeriodo,
   getComandasFechadasPeriodo,
   getProdutosByTipo,
+  limparDadosOperacionais,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],
   addDesejo: async () => {},
