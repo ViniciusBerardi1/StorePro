@@ -21,17 +21,13 @@ const MENU = [
     itens: [
       { view: "servicos", label: "Serviços" },
       { view: "barbeiros", label: "Barbeiros" },
-      { view: "novo_atendimento", label: "Novo atendimento" },
     ],
   },
   {
-    type: "group",
+    type: "item",
+    view: "clientes_lista",
     label: "Clientes",
     icon: "👥",
-    itens: [
-      { view: "clientes_lista", label: "Lista" },
-      { view: "clientes_historico", label: "Histórico" },
-    ],
   },
   {
     type: "item",
