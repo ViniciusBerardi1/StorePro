@@ -356,7 +356,6 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         valor_loja: 0,
         valor_total: 0,
       };
-      if (clienteSel.id) payload.cliente_id = clienteSel.id;
       const cmd = await db.criarComanda(payload);
       setComandas((prev) => [cmd, ...prev]);
       setClienteSel(null);
@@ -398,7 +397,6 @@ export default function Comandas({ onAtendimentoFinalizado }) {
           gcal_event_id: comanda.gcal_event_id,
           data_hora: ev?.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : new Date().toISOString(),
           cliente_nome: comanda.cliente_nome,
-          cliente_id: comanda.cliente_id || null,
           servicos: svcs,
           valor_total,
           forma_pagamento,
