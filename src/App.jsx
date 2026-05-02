@@ -119,11 +119,6 @@ export default function App() {
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [desejoOrigemId, setDesejoOrigemId] = useState(null);
 
-  // ─── Dados do Dashboard (ficam no App para nunca pararem de atualizar) ────
-  const [atendimentosHoje, setAtendimentosHoje] = useState([]);
-  const [atendimentosMes, setAtendimentosMes]   = useState([]);
-  const [grafico, setGrafico]                   = useState([]);
-  const [loadingDash, setLoadingDash]           = useState(true);
 
   useEffect(() => {
     localStorage.setItem("storepro_view", view);
@@ -146,42 +141,7 @@ export default function App() {
     carregar();
   }, [carregar]);
 
-  // ─── Polling do Dashboard — roda sempre, mesmo fora da aba Dashboard ─────
-  const carregarDashboard = useCallback(async () => {
-    const agora = new Date();
-    try {
-      const [hoje, mes, graf] = await Promise.all([
-        db.getAtendimentosHoje(),
-        db.getAtendimentosMes(agora.getFullYear(), agora.getMonth() + 1),
-        db.getFaturamentoUltimosDias(7),
-      ]);
-      setAtendimentosHoje(hoje);
-      setAtendimentosMes(mes);
-      setGrafico(graf);
-    } catch (err) {
-      console.error("[Dashboard] Erro ao carregar:", err);
-    } finally {
-      setLoadingDash(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    carregarDashboard();
-
-    // Polling a cada 30s
-    const intervalo = setInterval(carregarDashboard, 30_000);
-
-    // Atualiza ao voltar para a aba do browser
-    const handleVisibilidade = () => {
-      if (document.visibilityState === "visible") carregarDashboard();
-    };
-    document.addEventListener("visibilitychange", handleVisibilidade);
-
-    return () => {
-      clearInterval(intervalo);
-      document.removeEventListener("visibilitychange", handleVisibilidade);
-    };
-  }, [carregarDashboard]);
+  const carregarDashboard = useCallback(() => carregar(), [carregar]);
 
   const handleSalvar = useCallback(async (produto) => {
     try {
@@ -357,14 +317,8 @@ export default function App() {
               <Barbeiros />
             ) : view === "financeiro" ? (
               <Dashboard
-                atendimentosHoje={atendimentosHoje}
-                atendimentosMes={atendimentosMes}
-                grafico={grafico}
-                loadingDash={loadingDash}
-                onRefresh={carregarDashboard}
                 produtos={produtos}
                 setView={navegar}
-                carregando={carregando}
               />
             ) : view === "comandas" ? (
               <Comandas onAtendimentoFinalizado={carregarDashboard} />

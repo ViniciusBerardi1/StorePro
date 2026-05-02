@@ -423,6 +423,30 @@ async function saveComanda(comanda) {
   return data.id;
 }
 
+// ─── Queries genéricas por período ──────────────────────────────
+async function getAtendimentosPeriodo(ini, fim) {
+  const { data, error } = await supabase
+    .from("atendimentos")
+    .select("*")
+    .gte("data_hora", ini)
+    .lte("data_hora", fim)
+    .order("data_hora", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function getComandasFechadasPeriodo(ini, fim) {
+  const { data, error } = await supabase
+    .from("comandas")
+    .select("*")
+    .eq("status", "fechada")
+    .gte("created_at", ini)
+    .lte("created_at", fim)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 // ─── Baixa estoque ao fechar comanda ────────────────────────────
 async function baixarEstoqueComanda(itens_bar = [], itens_loja = []) {
   const todos = [...itens_bar, ...itens_loja];
@@ -543,6 +567,8 @@ export const db = {
   deleteComanda,
   saveComanda,
   baixarEstoqueComanda,
+  getAtendimentosPeriodo,
+  getComandasFechadasPeriodo,
   getProdutosByTipo,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],
