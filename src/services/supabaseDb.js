@@ -139,7 +139,7 @@ async function addCliente(c) {
   const { id: _id, ...payload } = c;
   const { data, error } = await supabase.from("clientes").insert(payload).select().single();
   if (error) throw error;
-  return data.id;
+  return data;
 }
 
 async function updateCliente(c) {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { atualizarEvento } from "../../services/googleCalendar";
+import ClienteSelector from "../ui/ClienteSelector";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -300,31 +301,34 @@ function ComandaCard({ comanda, aberta, onToggle, servicos, produtosBar, produto
 
 // ─── Página principal ───────────────────────────────────────────────
 export default function Comandas({ onAtendimentoFinalizado }) {
-  const [comandas, setComandas]       = useState([]);
-  const [servicos, setServicos]       = useState([]);
-  const [produtosBar, setProdutosBar] = useState([]);
-  const [produtosLoja, setProdutosLoja] = useState([]);
-  const [carregando, setCarregando]   = useState(true);
-  const [expandida, setExpandida]     = useState(null);
-  const [criandoNova, setCriandoNova] = useState(false);
-  const [novoNome, setNovoNome]       = useState("");
-  const [salvandoNova, setSalvandoNova] = useState(false);
-  const [erro, setErro]               = useState(null);
+  const [comandas, setComandas]           = useState([]);
+  const [servicos, setServicos]           = useState([]);
+  const [produtosBar, setProdutosBar]     = useState([]);
+  const [produtosLoja, setProdutosLoja]   = useState([]);
+  const [clientes, setClientes]           = useState([]);
+  const [carregando, setCarregando]       = useState(true);
+  const [expandida, setExpandida]         = useState(null);
+  const [criandoNova, setCriandoNova]     = useState(false);
+  const [clienteSel, setClienteSel]       = useState(null);
+  const [salvandoNova, setSalvandoNova]   = useState(false);
+  const [erro, setErro]                   = useState(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro(null);
     try {
-      const [cmds, svcs, bar, loja] = await Promise.all([
+      const [cmds, svcs, bar, loja, cls] = await Promise.all([
         db.getComandasAbertas(),
         db.getServicos(),
         db.getProdutosByTipo("bar"),
         db.getProdutosByTipo("loja"),
+        db.getClientes(),
       ]);
       setComandas(cmds);
       setServicos(svcs.filter((s) => s.ativo));
       setProdutosBar(bar);
       setProdutosLoja(loja);
+      setClientes(cls);
     } catch (e) {
       setErro("Erro ao carregar comandas.");
       console.error(e);
@@ -336,11 +340,12 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   useEffect(() => { carregar(); }, [carregar]);
 
   const handleCriarNova = async () => {
-    if (!novoNome.trim()) return;
+    if (!clienteSel) return;
     setSalvandoNova(true);
     try {
       const cmd = await db.criarComanda({
-        cliente_nome: novoNome.trim(),
+        cliente_nome: clienteSel.nome,
+        cliente_id: clienteSel.id || null,
         status: "aberta",
         servicos: [],
         itens_bar: [],
@@ -351,7 +356,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         valor_total: 0,
       });
       setComandas((prev) => [cmd, ...prev]);
-      setNovoNome("");
+      setClienteSel(null);
       setCriandoNova(false);
       setExpandida(cmd.id);
     } catch (e) {
@@ -389,6 +394,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
           gcal_event_id: comanda.gcal_event_id,
           data_hora: ev?.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : new Date().toISOString(),
           cliente_nome: comanda.cliente_nome,
+          cliente_id: comanda.cliente_id || null,
           servicos: svcs,
           valor_total,
           forma_pagamento,
@@ -436,7 +442,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
             className="text-xs text-gray-400 hover:text-indigo-500 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
           >🔄</button>
           <button
-            onClick={() => { setCriandoNova(true); setNovoNome(""); }}
+            onClick={() => { setCriandoNova(true); setClienteSel(null); }}
             className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
           >+ Nova comanda</button>
         </div>
@@ -451,26 +457,22 @@ export default function Comandas({ onAtendimentoFinalizado }) {
             exit={{ opacity: 0, y: -8 }}
             className="bg-white border border-indigo-200 rounded-2xl px-5 py-4 flex flex-col gap-3"
           >
-            <p className="text-sm font-medium text-gray-700">Nova comanda — cliente avulso</p>
+            <p className="text-sm font-medium text-gray-700">Nova comanda avulsa</p>
+            <ClienteSelector
+              clientes={clientes}
+              value={clienteSel}
+              onChange={setClienteSel}
+            />
             <div className="flex gap-2">
-              <input
-                autoFocus
-                type="text"
-                value={novoNome}
-                onChange={(e) => setNovoNome(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCriarNova()}
-                placeholder="Nome do cliente"
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              />
               <button
-                onClick={() => setCriandoNova(false)}
+                onClick={() => { setCriandoNova(false); setClienteSel(null); }}
                 className="px-3 py-2 rounded-xl text-sm text-gray-400 hover:bg-gray-100 transition-colors"
               >Cancelar</button>
               <button
                 onClick={handleCriarNova}
-                disabled={salvandoNova || !novoNome.trim()}
-                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
-              >{salvandoNova ? "..." : "Criar"}</button>
+                disabled={salvandoNova || !clienteSel}
+                className="flex-1 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
+              >{salvandoNova ? "..." : "Criar comanda"}</button>
             </div>
           </motion.div>
         )}
@@ -497,7 +499,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
             Inicie um atendimento na Agenda ou crie uma comanda avulsa.
           </p>
           <button
-            onClick={() => { setCriandoNova(true); setNovoNome(""); }}
+            onClick={() => { setCriandoNova(true); setClienteSel(null); }}
             className="mt-4 text-sm text-indigo-500 hover:text-indigo-600 font-medium"
           >+ Nova comanda avulsa</button>
         </motion.div>
