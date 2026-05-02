@@ -311,6 +311,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   const [criandoNova, setCriandoNova]     = useState(false);
   const [clienteSel, setClienteSel]       = useState(null);
   const [salvandoNova, setSalvandoNova]   = useState(false);
+  const [erroNova, setErroNova]           = useState(null);
   const [erro, setErro]                   = useState(null);
 
   const carregar = useCallback(async () => {
@@ -342,10 +343,10 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   const handleCriarNova = async () => {
     if (!clienteSel) return;
     setSalvandoNova(true);
+    setErroNova(null);
     try {
-      const cmd = await db.criarComanda({
+      const payload = {
         cliente_nome: clienteSel.nome,
-        cliente_id: clienteSel.id || null,
         status: "aberta",
         servicos: [],
         itens_bar: [],
@@ -354,13 +355,16 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         valor_bar: 0,
         valor_loja: 0,
         valor_total: 0,
-      });
+      };
+      if (clienteSel.id) payload.cliente_id = clienteSel.id;
+      const cmd = await db.criarComanda(payload);
       setComandas((prev) => [cmd, ...prev]);
       setClienteSel(null);
       setCriandoNova(false);
       setExpandida(cmd.id);
     } catch (e) {
       console.error(e);
+      setErroNova(e?.message || "Erro ao criar comanda.");
     } finally {
       setSalvandoNova(false);
     }
@@ -461,11 +465,14 @@ export default function Comandas({ onAtendimentoFinalizado }) {
             <ClienteSelector
               clientes={clientes}
               value={clienteSel}
-              onChange={setClienteSel}
+              onChange={(v) => { setClienteSel(v); setErroNova(null); }}
             />
+            {erroNova && (
+              <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erroNova}</p>
+            )}
             <div className="flex gap-2">
               <button
-                onClick={() => { setCriandoNova(false); setClienteSel(null); }}
+                onClick={() => { setCriandoNova(false); setClienteSel(null); setErroNova(null); }}
                 className="px-3 py-2 rounded-xl text-sm text-gray-400 hover:bg-gray-100 transition-colors"
               >Cancelar</button>
               <button
