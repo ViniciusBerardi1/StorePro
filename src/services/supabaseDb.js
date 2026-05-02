@@ -423,6 +423,45 @@ async function saveComanda(comanda) {
   return data.id;
 }
 
+// ─── Baixa estoque ao fechar comanda ────────────────────────────
+async function baixarEstoqueComanda(itens_bar = [], itens_loja = []) {
+  const todos = [...itens_bar, ...itens_loja];
+  if (todos.length === 0) return;
+
+  // Agrega por produto_id (mesmo produto pode aparecer duplicado)
+  const agregado = {};
+  for (const item of todos) {
+    agregado[item.produto_id] = (agregado[item.produto_id] || 0) + (item.quantidade ?? 1);
+  }
+  const ids = Object.keys(agregado).map(Number);
+
+  const { data: produtos, error } = await supabase
+    .from("produtos")
+    .select("id, quantidade, nome, cor, foto, categoria_id")
+    .in("id", ids);
+  if (error) throw error;
+
+  await Promise.all(
+    (produtos ?? []).map(async (prod) => {
+      const novaQtd = Math.max(0, (prod.quantidade ?? 0) - agregado[prod.id]);
+      const { error: ue } = await supabase
+        .from("produtos")
+        .update({ quantidade: novaQtd })
+        .eq("id", prod.id);
+      if (ue) throw ue;
+      if (novaQtd === 0 && (prod.quantidade ?? 0) > 0) {
+        await supabase.from("historico").insert({
+          produto_id: prod.id,
+          produto_nome: prod.nome,
+          produto_cor: prod.cor || "",
+          foto: prod.foto || "",
+          data_zerado: new Date().toISOString(),
+        });
+      }
+    })
+  );
+}
+
 // ─── Produtos por tipo (bar / loja) ──────────────────────────────
 async function getProdutosByTipo(tipo) {
   const [{ data: produtos, error: e1 }, { data: cats, error: e2 }] = await Promise.all([
@@ -503,6 +542,7 @@ export const db = {
   updateComanda,
   deleteComanda,
   saveComanda,
+  baixarEstoqueComanda,
   getProdutosByTipo,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],

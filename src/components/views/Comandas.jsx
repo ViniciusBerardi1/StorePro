@@ -157,7 +157,14 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
                 >
                   <div className="min-w-0 flex-1 mr-3">
                     <p className={`text-sm font-medium truncate ${qtd > 0 ? (isBar ? "text-amber-700" : "text-indigo-700") : "text-gray-700"}`}>{p.nome}</p>
-                    <p className={`text-xs ${qtd > 0 ? (isBar ? "text-amber-500" : "text-indigo-500") : "text-gray-400"}`}>{fmtValor(p.preco_venda)}</p>
+                    <p className={`text-xs ${qtd > 0 ? (isBar ? "text-amber-500" : "text-indigo-500") : "text-gray-400"}`}>
+                      {fmtValor(p.preco_venda)}
+                      {p.quantidade != null && (
+                        <span className={`ml-1.5 ${qtd > (p.quantidade ?? 0) ? "text-red-400 font-medium" : "text-gray-300"}`}>
+                          · estoque: {Math.max(0, (p.quantidade ?? 0) - qtd)}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
@@ -356,6 +363,8 @@ export default function Comandas({ onAtendimentoFinalizado }) {
 
   const handleFinalizar = async (comanda, editorData) => {
     const { servicos: svcs, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento } = editorData;
+
+    await db.baixarEstoqueComanda(itens_bar, itens_loja);
 
     await db.updateComanda(comanda.id, {
       servicos: svcs,
