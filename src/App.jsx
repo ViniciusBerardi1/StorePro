@@ -12,6 +12,7 @@ import Agenda from "./components/views/Agenda";
 import Servicos from "./components/views/Servicos";
 import Barbeiros from "./components/views/Barbeiros";
 import Comandas from "./components/views/Comandas";
+import ClientesLista from "./components/views/ClientesLista";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
@@ -322,6 +323,8 @@ export default function App() {
               />
             ) : view === "comandas" ? (
               <Comandas onAtendimentoFinalizado={carregarDashboard} />
+            ) : view === "clientes_lista" ? (
+              <ClientesLista />
             ) : view === "agenda" ? (
               <Agenda
                 onAtendimentoFinalizado={carregarDashboard}

@@ -63,7 +63,7 @@ const MENU = [
   },
 ];
 
-const VIEWS_ATIVAS = ["agenda", "comandas", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros"];
+const VIEWS_ATIVAS = ["agenda", "comandas", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros", "clientes_lista"];
 
 function isAtivo(entrada, view) {
   if (entrada.type === "item") return view === entrada.view;

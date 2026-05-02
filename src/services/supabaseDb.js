@@ -92,6 +92,49 @@ async function getClientes() {
   return data;
 }
 
+async function getClientesComStats() {
+  const [{ data: clientes, error: e1 }, { data: atends, error: e2 }] = await Promise.all([
+    supabase.from("clientes").select("*").order("data_cadastro", { ascending: false }),
+    supabase.from("atendimentos")
+      .select("cliente_id, cliente_nome, valor_total, data_hora")
+      .eq("status", "concluido"),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+
+  const byId   = {};
+  const byNome = {};
+  const addStats = (map, key, a) => {
+    if (!map[key]) map[key] = { count: 0, total: 0, ultima: null };
+    map[key].count++;
+    map[key].total += Number(a.valor_total || 0);
+    if (!map[key].ultima || a.data_hora > map[key].ultima) map[key].ultima = a.data_hora;
+  };
+  for (const a of atends ?? []) {
+    if (a.cliente_id) addStats(byId, a.cliente_id, a);
+    if (a.cliente_nome) addStats(byNome, (a.cliente_nome || "").toLowerCase().trim(), a);
+  }
+
+  return (clientes ?? []).map((c) => ({
+    ...c,
+    stats: byId[c.id] ?? byNome[(c.nome || "").toLowerCase().trim()] ?? { count: 0, total: 0, ultima: null },
+  }));
+}
+
+async function getAtendimentosByCliente(clienteId, clienteNome) {
+  const { data, error } = await supabase
+    .from("atendimentos")
+    .select("*")
+    .order("data_hora", { ascending: false });
+  if (error) throw error;
+  const norm = (clienteNome || "").toLowerCase().trim();
+  return (data ?? []).filter(
+    (a) =>
+      (clienteId && a.cliente_id === Number(clienteId)) ||
+      (a.cliente_nome || "").toLowerCase().trim() === norm
+  );
+}
+
 async function addCliente(c) {
   const { id: _id, ...payload } = c;
   const { data, error } = await supabase.from("clientes").insert(payload).select().single();
@@ -540,6 +583,8 @@ export const db = {
   getHistorico,
   limparHistorico,
   getClientes,
+  getClientesComStats,
+  getAtendimentosByCliente,
   addCliente,
   updateCliente,
   deleteCliente,
