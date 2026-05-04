@@ -85,8 +85,202 @@ function ConfirmacaoComanda({ evento, onConfirmar, onCancelar }) {
   );
 }
 
+// ─── Modal de horários especiais ─────────────────────────────────
+function HorarioEspecialModal({ onFechar, onAtualizado }) {
+  const [lista, setLista] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [form, setForm] = useState(null);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState(null);
+
+  useEffect(() => {
+    db.getHorariosEspeciais().then(setLista).finally(() => setCarregando(false));
+  }, []);
+
+  const set = (k) => (e) =>
+    setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+
+  const handleSalvar = async () => {
+    if (!form?.data) return setErro("Informe a data.");
+    setSalvando(true);
+    setErro(null);
+    try {
+      const salvo = await db.upsertHorarioEspecial(form);
+      setLista((prev) => {
+        const idx = prev.findIndex((h) => h.id === salvo.id || h.data === salvo.data);
+        const next = idx >= 0 ? prev.map((h, i) => (i === idx ? salvo : h)) : [...prev, salvo];
+        return next.sort((a, b) => a.data.localeCompare(b.data));
+      });
+      setForm(null);
+      onAtualizado?.();
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const handleDeletar = async (id) => {
+    try {
+      await db.deleteHorarioEspecial(id);
+      setLista((prev) => prev.filter((h) => h.id !== id));
+      onAtualizado?.();
+    } catch (e) {
+      setErro(e.message);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="font-semibold text-gray-800 text-base">Horários especiais</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Feriados, fechamentos antecipados, etc.</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+
+        {/* Formulário inline */}
+        {form && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 flex flex-col gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Data *</label>
+              <input
+                type="date"
+                value={form.data ?? ""}
+                onChange={set("data")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
+
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input type="checkbox" checked={form.fechado ?? false} onChange={set("fechado")} className="w-4 h-4 accent-red-500" />
+              <span className="text-sm text-gray-700">Fechado o dia todo</span>
+            </label>
+
+            {!form.fechado && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Abre às</label>
+                  <input
+                    type="time"
+                    value={form.hora_abertura ?? "09:00"}
+                    onChange={set("hora_abertura")}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Fecha às</label>
+                  <input
+                    type="time"
+                    value={form.hora_fechamento ?? "20:00"}
+                    onChange={set("hora_fechamento")}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Motivo</label>
+              <input
+                type="text"
+                value={form.motivo ?? ""}
+                onChange={set("motivo")}
+                placeholder="Ex: Feriado, manutenção..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
+
+            {erro && (
+              <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setForm(null); setErro(null); }}
+                className="flex-1 border border-gray-200 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSalvar}
+                disabled={salvando}
+                className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
+              >
+                {salvando ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Lista */}
+        {carregando ? (
+          <div className="py-8 text-center text-sm text-gray-400 animate-pulse">Carregando...</div>
+        ) : lista.length === 0 && !form ? (
+          <div className="py-8 text-center">
+            <div className="text-3xl mb-2">📅</div>
+            <p className="text-sm text-gray-400">Nenhum horário especial cadastrado.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 mb-4">
+            {lista.map((h) => {
+              const dataFmt = new Date(h.data + "T12:00:00").toLocaleDateString("pt-BR", {
+                weekday: "short", day: "2-digit", month: "short", year: "numeric",
+              });
+              return (
+                <div key={h.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-gray-800 capitalize">{dataFmt}</span>
+                      {h.fechado ? (
+                        <span className="text-[10px] font-semibold bg-red-100 text-red-500 px-2 py-0.5 rounded-full">Fechado</span>
+                      ) : (
+                        <span className="text-[10px] font-semibold bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">
+                          {h.hora_abertura?.slice(0, 5)} – {h.hora_fechamento?.slice(0, 5)}
+                        </span>
+                      )}
+                    </div>
+                    {h.motivo && <p className="text-xs text-gray-400 mt-0.5">{h.motivo}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => setForm({ ...h, hora_abertura: h.hora_abertura?.slice(0, 5) ?? "09:00", hora_fechamento: h.hora_fechamento?.slice(0, 5) ?? "20:00" })}
+                      className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-white transition-colors"
+                    >Editar</button>
+                    <button
+                      onClick={() => handleDeletar(h.id)}
+                      className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-white transition-colors"
+                    >Remover</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!form && (
+          <button
+            onClick={() => setForm({ hora_abertura: "09:00", hora_fechamento: "20:00", fechado: false })}
+            className="w-full border border-dashed border-indigo-200 text-indigo-500 hover:bg-indigo-50 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            + Adicionar horário especial
+          </button>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── Formulário de agendamento (simplificado) ─────────────────────
-function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onIniciarAtendimento, barbeiros = [], eventos = [], clientes = [], servicosDisponiveis = [] }) {
+function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onIniciarAtendimento, barbeiros = [], eventos = [], clientes = [], servicosDisponiveis = [], horariosEspeciais = [] }) {
   const dataDefault = (diaPadrao ?? new Date()).toISOString().slice(0, 10);
   const eConcluido = evento?.summary?.startsWith("✅");
 
@@ -135,13 +329,23 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
     const barbSel = barbeirosRef.current.find((b) => b.id === barbId);
     if (!barbSel) return;
 
+    const especial = horariosEspeciais.find((h) => h.data === data);
+    if (especial?.fechado) return;
+
+    const aberturaMin = especial
+      ? Number(especial.hora_abertura.slice(0, 2)) * 60 + Number(especial.hora_abertura.slice(3, 5))
+      : 9 * 60;
+    const fechamentoMin = especial
+      ? Number(especial.hora_fechamento.slice(0, 2)) * 60 + Number(especial.hora_fechamento.slice(3, 5))
+      : 20 * 60;
+
     const eventosBarb = eventosRef.current
       .filter((ev) => ev.colorId === barbSel.gcal_color_id && ev.start?.dateTime && ev.start.dateTime.slice(0, 10) === data)
       .map((ev) => ({ inicio: ev.start.dateTime, fim: ev.end.dateTime }))
       .sort((a, b) => a.inicio.localeCompare(b.inicio));
 
     const hoje = new Date().toISOString().slice(0, 10);
-    let cursorMin = 9 * 60;
+    let cursorMin = aberturaMin;
     if (data === hoje) {
       const now = new Date();
       const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -155,6 +359,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
       cursorMin = Math.max(cursorMin, evFimMin);
     }
 
+    if (cursorMin + totalMin > fechamentoMin) return;
     const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
     setForm((f) => ({ ...f, horaInicio: fmt(cursorMin), horaFim: fmt(cursorMin + totalMin) }));
     setHorarioSugerido(true);
@@ -593,11 +798,16 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
 
   const [clientes, setClientes] = useState([]);
   const [servicosDisponiveis, setServicosDisponiveis] = useState([]);
+  const [horariosEspeciais, setHorariosEspeciais] = useState([]);
+  const [showHorariosModal, setShowHorariosModal] = useState(false);
+
+  const carregarHorariosEspeciais = () => db.getHorariosEspeciais().then(setHorariosEspeciais).catch(() => {});
 
   useEffect(() => {
     db.getBarbeiros().then(setBarbeiros).catch(() => {});
     db.getClientes().then(setClientes).catch(() => {});
     db.getServicos().then((s) => setServicosDisponiveis(s.filter((sv) => sv.ativo))).catch(() => {});
+    carregarHorariosEspeciais();
   }, []);
 
   // Recarrega eventos quando a comanda lateral finaliza um atendimento
@@ -756,6 +966,12 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
         {conectado && (
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setShowHorariosModal(true)}
+              className="text-xs text-gray-400 hover:text-amber-500 transition-colors px-2 py-1 rounded-lg hover:bg-amber-50"
+            >
+              🕐 Horários
+            </button>
+            <button
               onClick={carregarEventos}
               className="text-xs text-gray-400 hover:text-indigo-500 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
             >
@@ -809,6 +1025,8 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
               {dias.map((d, i) => {
                 const isHoje = mesmodia(d, hoje);
                 const isSelecionado = mesmodia(d, diaSelecionado);
+                const dStr = d.toISOString().slice(0, 10);
+                const especial = horariosEspeciais.find((h) => h.data === dStr);
                 return (
                   <button
                     key={i}
@@ -818,9 +1036,12 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
                   >
                     <span className="text-xs font-medium">{DIAS_SEMANA_CURTO[d.getDay()]}</span>
                     <span className="text-sm font-bold leading-none">{d.getDate()}</span>
-                    <div className="h-1.5 flex items-center justify-center">
+                    <div className="h-1.5 flex items-center justify-center gap-0.5">
                       {contagemPorDia[i] > 0 && (
                         <span className={`w-1.5 h-1.5 rounded-full ${isSelecionado ? "bg-white/60" : "bg-indigo-400"}`} />
+                      )}
+                      {especial && (
+                        <span className={`w-1.5 h-1.5 rounded-full ${isSelecionado ? "bg-amber-200" : especial.fechado ? "bg-red-400" : "bg-amber-400"}`} />
                       )}
                     </div>
                   </button>
@@ -837,6 +1058,23 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
             transition={{ duration: 0.2 }}
             className="bg-white border border-gray-200 rounded-2xl p-5 flex-1"
           >
+            {(() => {
+              const dStr = diaSelecionado.toISOString().slice(0, 10);
+              const especial = horariosEspeciais.find((h) => h.data === dStr);
+              return especial ? (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-3 text-xs font-medium
+                  ${especial.fechado ? "bg-red-50 text-red-600 border border-red-100" : "bg-amber-50 text-amber-700 border border-amber-100"}`}>
+                  <span>{especial.fechado ? "🔒" : "🕐"}</span>
+                  <span>
+                    {especial.fechado
+                      ? `Fechado${especial.motivo ? ` — ${especial.motivo}` : ""}`
+                      : `Horário especial: ${especial.hora_abertura?.slice(0, 5)} – ${especial.hora_fechamento?.slice(0, 5)}${especial.motivo ? ` · ${especial.motivo}` : ""}`}
+                  </span>
+                  <button onClick={() => setShowHorariosModal(true)} className="ml-auto underline opacity-70 hover:opacity-100">Editar</button>
+                </div>
+              ) : null;
+            })()}
+
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-sm font-semibold text-gray-800 capitalize">
@@ -1009,6 +1247,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
             eventos={eventos}
             clientes={clientes}
             servicosDisponiveis={servicosDisponiveis}
+            horariosEspeciais={horariosEspeciais}
           />
         )}
       </AnimatePresence>
@@ -1030,6 +1269,15 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
             barbeiros={barbeiros}
             onFechar={() => { setShowComandaModal(false); setEventoComandaModal(null); }}
             onFinalizar={handleFinalizarComandaModal}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showHorariosModal && (
+          <HorarioEspecialModal
+            onFechar={() => setShowHorariosModal(false)}
+            onAtualizado={carregarHorariosEspeciais}
           />
         )}
       </AnimatePresence>

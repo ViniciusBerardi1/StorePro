@@ -142,6 +142,17 @@ alter table comandas add column if not exists cliente_id integer references clie
 alter table comandas add column if not exists desconto jsonb;
 alter table servicos add column if not exists duracao_minutos integer default 30;
 
+-- ─── Horários especiais ───────────────────────────────────────────
+create table if not exists horarios_especiais (
+  id              serial primary key,
+  data            date not null unique,
+  hora_abertura   text not null default '09:00',
+  hora_fechamento text not null default '20:00',
+  fechado         boolean not null default false,
+  motivo          text,
+  created_at      timestamptz default now()
+);
+
 -- ─── Row Level Security (RLS) ────────────────────────────────
 -- Por padrão desabilitado para desenvolvimento.
 -- Habilite e configure policies antes de ir para produção.
@@ -152,5 +163,6 @@ alter table clientes      disable row level security;
 alter table atendimentos  disable row level security;
 alter table historico     disable row level security;
 alter table servicos      disable row level security;
-alter table barbeiros     disable row level security;
-alter table comandas      disable row level security;
+alter table barbeiros            disable row level security;
+alter table comandas             disable row level security;
+alter table horarios_especiais   disable row level security;

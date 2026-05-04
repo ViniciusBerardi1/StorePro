@@ -572,6 +572,29 @@ async function deleteBarbeiro(id) {
   if (error) throw error;
 }
 
+// ─── Horários especiais ───────────────────────────────────────────
+async function getHorariosEspeciais() {
+  const { data, error } = await supabase.from("horarios_especiais").select("*").order("data");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function upsertHorarioEspecial(h) {
+  const { id, created_at, ...payload } = h;
+  const { data, error } = await supabase
+    .from("horarios_especiais")
+    .upsert(id ? { id, ...payload } : payload, { onConflict: "data" })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function deleteHorarioEspecial(id) {
+  const { error } = await supabase.from("horarios_especiais").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 // ─── Limpeza de dados operacionais (uso em testes) ───────────────
 async function limparDadosOperacionais() {
   // Ordem respeita dependências: primeiro tabelas filhas, depois pais
@@ -625,6 +648,9 @@ export const db = {
   getAtendimentosPeriodo,
   getComandasFechadasPeriodo,
   getProdutosByTipo,
+  getHorariosEspeciais,
+  upsertHorarioEspecial,
+  deleteHorarioEspecial,
   limparDadosOperacionais,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],
