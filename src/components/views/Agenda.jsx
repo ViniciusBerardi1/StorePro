@@ -108,6 +108,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
   const [servicosSel, setServicosSel] = useState(new Set());
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState(null);
+  const [avisoForm, setAvisoForm] = useState(null);
   const [horarioSugerido, setHorarioSugerido] = useState(false);
 
   const buildSummary = (svcsSet, cliente) => {
@@ -126,9 +127,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
     if (totalMin === 0) return null;
     const [h, m] = horaInicio.split(":").map(Number);
     const fimTotal = h * 60 + m + totalMin;
-    const fimH = Math.min(Math.floor(fimTotal / 60), 20);
-    const fimM = fimTotal % 60;
-    return `${String(fimH).padStart(2, "0")}:${String(fimM).padStart(2, "0")}`;
+    return `${String(Math.floor(fimTotal / 60)).padStart(2, "0")}:${String(fimTotal % 60).padStart(2, "0")}`;
   };
 
   const sugerirHorario = (data, barbId, totalMin) => {
@@ -156,7 +155,6 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
       cursorMin = Math.max(cursorMin, evFimMin);
     }
 
-    if (cursorMin + totalMin > 20 * 60) return;
     const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
     setForm((f) => ({ ...f, horaInicio: fmt(cursorMin), horaFim: fmt(cursorMin + totalMin) }));
     setHorarioSugerido(true);
@@ -229,12 +227,12 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.summary.trim()) return;
-    if (form.horaInicio < "09:00" || form.horaInicio > "20:00")
-      return setErroForm("Horário de início deve ser entre 09:00 e 20:00.");
-    if (form.horaFim < "09:00" || form.horaFim > "20:00")
-      return setErroForm("Horário de fim deve ser entre 09:00 e 20:00.");
     if (form.horaFim <= form.horaInicio)
       return setErroForm("Horário de fim deve ser após o início.");
+    setErroForm(null);
+    const foraDoHorario =
+      form.horaInicio < "09:00" || form.horaFim > "20:00";
+    setAvisoForm(foraDoHorario ? "Horário fora do expediente (09:00–20:00). Agendamento salvo mesmo assim." : null);
 
     const inicioNovo = new Date(`${form.data}T${form.horaInicio}:00`);
     const fimNovo = new Date(`${form.data}T${form.horaFim}:00`);
@@ -378,32 +376,28 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-gray-500">Início <span className="text-gray-400 font-normal">(09:00–20:00)</span></label>
+                <label className="text-xs font-medium text-gray-500">Início</label>
                 {horarioSugerido && !evento && (
                   <span className="text-[10px] text-indigo-400 font-medium">⚡ sugerido</span>
                 )}
               </div>
               <TimePicker
                 value={form.horaInicio}
-                onChange={(v) => { setForm((f) => ({ ...f, horaInicio: v ?? "09:00" })); setHorarioSugerido(false); }}
+                onChange={(v) => { setForm((f) => ({ ...f, horaInicio: v ?? "09:00" })); setHorarioSugerido(false); setAvisoForm(null); }}
                 disableClock
                 clearIcon={null}
                 format="HH:mm"
-                minTime="09:00"
-                maxTime="20:00"
                 className="rtp-wrapper"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Fim <span className="text-gray-400 font-normal">(até 20:00)</span></label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Fim</label>
               <TimePicker
                 value={form.horaFim}
-                onChange={(v) => { setForm((f) => ({ ...f, horaFim: v ?? "10:00" })); setHorarioSugerido(false); }}
+                onChange={(v) => { setForm((f) => ({ ...f, horaFim: v ?? "10:00" })); setHorarioSugerido(false); setAvisoForm(null); }}
                 disableClock
                 clearIcon={null}
                 format="HH:mm"
-                minTime="09:00"
-                maxTime="20:00"
                 className="rtp-wrapper"
               />
             </div>
@@ -445,6 +439,12 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
             />
           </div>
+
+          {avisoForm && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              ⚠️ {avisoForm}
+            </div>
+          )}
 
           {erroForm && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
