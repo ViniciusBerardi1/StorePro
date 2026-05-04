@@ -37,3 +37,62 @@ select,
 textarea {
   font-family: var(--font-body);
 }
+
+/* ─── react-time-picker ───────────────────────────────────────── */
+.rtp-wrapper {
+  width: 100%;
+}
+
+.rtp-wrapper .react-time-picker__wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.rtp-wrapper .react-time-picker__wrapper:focus-within {
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.35);
+  outline: none;
+}
+
+.rtp-wrapper .react-time-picker__inputGroup {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.rtp-wrapper .react-time-picker__inputGroup__input {
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  color: #1f2937;
+  background: transparent;
+  padding: 0;
+  min-width: 1.6em;
+  text-align: center;
+}
+
+.rtp-wrapper .react-time-picker__inputGroup__divider {
+  color: #9ca3af;
+  font-weight: 600;
+  padding: 0 1px;
+}
+
+.rtp-wrapper .react-time-picker__clear-button,
+.rtp-wrapper .react-time-picker__clock-button {
+  display: none;
+}
+
+.rtp-wrapper .react-time-picker__inputGroup__input::-webkit-inner-spin-button,
+.rtp-wrapper .react-time-picker__inputGroup__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}

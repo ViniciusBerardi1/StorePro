@@ -14,6 +14,8 @@ import { db } from "../../services/supabaseDb";
 import { GCAL_CORES } from "./Barbeiros";
 import Comanda from "./Comanda";
 import ClienteSelector from "../ui/ClienteSelector";
+import TimePicker from "react-time-picker";
+import "react-time-picker/dist/TimePicker.css";
 
 const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = [
@@ -238,24 +240,28 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">Início <span className="text-gray-400 font-normal">(09:00–20:00)</span></label>
-              <input
-                type="time"
+              <TimePicker
                 value={form.horaInicio}
-                min="09:00"
-                max="20:00"
-                onChange={set("horaInicio")}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                onChange={(v) => setForm((f) => ({ ...f, horaInicio: v ?? "09:00" }))}
+                disableClock
+                clearIcon={null}
+                format="HH:mm"
+                minTime="09:00"
+                maxTime="20:00"
+                className="rtp-wrapper"
               />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">Fim <span className="text-gray-400 font-normal">(até 20:00)</span></label>
-              <input
-                type="time"
+              <TimePicker
                 value={form.horaFim}
-                min="09:00"
-                max="20:00"
-                onChange={set("horaFim")}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                onChange={(v) => setForm((f) => ({ ...f, horaFim: v ?? "10:00" }))}
+                disableClock
+                clearIcon={null}
+                format="HH:mm"
+                minTime="09:00"
+                maxTime="20:00"
+                className="rtp-wrapper"
               />
             </div>
           </div>
