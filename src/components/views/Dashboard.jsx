@@ -1142,6 +1142,24 @@ function DetalheComanda({ cmd, custoPorId }) {
             <span className="font-medium">{BRL(cmd.valor_loja)}</span>
           </div>
         )}
+        {cmd.desconto?.valor_calculado > 0 && (() => {
+          const d = cmd.desconto;
+          const alvoNome = { total: "Total", servicos: "Serviços", bar: "Bar", loja: "Loja" }[d.alvo] ?? "Total";
+          const label = d.tipo === "percent" ? `${alvoNome} −${d.valor}%` : alvoNome;
+          const subtotal = Number(cmd.valor_servicos || 0) + Number(cmd.valor_bar || 0) + Number(cmd.valor_loja || 0);
+          return (
+            <>
+              <div className="flex justify-between text-xs text-gray-400 border-t border-gray-200 pt-1.5 mt-0.5">
+                <span>Subtotal</span>
+                <span>{BRL(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-xs font-medium text-orange-500">
+                <span>Desconto ({label})</span>
+                <span>−{BRL(d.valor_calculado)}</span>
+              </div>
+            </>
+          );
+        })()}
         <div className="flex justify-between text-sm font-bold text-gray-800 border-t border-gray-200 pt-1.5 mt-0.5">
           <span>Total</span>
           <span className="text-indigo-600">{BRL(cmd.valor_total)}</span>
