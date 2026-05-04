@@ -13,6 +13,7 @@ import {
 import { db } from "../../services/supabaseDb";
 import { GCAL_CORES } from "./Barbeiros";
 import Comanda from "./Comanda";
+import ClienteSelector from "../ui/ClienteSelector";
 
 const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES = [
@@ -83,7 +84,7 @@ function ConfirmacaoComanda({ evento, onConfirmar, onCancelar }) {
 }
 
 // ─── Formulário de agendamento (simplificado) ─────────────────────
-function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onIniciarAtendimento, barbeiros = [], eventos = [] }) {
+function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onIniciarAtendimento, barbeiros = [], eventos = [], clientes = [] }) {
   const dataDefault = (diaPadrao ?? new Date()).toISOString().slice(0, 10);
   const eConcluido = evento?.summary?.startsWith("✅");
 
@@ -101,8 +102,23 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
     return barb?.id ?? null;
   });
 
+  const [clienteSel, setClienteSel] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState(null);
+
+  const handleClienteChange = (cliente) => {
+    setClienteSel(cliente);
+    if (!cliente) return;
+    setForm((f) => {
+      const trimmed = f.summary.trim();
+      if (!trimmed) return { ...f, summary: cliente.nome };
+      if (/\s[—-]\s/.test(trimmed)) {
+        const partes = trimmed.split(/\s[—-]\s/);
+        return { ...f, summary: `${partes[0]} — ${cliente.nome}` };
+      }
+      return { ...f, summary: `${trimmed} — ${cliente.nome}` };
+    });
+  };
 
   const barbeirosRef = useRef(barbeiros);
   barbeirosRef.current = barbeiros;
@@ -184,6 +200,17 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {!evento && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Cliente</label>
+              <ClienteSelector
+                clientes={clientes}
+                value={clienteSel}
+                onChange={handleClienteChange}
+              />
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">Título *</label>
             <input
@@ -192,7 +219,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
               onChange={set("summary")}
               placeholder="Ex: Corte — João Silva"
               required
-              autoFocus
+              autoFocus={!!evento}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
           </div>
@@ -373,8 +400,11 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
   const [showComandaModal, setShowComandaModal] = useState(false);
   const [eventoComandaModal, setEventoComandaModal] = useState(null);
 
+  const [clientes, setClientes] = useState([]);
+
   useEffect(() => {
     db.getBarbeiros().then(setBarbeiros).catch(() => {});
+    db.getClientes().then(setClientes).catch(() => {});
   }, []);
 
   // Recarrega eventos quando a comanda lateral finaliza um atendimento
@@ -784,6 +814,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
             onIniciarAtendimento={handleIniciarAtendimento}
             barbeiros={barbeiros}
             eventos={eventos}
+            clientes={clientes}
           />
         )}
       </AnimatePresence>
