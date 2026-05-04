@@ -108,6 +108,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
   const [servicosSel, setServicosSel] = useState(new Set());
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState(null);
+  const [horarioSugerido, setHorarioSugerido] = useState(false);
 
   const buildSummary = (svcsSet, cliente) => {
     const svcsNomes = servicosDisponiveis.filter((s) => svcsSet.has(s.id)).map((s) => s.nome).join(" + ");
@@ -130,6 +131,37 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
     return `${String(fimH).padStart(2, "0")}:${String(fimM).padStart(2, "0")}`;
   };
 
+  const sugerirHorario = (data, barbId, totalMin) => {
+    if (!barbId || totalMin === 0) return;
+    const barbSel = barbeirosRef.current.find((b) => b.id === barbId);
+    if (!barbSel) return;
+
+    const eventosBarb = eventosRef.current
+      .filter((ev) => ev.colorId === barbSel.gcal_color_id && ev.start?.dateTime && ev.start.dateTime.slice(0, 10) === data)
+      .map((ev) => ({ inicio: ev.start.dateTime, fim: ev.end.dateTime }))
+      .sort((a, b) => a.inicio.localeCompare(b.inicio));
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    let cursorMin = 9 * 60;
+    if (data === hoje) {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      cursorMin = Math.max(cursorMin, Math.ceil(nowMin / 5) * 5);
+    }
+
+    for (const ev of eventosBarb) {
+      const evInicioMin = Number(ev.inicio.slice(11, 13)) * 60 + Number(ev.inicio.slice(14, 16));
+      const evFimMin = Number(ev.fim.slice(11, 13)) * 60 + Number(ev.fim.slice(14, 16));
+      if (cursorMin + totalMin <= evInicioMin) break;
+      cursorMin = Math.max(cursorMin, evFimMin);
+    }
+
+    if (cursorMin + totalMin > 20 * 60) return;
+    const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    setForm((f) => ({ ...f, horaInicio: fmt(cursorMin), horaFim: fmt(cursorMin + totalMin) }));
+    setHorarioSugerido(true);
+  };
+
   const handleClienteChange = (cliente) => {
     setClienteSel(cliente);
     if (!cliente) return;
@@ -147,15 +179,44 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
   };
 
   const handleToggleServico = (id) => {
-    setServicosSel((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      const novoSummary = buildSummary(next, clienteSel);
-      if (novoSummary) setForm((f) => ({ ...f, summary: novoSummary }));
+    const next = new Set(servicosSel);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setServicosSel(next);
+    const novoSummary = buildSummary(next, clienteSel);
+    if (novoSummary) setForm((f) => ({ ...f, summary: novoSummary }));
+    const totalMin = servicosDisponiveis
+      .filter((s) => next.has(s.id))
+      .reduce((sum, s) => sum + (s.duracao_minutos || 30), 0);
+    if (barbeiroId && totalMin > 0) {
+      sugerirHorario(form.data, barbeiroId, totalMin);
+    } else if (totalMin > 0) {
       const novaHoraFim = calcHoraFim(form.horaInicio, next);
       if (novaHoraFim) setForm((f) => ({ ...f, horaFim: novaHoraFim }));
-      return next;
-    });
+    }
+  };
+
+  const handleBarbeiroChange = (id) => {
+    const newId = barbeiroId === id ? null : id;
+    setBarbeiroId(newId);
+    setHorarioSugerido(false);
+    if (!evento && newId) {
+      const totalMin = servicosDisponiveis
+        .filter((s) => servicosSel.has(s.id))
+        .reduce((sum, s) => sum + (s.duracao_minutos || 30), 0);
+      if (totalMin > 0) sugerirHorario(form.data, newId, totalMin);
+    }
+  };
+
+  const handleDataChange = (e) => {
+    const newData = e.target.value;
+    setForm((f) => ({ ...f, data: newData }));
+    setHorarioSugerido(false);
+    if (!evento && barbeiroId) {
+      const totalMin = servicosDisponiveis
+        .filter((s) => servicosSel.has(s.id))
+        .reduce((sum, s) => sum + (s.duracao_minutos || 30), 0);
+      if (totalMin > 0) sugerirHorario(newData, barbeiroId, totalMin);
+    }
   };
 
   const barbeirosRef = useRef(barbeiros);
@@ -308,7 +369,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
             <input
               type="date"
               value={form.data}
-              onChange={set("data")}
+              onChange={handleDataChange}
               required
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
@@ -316,10 +377,15 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Início <span className="text-gray-400 font-normal">(09:00–20:00)</span></label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-gray-500">Início <span className="text-gray-400 font-normal">(09:00–20:00)</span></label>
+                {horarioSugerido && !evento && (
+                  <span className="text-[10px] text-indigo-400 font-medium">⚡ sugerido</span>
+                )}
+              </div>
               <TimePicker
                 value={form.horaInicio}
-                onChange={(v) => setForm((f) => ({ ...f, horaInicio: v ?? "09:00" }))}
+                onChange={(v) => { setForm((f) => ({ ...f, horaInicio: v ?? "09:00" })); setHorarioSugerido(false); }}
                 disableClock
                 clearIcon={null}
                 format="HH:mm"
@@ -332,7 +398,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
               <label className="text-xs font-medium text-gray-500 mb-1 block">Fim <span className="text-gray-400 font-normal">(até 20:00)</span></label>
               <TimePicker
                 value={form.horaFim}
-                onChange={(v) => setForm((f) => ({ ...f, horaFim: v ?? "10:00" }))}
+                onChange={(v) => { setForm((f) => ({ ...f, horaFim: v ?? "10:00" })); setHorarioSugerido(false); }}
                 disableClock
                 clearIcon={null}
                 format="HH:mm"
@@ -355,7 +421,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
                     <button
                       key={b.id}
                       type="button"
-                      onClick={() => setBarbeiroId(sel ? null : b.id)}
+                      onClick={() => handleBarbeiroChange(b.id)}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm border transition-all
                         ${sel ? "border-transparent text-white font-medium" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}
                       style={sel ? { backgroundColor: cor.hex } : {}}
