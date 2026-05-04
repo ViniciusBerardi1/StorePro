@@ -108,7 +108,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
   const [servicosSel, setServicosSel] = useState(new Set());
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState(null);
-  const [avisoForm, setAvisoForm] = useState(null);
+  const [pendingSave, setPendingSave] = useState(null);
   const [horarioSugerido, setHorarioSugerido] = useState(false);
 
   const buildSummary = (svcsSet, cliente) => {
@@ -224,15 +224,22 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const executarSalvar = async (payload) => {
+    setSalvando(true);
+    try {
+      await onSalvar(payload);
+    } catch (e) {
+      setErroForm(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.summary.trim()) return;
     if (form.horaFim <= form.horaInicio)
       return setErroForm("Horário de fim deve ser após o início.");
-    setErroForm(null);
-    const foraDoHorario =
-      form.horaInicio < "09:00" || form.horaFim > "20:00";
-    setAvisoForm(foraDoHorario ? "Horário fora do expediente (09:00–20:00). Agendamento salvo mesmo assim." : null);
 
     const inicioNovo = new Date(`${form.data}T${form.horaInicio}:00`);
     const fimNovo = new Date(`${form.data}T${form.horaFim}:00`);
@@ -256,21 +263,21 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
     }
 
     setErroForm(null);
-    setSalvando(true);
-    try {
-      const barbSel = barbeirosRef.current.find((b) => b.id === barbeiroId);
-      await onSalvar({
-        summary: form.summary.trim(),
-        description: form.description,
-        start: { dateTime: `${form.data}T${form.horaInicio}:00`, timeZone: TZ },
-        end: { dateTime: `${form.data}T${form.horaFim}:00`, timeZone: TZ },
-        ...(barbSel ? { colorId: barbSel.gcal_color_id } : {}),
-      });
-    } catch (e) {
-      setErroForm(e.message);
-    } finally {
-      setSalvando(false);
+    const barbSel = barbeirosRef.current.find((b) => b.id === barbeiroId);
+    const payload = {
+      summary: form.summary.trim(),
+      description: form.description,
+      start: { dateTime: `${form.data}T${form.horaInicio}:00`, timeZone: TZ },
+      end: { dateTime: `${form.data}T${form.horaFim}:00`, timeZone: TZ },
+      ...(barbSel ? { colorId: barbSel.gcal_color_id } : {}),
+    };
+
+    if (form.horaInicio < "09:00" || form.horaFim > "20:00") {
+      setPendingSave(payload);
+      return;
     }
+
+    await executarSalvar(payload);
   };
 
   return (
@@ -440,12 +447,6 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
             />
           </div>
 
-          {avisoForm && (
-            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-              ⚠️ {avisoForm}
-            </div>
-          )}
-
           {erroForm && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
               ⚠️ {erroForm}
@@ -490,6 +491,47 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
           </div>
         </form>
       </motion.div>
+
+      {/* Popup confirmação fora do expediente */}
+      <AnimatePresence>
+        {pendingSave && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl text-center"
+            >
+              <div className="text-4xl mb-3">🌙</div>
+              <h3 className="font-semibold text-gray-800 mb-1">Fora do expediente</h3>
+              <p className="text-sm text-gray-500 mb-5">
+                O horário selecionado está fora do expediente <span className="font-medium text-gray-700">09:00–20:00</span>. Deseja salvar mesmo assim?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPendingSave(null)}
+                  className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => { const p = pendingSave; setPendingSave(null); await executarSalvar(p); }}
+                  disabled={salvando}
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
+                >
+                  {salvando ? "Salvando..." : "Salvar mesmo assim"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
