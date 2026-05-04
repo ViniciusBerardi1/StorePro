@@ -18,6 +18,26 @@ const PAGAMENTOS = [
   { id: "credito", label: "Crédito", emoji: "💳" },
 ];
 
+const ALVOS_DESCONTO = [
+  { id: "total",    label: "Total"       },
+  { id: "servicos", label: "Serviços ✂️" },
+  { id: "bar",      label: "Bar 🍺"      },
+  { id: "loja",     label: "Loja 🛍️"    },
+];
+
+function calcDesconto(desc, totSvc, totBar, totLoja) {
+  const v = Number(desc.valor || 0);
+  if (v <= 0) return 0;
+  const base = { total: totSvc + totBar + totLoja, servicos: totSvc, bar: totBar, loja: totLoja }[desc.alvo] ?? 0;
+  const calc = desc.tipo === "percent" ? base * (v / 100) : Math.min(v, base);
+  return Math.round(calc * 100) / 100;
+}
+
+function labelDesconto(desc) {
+  const nome = { total: "Total", servicos: "Serviços", bar: "Bar", loja: "Loja" }[desc.alvo] ?? "Total";
+  return desc.tipo === "percent" ? `${nome} −${desc.valor}%` : nome;
+}
+
 export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar }) {
   const [tab, setTab] = useState("servicos");
   const [servicos, setServicos] = useState([]);
@@ -32,6 +52,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
   const [qtdLoja, setQtdLoja] = useState({});
   const [formaPagamento, setFormaPagamento] = useState(null);
   const [barbeiroId, setBarbeiroId] = useState(null);
+  const [desconto, setDesconto] = useState({ tipo: "percent", valor: "", alvo: "total" });
 
   const [finalizando, setFinalizando] = useState(false);
   const [erro, setErro] = useState(null);
@@ -107,7 +128,9 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
     .filter((p) => qtdLoja[p.id])
     .reduce((sum, p) => sum + Number(p.preco_venda || 0) * (qtdLoja[p.id] || 0), 0);
 
-  const total = totalServicos + totalBar + totalLoja;
+  const subtotal = totalServicos + totalBar + totalLoja;
+  const valorDesconto = bloqueado ? 0 : calcDesconto(desconto, totalServicos, totalBar, totalLoja);
+  const total = Math.max(0, subtotal - valorDesconto);
   const hasItems = servicosSel.size > 0 || Object.keys(qtdBar).length > 0 || Object.keys(qtdLoja).length > 0;
 
   const handleFinalizar = async () => {
@@ -136,6 +159,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
         valor_loja: totalLoja,
         valor_total: total,
         forma_pagamento: formaPagamento,
+        desconto: valorDesconto > 0 ? { ...desconto, valor_calculado: valorDesconto } : null,
         barbeiroId,
         eraFechada,
       });
@@ -314,6 +338,42 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
 
             {/* Footer */}
             <div className="border-t border-gray-100 px-4 pt-3 pb-4 shrink-0 flex flex-col gap-3">
+              {/* Desconto */}
+              {hasItems && !bloqueado && (
+                <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex flex-col gap-2.5">
+                  <p className="text-xs font-semibold text-orange-700">Desconto (opcional)</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {ALVOS_DESCONTO
+                      .filter((a) => a.id === "total" || (a.id === "servicos" && totalServicos > 0) || (a.id === "bar" && totalBar > 0) || (a.id === "loja" && totalLoja > 0))
+                      .map((a) => (
+                        <button key={a.id} type="button"
+                          onClick={() => setDesconto((d) => ({ ...d, alvo: a.id }))}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors
+                            ${desconto.alvo === a.id ? "bg-orange-500 text-white" : "bg-white border border-orange-200 text-orange-600 hover:bg-orange-100"}`}
+                        >{a.label}</button>
+                      ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex border border-orange-200 rounded-lg overflow-hidden bg-white">
+                      {[{ id: "percent", label: "%" }, { id: "fixed", label: "R$" }].map((t, i) => (
+                        <button key={t.id} type="button"
+                          onClick={() => setDesconto((d) => ({ ...d, tipo: t.id }))}
+                          className={`px-3 py-1.5 text-xs font-bold transition-colors ${i > 0 ? "border-l border-orange-200" : ""}
+                            ${desconto.tipo === t.id ? "bg-orange-500 text-white" : "text-orange-400 hover:bg-orange-50"}`}
+                        >{t.label}</button>
+                      ))}
+                    </div>
+                    <input
+                      type="number" min="0" max={desconto.tipo === "percent" ? 100 : undefined} step="0.01"
+                      value={desconto.valor}
+                      onChange={(e) => setDesconto((d) => ({ ...d, valor: e.target.value }))}
+                      placeholder={desconto.tipo === "percent" ? "0" : "0,00"}
+                      className="flex-1 border border-orange-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
               {hasItems && (
                 <div className="bg-gray-50 rounded-xl px-3 py-2.5 flex flex-col gap-1">
                   {totalServicos > 0 && (
@@ -333,6 +393,17 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
                       <span>Loja 🛍️</span>
                       <span className="font-medium text-gray-700">{fmtValor(totalLoja)}</span>
                     </div>
+                  )}
+                  {valorDesconto > 0 && (
+                    <>
+                      <div className="flex justify-between text-xs text-gray-400 border-t border-gray-200 pt-1.5 mt-0.5">
+                        <span>Subtotal</span><span>{fmtValor(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-medium text-orange-500">
+                        <span>Desconto ({labelDesconto(desconto)})</span>
+                        <span>−{fmtValor(valorDesconto)}</span>
+                      </div>
+                    </>
                   )}
                   <div className="flex justify-between text-sm font-bold text-gray-800 border-t border-gray-200 pt-1.5 mt-0.5">
                     <span>Total</span>
@@ -388,7 +459,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
                   {finalizando
                     ? "Fechando..."
                     : total > 0
-                      ? `✅ Fechar Comanda — ${fmtValor(total)}`
+                      ? `✅ Fechar — ${fmtValor(total)}${valorDesconto > 0 ? ` (−${fmtValor(valorDesconto)})` : ""}`
                       : "✅ Fechar Comanda"}
                 </button>
               )}

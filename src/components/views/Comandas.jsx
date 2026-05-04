@@ -30,6 +30,26 @@ const PAGAMENTOS = [
   { id: "credito", label: "Crédito", emoji: "💳" },
 ];
 
+const ALVOS_DESCONTO = [
+  { id: "total",    label: "Total"       },
+  { id: "servicos", label: "Serviços ✂️" },
+  { id: "bar",      label: "Bar 🍺"      },
+  { id: "loja",     label: "Loja 🛍️"    },
+];
+
+function calcDesconto(desc, totSvc, totBar, totLoja) {
+  const v = Number(desc.valor || 0);
+  if (v <= 0) return 0;
+  const base = { total: totSvc + totBar + totLoja, servicos: totSvc, bar: totBar, loja: totLoja }[desc.alvo] ?? 0;
+  const calc = desc.tipo === "percent" ? base * (v / 100) : Math.min(v, base);
+  return Math.round(calc * 100) / 100;
+}
+
+function labelDesconto(desc) {
+  const nome = { total: "Total", servicos: "Serviços", bar: "Bar", loja: "Loja" }[desc.alvo] ?? "Total";
+  return desc.tipo === "percent" ? `${nome} −${desc.valor}%` : nome;
+}
+
 // ─── Editor inline de uma comanda ───────────────────────────────────
 function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinalizar, onRemover }) {
   const [tab, setTab] = useState("servicos");
@@ -50,6 +70,7 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
     return q;
   });
   const [formaPagamento, setFormaPagamento] = useState(comanda.forma_pagamento ?? null);
+  const [desconto, setDesconto] = useState(() => comanda.desconto ?? { tipo: "percent", valor: "", alvo: "total" });
   const [finalizando, setFinalizando] = useState(false);
   const [removendo, setRemovendo]     = useState(false);
   const [erro, setErro] = useState(null);
@@ -67,7 +88,9 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
   const totalServicos = servicos.filter((s) => servicosSel.has(s.id)).reduce((a, s) => a + Number(s.valor || 0), 0);
   const totalBar  = produtosBar.filter((p) => qtdBar[p.id]).reduce((a, p) => a + Number(p.preco_venda || 0) * qtdBar[p.id], 0);
   const totalLoja = produtosLoja.filter((p) => qtdLoja[p.id]).reduce((a, p) => a + Number(p.preco_venda || 0) * qtdLoja[p.id], 0);
-  const total    = totalServicos + totalBar + totalLoja;
+  const subtotal  = totalServicos + totalBar + totalLoja;
+  const valorDesconto = calcDesconto(desconto, totalServicos, totalBar, totalLoja);
+  const total    = Math.max(0, subtotal - valorDesconto);
   const hasItems = servicosSel.size > 0 || Object.keys(qtdBar).length > 0 || Object.keys(qtdLoja).length > 0;
 
   const lista  = tab === "bar" ? produtosBar : produtosLoja;
@@ -88,6 +111,7 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
         valor_loja:     totalLoja,
         valor_total:    total,
         forma_pagamento: formaPagamento,
+        desconto: valorDesconto > 0 ? { ...desconto, valor_calculado: valorDesconto } : null,
       });
     } catch (e) {
       setErro(e.message);
@@ -186,12 +210,59 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
         )}
       </div>
 
+      {/* Desconto */}
+      {hasItems && (
+        <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex flex-col gap-2.5">
+          <p className="text-xs font-semibold text-orange-700">Desconto (opcional)</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {ALVOS_DESCONTO
+              .filter((a) => a.id === "total" || (a.id === "servicos" && totalServicos > 0) || (a.id === "bar" && totalBar > 0) || (a.id === "loja" && totalLoja > 0))
+              .map((a) => (
+                <button key={a.id} type="button"
+                  onClick={() => setDesconto((d) => ({ ...d, alvo: a.id }))}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors
+                    ${desconto.alvo === a.id ? "bg-orange-500 text-white" : "bg-white border border-orange-200 text-orange-600 hover:bg-orange-100"}`}
+                >{a.label}</button>
+              ))}
+          </div>
+          <div className="flex gap-2">
+            <div className="flex border border-orange-200 rounded-lg overflow-hidden bg-white">
+              {[{ id: "percent", label: "%" }, { id: "fixed", label: "R$" }].map((t, i) => (
+                <button key={t.id} type="button"
+                  onClick={() => setDesconto((d) => ({ ...d, tipo: t.id }))}
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${i > 0 ? "border-l border-orange-200" : ""}
+                    ${desconto.tipo === t.id ? "bg-orange-500 text-white" : "text-orange-400 hover:bg-orange-50"}`}
+                >{t.label}</button>
+              ))}
+            </div>
+            <input
+              type="number" min="0" max={desconto.tipo === "percent" ? 100 : undefined} step="0.01"
+              value={desconto.valor}
+              onChange={(e) => setDesconto((d) => ({ ...d, valor: e.target.value }))}
+              placeholder={desconto.tipo === "percent" ? "0" : "0,00"}
+              className="flex-1 border border-orange-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Resumo */}
       {hasItems && (
         <div className="bg-gray-50 rounded-xl px-4 py-3 flex flex-col gap-1">
           {totalServicos > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Serviços ({servicosSel.size})</span><span className="font-medium text-gray-700">{fmtValor(totalServicos)}</span></div>}
           {totalBar  > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Bar 🍺</span><span className="font-medium text-gray-700">{fmtValor(totalBar)}</span></div>}
           {totalLoja > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Loja 🛍️</span><span className="font-medium text-gray-700">{fmtValor(totalLoja)}</span></div>}
+          {valorDesconto > 0 && (
+            <>
+              <div className="flex justify-between text-xs text-gray-400 border-t border-gray-200 pt-1.5 mt-0.5">
+                <span>Subtotal</span><span>{fmtValor(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-xs font-medium text-orange-500">
+                <span>Desconto ({labelDesconto(desconto)})</span>
+                <span>−{fmtValor(valorDesconto)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between text-sm font-bold text-gray-800 border-t border-gray-200 pt-1.5 mt-0.5">
             <span>Total</span><span>{fmtValor(total)}</span>
           </div>
@@ -230,7 +301,7 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
           disabled={finalizando || !hasItems}
           className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
         >
-          {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar Comanda — ${fmtValor(total)}` : "✅ Fechar Comanda"}
+          {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar — ${fmtValor(total)}${valorDesconto > 0 ? ` (−${fmtValor(valorDesconto)})` : ""}` : "✅ Fechar Comanda"}
         </button>
       </div>
     </div>
@@ -371,7 +442,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   };
 
   const handleFinalizar = async (comanda, editorData) => {
-    const { servicos: svcs, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento } = editorData;
+    const { servicos: svcs, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, desconto } = editorData;
 
     await db.baixarEstoqueComanda(itens_bar, itens_loja);
 
@@ -384,6 +455,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       valor_loja,
       valor_total,
       forma_pagamento,
+      desconto: desconto ?? null,
       status: "fechada",
     });
 

@@ -139,6 +139,7 @@ create table if not exists comandas (
 alter table comandas add column if not exists cliente_nome text;
 alter table comandas add column if not exists evento_gcal jsonb;
 alter table comandas add column if not exists cliente_id integer references clientes(id) on delete set null;
+alter table comandas add column if not exists desconto jsonb;
 
 -- ─── Row Level Security (RLS) ────────────────────────────────
 -- Por padrão desabilitado para desenvolvimento.
