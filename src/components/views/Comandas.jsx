@@ -347,6 +347,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
     try {
       const payload = {
         cliente_nome: clienteSel.nome,
+        ...(clienteSel.id ? { cliente_id: clienteSel.id } : {}),
         status: "aberta",
         servicos: [],
         itens_bar: [],
@@ -397,6 +398,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
           gcal_event_id: comanda.gcal_event_id,
           data_hora: ev?.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : new Date().toISOString(),
           cliente_nome: comanda.cliente_nome,
+          ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
           servicos: svcs,
           valor_total,
           forma_pagamento,
@@ -413,6 +415,16 @@ export default function Comandas({ onAtendimentoFinalizado }) {
             })]
           : []),
       ]);
+    } else {
+      await db.addAtendimento({
+        data_hora: new Date().toISOString(),
+        cliente_nome: comanda.cliente_nome,
+        ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
+        servicos: svcs,
+        valor_total,
+        forma_pagamento,
+        status: "concluido",
+      });
     }
 
     setComandas((prev) => prev.filter((c) => c.id !== comanda.id));
