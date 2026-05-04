@@ -10,6 +10,7 @@ function ServicoForm({ servico, onSalvar, onFechar }) {
   const [form, setForm] = useState({
     nome: servico?.nome ?? "",
     valor: servico?.valor ?? "",
+    duracao_minutos: servico?.duracao_minutos ?? 30,
     ativo: servico?.ativo ?? true,
   });
   const [salvando, setSalvando] = useState(false);
@@ -78,6 +79,32 @@ function ServicoForm({ servico, onSalvar, onFechar }) {
               required
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-2 block">Duração estimada</label>
+            <div className="flex gap-1.5 flex-wrap mb-2">
+              {[15, 30, 45, 60, 90, 120].map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, duracao_minutos: min }))}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors
+                    ${form.duracao_minutos === min ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                >{min < 60 ? `${min}min` : `${min / 60}h`}</button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={form.duracao_minutos}
+                onChange={(e) => setForm((f) => ({ ...f, duracao_minutos: Number(e.target.value) }))}
+                min="5"
+                step="5"
+                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <span className="text-xs text-gray-400">minutos</span>
+            </div>
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer select-none">

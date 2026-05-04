@@ -86,7 +86,7 @@ function ConfirmacaoComanda({ evento, onConfirmar, onCancelar }) {
 }
 
 // ─── Formulário de agendamento (simplificado) ─────────────────────
-function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onIniciarAtendimento, barbeiros = [], eventos = [], clientes = [] }) {
+function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onIniciarAtendimento, barbeiros = [], eventos = [], clientes = [], servicosDisponiveis = [] }) {
   const dataDefault = (diaPadrao ?? new Date()).toISOString().slice(0, 10);
   const eConcluido = evento?.summary?.startsWith("✅");
 
@@ -105,13 +105,37 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
   });
 
   const [clienteSel, setClienteSel] = useState(null);
+  const [servicosSel, setServicosSel] = useState(new Set());
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState(null);
+
+  const buildSummary = (svcsSet, cliente) => {
+    const svcsNomes = servicosDisponiveis.filter((s) => svcsSet.has(s.id)).map((s) => s.nome).join(" + ");
+    const clienteNome = cliente?.nome || "";
+    if (svcsNomes && clienteNome) return `${svcsNomes} — ${clienteNome}`;
+    if (svcsNomes) return svcsNomes;
+    if (clienteNome) return clienteNome;
+    return null;
+  };
+
+  const calcHoraFim = (horaInicio, svcsSet) => {
+    const totalMin = servicosDisponiveis
+      .filter((s) => svcsSet.has(s.id))
+      .reduce((sum, s) => sum + (s.duracao_minutos || 30), 0);
+    if (totalMin === 0) return null;
+    const [h, m] = horaInicio.split(":").map(Number);
+    const fimTotal = h * 60 + m + totalMin;
+    const fimH = Math.min(Math.floor(fimTotal / 60), 20);
+    const fimM = fimTotal % 60;
+    return `${String(fimH).padStart(2, "0")}:${String(fimM).padStart(2, "0")}`;
+  };
 
   const handleClienteChange = (cliente) => {
     setClienteSel(cliente);
     if (!cliente) return;
-    setForm((f) => {
+    const novoSummary = buildSummary(servicosSel, cliente);
+    if (novoSummary) setForm((f) => ({ ...f, summary: novoSummary }));
+    else setForm((f) => {
       const trimmed = f.summary.trim();
       if (!trimmed) return { ...f, summary: cliente.nome };
       if (/\s[—-]\s/.test(trimmed)) {
@@ -119,6 +143,18 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
         return { ...f, summary: `${partes[0]} — ${cliente.nome}` };
       }
       return { ...f, summary: `${trimmed} — ${cliente.nome}` };
+    });
+  };
+
+  const handleToggleServico = (id) => {
+    setServicosSel((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      const novoSummary = buildSummary(next, clienteSel);
+      if (novoSummary) setForm((f) => ({ ...f, summary: novoSummary }));
+      const novaHoraFim = calcHoraFim(form.horaInicio, next);
+      if (novaHoraFim) setForm((f) => ({ ...f, horaFim: novaHoraFim }));
+      return next;
     });
   };
 
@@ -203,14 +239,55 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {!evento && (
-            <div>
-              <label className="text-xs font-medium text-gray-500 mb-1 block">Cliente</label>
-              <ClienteSelector
-                clientes={clientes}
-                value={clienteSel}
-                onChange={handleClienteChange}
-              />
-            </div>
+            <>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Cliente</label>
+                <ClienteSelector
+                  clientes={clientes}
+                  value={clienteSel}
+                  onChange={handleClienteChange}
+                />
+              </div>
+
+              {servicosDisponiveis.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-2 block">Serviços</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {servicosDisponiveis.map((s) => {
+                      const sel = servicosSel.has(s.id);
+                      const dur = s.duracao_minutos;
+                      const durLabel = dur >= 60 ? `${dur / 60}h` : `${dur}min`;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleToggleServico(s.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all
+                            ${sel
+                              ? "bg-indigo-500 border-indigo-500 text-white"
+                              : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50"}`}
+                        >
+                          <span>{s.nome}</span>
+                          {dur && (
+                            <span className={`${sel ? "text-indigo-200" : "text-gray-400"}`}>· {durLabel}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {servicosSel.size > 0 && (() => {
+                    const totalMin = servicosDisponiveis
+                      .filter((s) => servicosSel.has(s.id))
+                      .reduce((sum, s) => sum + (s.duracao_minutos || 30), 0);
+                    return (
+                      <p className="text-[10px] text-indigo-500 mt-1.5">
+                        ⏱ Duração total: {totalMin >= 60 ? `${Math.floor(totalMin / 60)}h${totalMin % 60 > 0 ? `${totalMin % 60}min` : ""}` : `${totalMin}min`}
+                      </p>
+                    );
+                  })()}
+                </div>
+              )}
+            </>
           )}
 
           <div>
@@ -407,10 +484,12 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
   const [eventoComandaModal, setEventoComandaModal] = useState(null);
 
   const [clientes, setClientes] = useState([]);
+  const [servicosDisponiveis, setServicosDisponiveis] = useState([]);
 
   useEffect(() => {
     db.getBarbeiros().then(setBarbeiros).catch(() => {});
     db.getClientes().then(setClientes).catch(() => {});
+    db.getServicos().then((s) => setServicosDisponiveis(s.filter((sv) => sv.ativo))).catch(() => {});
   }, []);
 
   // Recarrega eventos quando a comanda lateral finaliza um atendimento
@@ -821,6 +900,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
             barbeiros={barbeiros}
             eventos={eventos}
             clientes={clientes}
+            servicosDisponiveis={servicosDisponiveis}
           />
         )}
       </AnimatePresence>
