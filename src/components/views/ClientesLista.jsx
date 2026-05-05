@@ -288,11 +288,12 @@ const INTERVALOS = [
 
 function PlanoForm({ plano, onSalvar, onFechar }) {
   const [form, setForm] = useState({
-    nome:      plano?.nome      ?? "",
-    valor:     plano?.valor     ?? "",
-    intervalo: plano?.intervalo ?? "mensal",
-    descricao: plano?.descricao ?? "",
-    ativo:     plano?.ativo     ?? true,
+    nome:         plano?.nome         ?? "",
+    valor:        plano?.valor        ?? "",
+    intervalo:    plano?.intervalo    ?? "mensal",
+    descricao:    plano?.descricao    ?? "",
+    checkout_url: plano?.checkout_url ?? "",
+    ativo:        plano?.ativo        ?? true,
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro]         = useState(null);
@@ -367,6 +368,16 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
               rows={2}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Link de checkout (opcional)</label>
+            <input
+              type="url" value={form.checkout_url} onChange={set("checkout_url")}
+              placeholder="https://..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">URL gerada no painel do gateway (Asaas, Mercado Pago, Stripe…)</p>
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer select-none">

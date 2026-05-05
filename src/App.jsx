@@ -13,9 +13,13 @@ import Servicos from "./components/views/Servicos";
 import Barbeiros from "./components/views/Barbeiros";
 import Comandas from "./components/views/Comandas";
 import ClientesLista from "./components/views/ClientesLista";
+import PaginaAssinatura from "./components/views/PaginaAssinatura";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
+
+// ─── Rota pública (/assinar) ─────────────────────────────────────
+const isPublicRoute = window.location.pathname.startsWith("/assinar");
 
 const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos", "estoque_loja", "estoque_bar"];
 
@@ -26,6 +30,80 @@ const pageVariants = {
 };
 
 const pageTransition = { duration: 0.2, ease: "easeInOut" };
+
+// ─── Tela de login do app ────────────────────────────────────────
+function LoginApp({ onEntrar }) {
+  const [senha, setSenha]         = useState("");
+  const [erro, setErro]           = useState(null);
+  const [verificando, setVerificando] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!senha.trim()) return;
+    setVerificando(true);
+    setErro(null);
+    try {
+      const senhaCorreta = await db.getConfiguracao("app_senha");
+      if (!senhaCorreta) {
+        setErro("Senha do app não configurada. Insira em: configuracoes → app_senha.");
+        return;
+      }
+      if (senha === senhaCorreta) {
+        sessionStorage.setItem("storepro_autenticado", "1");
+        onEntrar();
+      } else {
+        setErro("Senha incorreta.");
+        setSenha("");
+      }
+    } catch {
+      setErro("Erro ao verificar. Tente novamente.");
+    } finally {
+      setVerificando(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="bg-white rounded-2xl w-full max-w-xs p-8 shadow-xl border border-gray-100"
+      >
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500 text-white text-2xl mb-4 shadow-md">
+            ✂️
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">StorePro</h1>
+          <p className="text-xs text-gray-400 mt-1">Acesso restrito à equipe</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            type="password"
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            placeholder="Senha"
+            autoFocus
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+          {erro && (
+            <p className="text-xs text-red-500 text-center bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+              {erro}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={verificando}
+            className="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 shadow-sm"
+          >
+            {verificando ? "Verificando..." : "Entrar"}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
 
 function SenhaModal({ onConfirmar, onFechar }) {
   const [senha, setSenha] = useState("");
@@ -102,6 +180,23 @@ function SenhaModal({ onConfirmar, onFechar }) {
 }
 
 export default function App() {
+  // Rota pública: renderiza direto sem login
+  if (isPublicRoute) return <PaginaAssinatura />;
+
+  return <AppInterno />;
+}
+
+function AppInterno() {
+  const [autenticado, setAutenticado] = useState(
+    () => sessionStorage.getItem("storepro_autenticado") === "1"
+  );
+
+  if (!autenticado) return <LoginApp onEntrar={() => setAutenticado(true)} />;
+
+  return <AppPrincipal />;
+}
+
+function AppPrincipal() {
   const [view, setView] = useState(() => {
     const stored = localStorage.getItem("storepro_view") || "agenda";
     if (stored === "dashboard") return "agenda";

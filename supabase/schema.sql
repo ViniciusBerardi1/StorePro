@@ -141,6 +141,7 @@ alter table comandas add column if not exists evento_gcal jsonb;
 alter table comandas add column if not exists cliente_id integer references clientes(id) on delete set null;
 alter table comandas add column if not exists desconto jsonb;
 alter table servicos add column if not exists duracao_minutos integer default 30;
+alter table planos add column if not exists checkout_url text;
 
 -- ─── Planos de assinatura ────────────────────────────────────────
 create table if not exists planos (
