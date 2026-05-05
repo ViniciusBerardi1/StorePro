@@ -140,7 +140,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
     try {
       const servicosCompletos = servicos
         .filter((s) => servicosSel.has(s.id))
-        .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor) }));
+        .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor), duracao_minutos: s.duracao_minutos || 30 }));
 
       const itensBarCompletos = produtosBar
         .filter((p) => qtdBar[p.id])

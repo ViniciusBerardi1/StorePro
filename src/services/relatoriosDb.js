@@ -17,13 +17,15 @@ export async function getRelatoriosPeriodo(dataIni, dataFim) {
     await Promise.all([
       supabase
         .from("atendimentos")
+        // servicos inclui {id, nome, valor, duracao_minutos} para calcular horas trabalhadas
         .select("id, data_hora, status, valor_total, forma_pagamento, cliente_nome, cliente_id, barbeiro_id, servicos")
         .gte("data_hora", ini)
         .lte("data_hora", fim)
         .order("data_hora"),
       supabase
         .from("comandas")
-        .select("id, created_at, status, cliente_nome, valor_total, valor_servicos, valor_bar, valor_loja, forma_pagamento, itens_bar, itens_loja, servicos, desconto")
+        // atendimento_id permite cruzar itens consumidos com barbeiro_id do atendimento
+        .select("id, atendimento_id, created_at, status, cliente_nome, valor_total, valor_servicos, valor_bar, valor_loja, forma_pagamento, itens_bar, itens_loja, servicos, desconto")
         .eq("status", "fechada")
         .gte("created_at", ini)
         .lte("created_at", fim),

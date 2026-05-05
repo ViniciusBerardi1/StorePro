@@ -400,9 +400,20 @@ function TabResumo({ atendimentos, prevAtendimentos }) {
   );
 }
 
+// ─── Helpers de tempo ─────────────────────────────────────────────
+
+function fmtHoras(minutos) {
+  if (!minutos) return "—";
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+}
+
 // ─── Aba: Barbeiros ───────────────────────────────────────────────
 
-function TabBarbeiros({ atendimentos, barbeiros }) {
+function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
   const ok = atendimentos.filter((a) => a.status === "concluido");
 
   if (!ok.length) {
@@ -413,17 +424,52 @@ function TabBarbeiros({ atendimentos, barbeiros }) {
     );
   }
 
-  // Agrupa por barbeiro_id (com fallback "Sem barbeiro")
-  const mapa = {};
+  // Índice: atendimento_id → barbeiro_id (para cruzar com comandas)
+  const atendBarbeiro = {};
   for (const a of ok) {
-    const barb = barbeiros.find((b) => b.id === a.barbeiro_id);
+    if (a.barbeiro_id) atendBarbeiro[a.id] = a.barbeiro_id;
+  }
+
+  // Agrupa por barbeiro_id
+  const mapa = {};
+  const getEntry = (barbId) => {
+    const barb = barbeiros.find((b) => b.id === barbId);
     const key = barb ? String(barb.id) : "sem";
-    const nome = barb ? barb.nome : "Sem barbeiro";
-    if (!mapa[key]) mapa[key] = { nome, atendimentos: 0, faturamento: 0, ticket: 0, servicos: {} };
-    mapa[key].atendimentos++;
-    mapa[key].faturamento += Number(a.valor_total || 0);
+    if (!mapa[key]) {
+      mapa[key] = {
+        nome: barb ? barb.nome : "Sem barbeiro",
+        atendimentos: 0,
+        faturamento: 0,
+        minutos: 0,
+        servicos: {},        // { nome: count }
+        produtos: {},        // { nome: { count, receita } }
+      };
+    }
+    return mapa[key];
+  };
+
+  for (const a of ok) {
+    const entry = getEntry(a.barbeiro_id);
+    entry.atendimentos++;
+    entry.faturamento += Number(a.valor_total || 0);
+
     for (const s of a.servicos || []) {
-      mapa[key].servicos[s.nome] = (mapa[key].servicos[s.nome] || 0) + 1;
+      // duracao_minutos salvo a partir desta versão; fallback 30min para registros antigos
+      entry.minutos += s.duracao_minutos || 30;
+      entry.servicos[s.nome] = (entry.servicos[s.nome] || 0) + 1;
+    }
+  }
+
+  // Cruzar produtos consumidos com barbeiro via atendimento_id
+  for (const cmd of comandas) {
+    if (!cmd.atendimento_id) continue;
+    const barbId = atendBarbeiro[cmd.atendimento_id];
+    if (!barbId) continue;
+    const entry = getEntry(barbId);
+    for (const item of [...(cmd.itens_bar || []), ...(cmd.itens_loja || [])]) {
+      if (!entry.produtos[item.nome]) entry.produtos[item.nome] = { count: 0, receita: 0 };
+      entry.produtos[item.nome].count += item.quantidade || 1;
+      entry.produtos[item.nome].receita += (item.quantidade || 1) * Number(item.preco_venda || 0);
     }
   }
 
@@ -431,15 +477,41 @@ function TabBarbeiros({ atendimentos, barbeiros }) {
     ...b,
     ticket: b.atendimentos > 0 ? b.faturamento / b.atendimentos : 0,
     topServico: Object.entries(b.servicos).sort((a, z) => z[1] - a[1])[0]?.[0] ?? "—",
+    topProduto: Object.entries(b.produtos).sort((a, z) => z[1].count - a[1].count)[0]?.[0] ?? "—",
+    totalProdutos: Object.values(b.produtos).reduce((s, p) => s + p.count, 0),
+    receitaProdutos: Object.values(b.produtos).reduce((s, p) => s + p.receita, 0),
   })).sort((a, b) => b.faturamento - a.faturamento);
 
   const totalFat = lista.reduce((s, b) => s + b.faturamento, 0);
+  const totalMin = lista.reduce((s, b) => s + b.minutos, 0);
+
+  const [detalhe, setDetalhe] = useState(null);
+  const barbDetalhe = detalhe ? lista.find((b) => b.nome === detalhe) : null;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* KPIs de equipe */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon="✂️" label="Barbeiros ativos" valor={lista.length} sub="no período" />
+        <KpiCard icon="💰" label="Faturamento total" valor={BRL(totalFat)} sub="equipe completa" />
+        <KpiCard
+          icon="⏱️"
+          label="Horas totais"
+          valor={fmtHoras(totalMin)}
+          sub="tempo em atendimentos"
+        />
+        <KpiCard
+          icon="💳"
+          label="Ticket médio geral"
+          valor={BRL(ok.length > 0 ? totalFat / ok.length : 0)}
+          sub="todos os barbeiros"
+        />
+      </div>
+
+      {/* Rankings */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
-          <SectionTitle>💰 Faturamento por barbeiro</SectionTitle>
+          <SectionTitle>💰 Faturamento</SectionTitle>
           <RankingBars
             itens={lista.map((b) => ({ nome: b.nome, valor: b.faturamento, sub: `${b.atendimentos}x` }))}
             formatValor={BRL}
@@ -447,43 +519,105 @@ function TabBarbeiros({ atendimentos, barbeiros }) {
           />
         </Card>
         <Card>
-          <SectionTitle>💳 Ticket médio por barbeiro</SectionTitle>
+          <SectionTitle>💳 Ticket médio</SectionTitle>
           <RankingBars
             itens={lista.map((b) => ({ nome: b.nome, valor: b.ticket }))}
             formatValor={BRL}
             cor="bg-emerald-400"
           />
         </Card>
+        <Card>
+          <SectionTitle>⏱️ Horas trabalhadas</SectionTitle>
+          <RankingBars
+            itens={lista.map((b) => ({ nome: b.nome, valor: b.minutos, sub: fmtHoras(b.minutos) }))}
+            formatValor={fmtHoras}
+            cor="bg-amber-400"
+          />
+        </Card>
       </div>
 
+      {/* Tabela completa */}
       <Card>
-        <SectionTitle>📋 Performance detalhada</SectionTitle>
+        <SectionTitle>📋 Performance por profissional</SectionTitle>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-gray-400 border-b border-gray-100">
-                <th className="text-left py-2 font-medium">Barbeiro</th>
+                <th className="text-left py-2 font-medium">Profissional</th>
                 <th className="text-right py-2 font-medium">Atend.</th>
                 <th className="text-right py-2 font-medium">Faturamento</th>
                 <th className="text-right py-2 font-medium">Ticket</th>
-                <th className="text-right py-2 font-medium">% Total</th>
-                <th className="text-right py-2 font-medium hidden md:table-cell">Serv. top</th>
+                <th className="text-right py-2 font-medium">Horas</th>
+                <th className="text-right py-2 font-medium">% Fat.</th>
+                <th className="text-right py-2 font-medium hidden lg:table-cell">Produtos</th>
+                <th className="text-right py-2 font-medium hidden lg:table-cell">Rec. Produtos</th>
+                <th className="py-2 w-6" />
               </tr>
             </thead>
             <tbody>
               {lista.map((b) => (
-                <tr key={b.nome} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="py-2.5 font-medium text-gray-700">{b.nome}</td>
-                  <td className="py-2.5 text-right text-gray-500">{b.atendimentos}</td>
-                  <td className="py-2.5 text-right font-semibold text-gray-700">{BRL(b.faturamento)}</td>
-                  <td className="py-2.5 text-right text-gray-500">{BRL(b.ticket)}</td>
-                  <td className="py-2.5 text-right text-gray-400">
-                    {totalFat > 0 ? ((b.faturamento / totalFat) * 100).toFixed(1) : 0}%
-                  </td>
-                  <td className="py-2.5 text-right text-gray-400 hidden md:table-cell truncate max-w-[120px]">
-                    {b.topServico}
-                  </td>
-                </tr>
+                <>
+                  <tr
+                    key={b.nome}
+                    className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => setDetalhe(detalhe === b.nome ? null : b.nome)}
+                  >
+                    <td className="py-2.5 font-medium text-gray-700">{b.nome}</td>
+                    <td className="py-2.5 text-right text-gray-500">{b.atendimentos}</td>
+                    <td className="py-2.5 text-right font-semibold text-gray-700">{BRL(b.faturamento)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{BRL(b.ticket)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{fmtHoras(b.minutos)}</td>
+                    <td className="py-2.5 text-right text-gray-400">
+                      {totalFat > 0 ? ((b.faturamento / totalFat) * 100).toFixed(1) : 0}%
+                    </td>
+                    <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{b.totalProdutos}x</td>
+                    <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{BRL(b.receitaProdutos)}</td>
+                    <td className="py-2.5 text-center text-gray-300 text-xs">
+                      {detalhe === b.nome ? "▾" : "▸"}
+                    </td>
+                  </tr>
+                  {detalhe === b.nome && barbDetalhe && (
+                    <tr key={b.nome + "_det"}>
+                      <td colSpan={9} className="pb-3 pt-1 px-3">
+                        <div className="bg-gray-50 rounded-xl p-3 flex flex-col gap-3">
+                          {/* Serviços */}
+                          {Object.keys(b.servicos).length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">✂️ Serviços realizados</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {Object.entries(b.servicos)
+                                  .sort((a, z) => z[1] - a[1])
+                                  .map(([nome, cnt]) => (
+                                    <span key={nome} className="bg-indigo-50 text-indigo-600 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                                      {nome} × {cnt}
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                          {/* Produtos */}
+                          {Object.keys(b.produtos).length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">📦 Produtos vendidos</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {Object.entries(b.produtos)
+                                  .sort((a, z) => z[1].count - a[1].count)
+                                  .map(([nome, p]) => (
+                                    <span key={nome} className="bg-amber-50 text-amber-600 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                                      {nome} × {p.count} · {BRL(p.receita)}
+                                    </span>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                          {Object.keys(b.servicos).length === 0 && Object.keys(b.produtos).length === 0 && (
+                            <p className="text-xs text-gray-400">Sem detalhes disponíveis.</p>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
             <tfoot>
@@ -493,11 +627,23 @@ function TabBarbeiros({ atendimentos, barbeiros }) {
                   {lista.reduce((s, b) => s + b.atendimentos, 0)}
                 </td>
                 <td className="py-2 text-right font-bold text-gray-800">{BRL(totalFat)}</td>
-                <td colSpan={3} />
+                <td className="py-2 text-right text-gray-400">
+                  {BRL(ok.length > 0 ? totalFat / ok.length : 0)}
+                </td>
+                <td className="py-2 text-right text-gray-400">{fmtHoras(totalMin)}</td>
+                <td className="py-2 text-right text-gray-400">100%</td>
+                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">
+                  {lista.reduce((s, b) => s + b.totalProdutos, 0)}x
+                </td>
+                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">
+                  {BRL(lista.reduce((s, b) => s + b.receitaProdutos, 0))}
+                </td>
+                <td />
               </tr>
             </tfoot>
           </table>
         </div>
+        <p className="text-[10px] text-gray-300 mt-2">Clique em um profissional para ver detalhes de serviços e produtos.</p>
       </Card>
     </div>
   );
@@ -822,7 +968,7 @@ export default function Relatorios() {
         >
           {tab === "insights"  && <TabInsights insights={insights} />}
           {tab === "resumo"    && <TabResumo atendimentos={atendimentos} prevAtendimentos={prevAtendimentos} />}
-          {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} barbeiros={barbeiros} />}
+          {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} />}
           {tab === "retencao"  && <TabRetencao atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
         </motion.div>
       )}
