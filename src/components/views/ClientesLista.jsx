@@ -628,7 +628,7 @@ function GatewayConfig() {
   );
 }
 
-function PlanosManager() {
+export function PlanosManager() {
   const [planos, setPlanos]         = useState([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
@@ -1259,7 +1259,6 @@ export default function ClientesLista({ initialAba = "todos" }) {
   const [erro, setErro]                     = useState(null);
   const [busca, setBusca]                   = useState("");
   const [ordenacao, setOrdenacao]           = useState("recentes");
-  const [aba, setAba]                       = useState(initialAba);
   const [visivel, setVisivel]               = useState(PAGE_SIZE);
   const [showForm, setShowForm]             = useState(false);
   const [clienteSel, setClienteSel]         = useState(null);
@@ -1295,13 +1294,11 @@ export default function ClientesLista({ initialAba = "todos" }) {
         )
       : [...clientes];
 
-    if (aba === "assinantes") lista = lista.filter((c) => assinantesIds.has(c.id));
-
     if (ordenacao === "atendimentos") lista.sort((a, b) => (b.stats?.count || 0) - (a.stats?.count || 0));
     else if (ordenacao === "gasto")   lista.sort((a, b) => (b.stats?.total || 0) - (a.stats?.total || 0));
     else if (ordenacao === "nome")    lista.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     return lista;
-  }, [clientes, busca, ordenacao, aba, assinantesIds]);
+  }, [clientes, busca, ordenacao, assinantesIds]);
 
   if (clienteSel) {
     return (
@@ -1341,36 +1338,7 @@ export default function ClientesLista({ initialAba = "todos" }) {
         >+ Novo cliente</button>
       </div>
 
-      {/* Abas */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {[
-          { id: "todos",      label: "Todos"        },
-          { id: "assinantes", label: "👑 Assinantes" },
-        ].map((t) => (
-          <button
-            key={t.id}
-            onClick={() => { setAba(t.id); setVisivel(PAGE_SIZE); }}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              aba === t.id
-                ? "bg-white text-gray-800 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {t.label}
-            {t.id === "assinantes" && assinantesIds.size > 0 && (
-              <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-bold">
-                {assinantesIds.size}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Planos */}
-      {aba === "planos" && <PlanosManager />}
-
-      {/* Busca, lista e form — ocultos na aba Planos */}
-      {aba !== "planos" && <><div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
           <input
@@ -1417,11 +1385,9 @@ export default function ClientesLista({ initialAba = "todos" }) {
         </div>
       ) : filtrados.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-2xl px-5 py-12 text-center">
-          <div className="text-4xl mb-3">{aba === "assinantes" ? "👑" : busca ? "🔍" : "👥"}</div>
+          <div className="text-4xl mb-3">{busca ? "🔍" : "👥"}</div>
           <p className="text-sm font-medium text-gray-500">
-            {aba === "assinantes"
-              ? "Nenhum assinante ativo"
-              : busca
+            {busca
               ? "Nenhum cliente encontrado"
               : "Nenhum cliente cadastrado"}
           </p>
@@ -1463,7 +1429,6 @@ export default function ClientesLista({ initialAba = "todos" }) {
           />
         )}
       </AnimatePresence>
-      </>}
     </div>
   );
 }

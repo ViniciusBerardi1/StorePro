@@ -12,7 +12,7 @@ import Agenda from "./components/views/Agenda";
 import Servicos from "./components/views/Servicos";
 import Barbeiros from "./components/views/Barbeiros";
 import Comandas from "./components/views/Comandas";
-import ClientesLista from "./components/views/ClientesLista";
+import ClientesLista, { PlanosManager } from "./components/views/ClientesLista";
 import PaginaAssinatura from "./components/views/PaginaAssinatura";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
@@ -421,7 +421,7 @@ function AppPrincipal() {
             ) : view === "clientes_lista" ? (
               <ClientesLista />
             ) : view === "planos" ? (
-              <ClientesLista initialAba="planos" />
+              <PlanosManager />
             ) : view === "agenda" ? (
               <Agenda
                 onAtendimentoFinalizado={carregarDashboard}
