@@ -278,6 +278,319 @@ function AssinaturaSection({ clienteId }) {
   );
 }
 
+// ─── Gerenciador de planos ───────────────────────────────────────
+const INTERVALOS = [
+  { value: "semanal",     label: "Semanal"     },
+  { value: "mensal",      label: "Mensal"      },
+  { value: "trimestral",  label: "Trimestral"  },
+  { value: "anual",       label: "Anual"       },
+];
+
+function PlanoForm({ plano, onSalvar, onFechar }) {
+  const [form, setForm] = useState({
+    nome:      plano?.nome      ?? "",
+    valor:     plano?.valor     ?? "",
+    intervalo: plano?.intervalo ?? "mensal",
+    descricao: plano?.descricao ?? "",
+    ativo:     plano?.ativo     ?? true,
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro]         = useState(null);
+
+  const set = (k) => (e) =>
+    setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.nome.trim()) return setErro("Informe o nome do plano.");
+    const valor = parseFloat(String(form.valor).replace(",", "."));
+    if (isNaN(valor) || valor < 0) return setErro("Informe um valor válido.");
+    setErro(null);
+    setSalvando(true);
+    try {
+      await onSalvar({ ...plano, ...form, valor });
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-semibold text-gray-800">{plano ? "Editar plano" : "Novo plano"}</h3>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Nome *</label>
+            <input
+              type="text" value={form.nome} onChange={set("nome")}
+              placeholder="Ex: VIP, Premium, Básico..."
+              autoFocus required
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Valor (R$) *</label>
+              <input
+                type="number" value={form.valor} onChange={set("valor")}
+                placeholder="0,00" min="0" step="0.01" required
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Recorrência</label>
+              <select value={form.intervalo} onChange={set("intervalo")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                {INTERVALOS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Descrição (opcional)</label>
+            <textarea
+              value={form.descricao} onChange={set("descricao")}
+              placeholder="Benefícios incluídos..."
+              rows={2}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+            />
+          </div>
+
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input type="checkbox" checked={form.ativo} onChange={set("ativo")} className="w-4 h-4 accent-indigo-500" />
+            <span className="text-sm text-gray-600">Plano ativo (visível para assinaturas)</span>
+          </label>
+
+          {erro && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onFechar}
+              className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={salvando}
+              className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60">
+              {salvando ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+function PlanosManager() {
+  const [planos, setPlanos]         = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [showForm, setShowForm]     = useState(false);
+  const [editando, setEditando]     = useState(null);
+  const [confirmandoId, setConfirmandoId] = useState(null);
+  const [toast, setToast]           = useState(null);
+  const [erro, setErro]             = useState(null);
+
+  const carregar = () => {
+    setLoading(true);
+    supabaseGetPlanosTodos()
+      .then(setPlanos)
+      .catch((e) => setErro(e.message))
+      .finally(() => setLoading(false));
+  };
+
+  async function supabaseGetPlanosTodos() {
+    return db.getPlanos().then((ativos) => ativos);
+  }
+
+  useEffect(() => { carregar(); }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const handleSalvar = async (form) => {
+    await db.upsertPlano(form);
+    carregar();
+    setShowForm(false);
+    setEditando(null);
+    setToast(editando ? "Plano atualizado!" : "Plano criado!");
+  };
+
+  const handleDesativar = async (id) => {
+    await db.upsertPlano({ id, ativo: false });
+    setConfirmandoId(null);
+    setToast("Plano desativado.");
+    carregar();
+  };
+
+  const ativos   = planos.filter((p) => p.ativo);
+  const inativos = planos.filter((p) => !p.ativo);
+
+  const intervaloLabel = (v) => INTERVALOS.find((i) => i.value === v)?.label ?? v;
+
+  const PlanoCard = ({ p }) => (
+    <div className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-colors
+      ${p.ativo ? "bg-gray-50 hover:bg-indigo-50" : "bg-gray-50 opacity-50"}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className={`text-sm font-semibold ${p.ativo ? "text-gray-800" : "text-gray-400 line-through"}`}>
+            {p.nome}
+          </p>
+          <span className="text-[10px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-full font-medium">
+            {intervaloLabel(p.intervalo)}
+          </span>
+        </div>
+        {p.descricao && <p className="text-xs text-gray-400 mt-0.5 truncate">{p.descricao}</p>}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className="text-sm font-bold text-indigo-600">{BRL(p.valor)}</span>
+        {p.ativo && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setEditando(p); setShowForm(true); }}
+              className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-white transition-colors"
+            >Editar</button>
+            <button
+              onClick={() => setConfirmandoId(p.id)}
+              className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-white transition-colors"
+            >Desativar</button>
+          </div>
+        )}
+        {!p.ativo && (
+          <button
+            onClick={async () => { await db.upsertPlano({ id: p.id, ativo: true }); carregar(); setToast("Plano reativado!"); }}
+            className="text-xs text-indigo-400 hover:text-indigo-600 px-2 py-1 rounded-lg transition-colors"
+          >Reativar</button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700">Planos de assinatura</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{ativos.length} ativo{ativos.length !== 1 ? "s" : ""}</p>
+        </div>
+        <button
+          onClick={() => { setEditando(null); setShowForm(true); }}
+          className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+        >+ Novo plano</button>
+      </div>
+
+      {erro && (
+        <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">⚠️ {erro}</div>
+      )}
+
+      {loading ? (
+        <div className="py-12 text-center text-sm text-gray-400 animate-pulse">Carregando...</div>
+      ) : planos.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">
+          <div className="text-4xl mb-3">👑</div>
+          <p className="text-sm text-gray-500 mb-4">Nenhum plano cadastrado ainda.</p>
+          <button
+            onClick={() => { setEditando(null); setShowForm(true); }}
+            className="text-sm text-indigo-500 hover:text-indigo-600 font-medium"
+          >+ Criar primeiro plano</button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+              Ativos ({ativos.length})
+            </p>
+            {ativos.length === 0 ? (
+              <p className="text-sm text-gray-400">Nenhum plano ativo.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {ativos.map((p) => <PlanoCard key={p.id} p={p} />)}
+              </div>
+            )}
+          </div>
+
+          {inativos.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-2xl p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                Inativos ({inativos.length})
+              </p>
+              <div className="flex flex-col gap-2">
+                {inativos.map((p) => <PlanoCard key={p.id} p={p} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showForm && (
+          <PlanoForm
+            plano={editando}
+            onSalvar={handleSalvar}
+            onFechar={() => { setShowForm(false); setEditando(null); }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {confirmandoId && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-xl text-center"
+            >
+              <div className="text-3xl mb-3">⚠️</div>
+              <p className="text-sm text-gray-700 font-medium mb-1">Desativar plano?</p>
+              <p className="text-xs text-gray-400 mb-5">
+                Assinaturas existentes não serão afetadas.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmandoId(null)}
+                  className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={() => handleDesativar(confirmandoId)}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
+                  Desativar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-5 py-3 rounded-2xl shadow-lg z-50"
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── Modal de cadastro / edição ──────────────────────────────────
 function ClienteForm({ cliente, clientes, onSalvar, onFechar }) {
   const [form, setForm] = useState({
@@ -795,8 +1108,9 @@ export default function ClientesLista() {
       {/* Abas */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
         {[
-          { id: "todos",      label: "Todos"       },
+          { id: "todos",      label: "Todos"        },
           { id: "assinantes", label: "👑 Assinantes" },
+          { id: "planos",     label: "📋 Planos"     },
         ].map((t) => (
           <button
             key={t.id}
@@ -817,8 +1131,11 @@ export default function ClientesLista() {
         ))}
       </div>
 
-      {/* Busca + Ordenação */}
-      <div className="flex flex-col sm:flex-row gap-2">
+      {/* Planos */}
+      {aba === "planos" && <PlanosManager />}
+
+      {/* Busca, lista e form — ocultos na aba Planos */}
+      {aba !== "planos" && <><div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
           <input
@@ -911,6 +1228,7 @@ export default function ClientesLista() {
           />
         )}
       </AnimatePresence>
+      </>}
     </div>
   );
 }
