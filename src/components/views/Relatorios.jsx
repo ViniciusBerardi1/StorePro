@@ -413,10 +413,7 @@ function fmtHoras(minutos) {
 
 // ─── Aba: Barbeiros ───────────────────────────────────────────────
 
-function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
-  // useState deve vir antes de qualquer early return
-  const [detalhe, setDetalhe] = useState(null);
-
+function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }) {
   const ok = atendimentos.filter((a) => a.status === "concluido");
 
   if (!ok.length) {
@@ -830,6 +827,7 @@ export default function Relatorios() {
   const [dataFim, setDataFim] = useState(hoje());
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(null);
+  const [detalheBarbeiro, setDetalheBarbeiro] = useState(null);
 
   const [atendimentos, setAtendimentos] = useState([]);
   const [prevAtendimentos, setPrevAtendimentos] = useState([]);
@@ -934,7 +932,7 @@ export default function Relatorios() {
         >
           {tab === "insights"  && <TabInsights insights={insights} />}
           {tab === "resumo"    && <TabResumo atendimentos={atendimentos} prevAtendimentos={prevAtendimentos} />}
-          {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} />}
+          {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} detalhe={detalheBarbeiro} setDetalhe={setDetalheBarbeiro} />}
           {tab === "retencao"  && <TabRetencao atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
         </motion.div>
       )}
