@@ -394,6 +394,229 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
   );
 }
 
+const GATEWAYS = [
+  { id: "asaas",       label: "Asaas",        docs: "https://docs.asaas.com/reference/webhooks" },
+  { id: "mercadopago", label: "Mercado Pago",  docs: "https://www.mercadopago.com.br/developers/pt/docs/notifications/webhooks" },
+  { id: "stripe",      label: "Stripe",        docs: "https://stripe.com/docs/webhooks" },
+];
+
+function GatewayConfig() {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? "";
+  const [gateway, setGateway]   = useState("");
+  const [secret, setSecret]     = useState("");
+  const [logs, setLogs]         = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [copiado, setCopiado]   = useState(false);
+  const [toast, setToast]       = useState(null);
+  const [aberto, setAberto]     = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      db.getConfiguracao("gateway_config"),
+      db.getWebhookLogs(15),
+    ]).then(([cfg, lgLista]) => {
+      if (cfg) {
+        try {
+          const parsed = JSON.parse(cfg);
+          setGateway(parsed.tipo ?? "");
+          setSecret(parsed.webhook_secret ?? "");
+          setAberto(true);
+        } catch { /* cfg não é JSON */ }
+      }
+      setLogs(lgLista);
+    }).catch(console.error).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const webhookUrl = gateway && supabaseUrl
+    ? `${supabaseUrl}/functions/v1/webhook-pagamento?gateway=${gateway}`
+    : "";
+
+  const copiar = () => {
+    if (!webhookUrl) return;
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
+  const salvar = async () => {
+    if (!gateway) return;
+    setSalvando(true);
+    try {
+      await db.setConfiguracao("gateway_config", { tipo: gateway, webhook_secret: secret });
+      setToast("Configuração salva!");
+    } catch (e) {
+      setToast("Erro: " + e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const recarregarLogs = () => {
+    db.getWebhookLogs(15).then(setLogs).catch(console.error);
+  };
+
+  const gInfo = GATEWAYS.find((g) => g.id === gateway);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setAberto((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">⚙️</span>
+          <span className="text-sm font-semibold text-gray-700">Gateway de Pagamento</span>
+          {gateway && (
+            <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
+              {GATEWAYS.find((g) => g.id === gateway)?.label ?? gateway}
+            </span>
+          )}
+        </div>
+        <span className={`text-gray-400 text-xs transition-transform ${aberto ? "rotate-180" : ""}`}>▼</span>
+      </button>
+
+      {aberto && (
+        <div className="px-5 pb-5 flex flex-col gap-4 border-t border-gray-100">
+          {/* Seleção do gateway */}
+          <div className="pt-4">
+            <label className="text-xs font-medium text-gray-500 mb-2 block">Gateway de pagamento</label>
+            <div className="flex flex-wrap gap-2">
+              {GATEWAYS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setGateway(g.id)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all
+                    ${gateway === g.id
+                      ? "bg-indigo-500 border-indigo-500 text-white"
+                      : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300"}`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* URL do webhook */}
+          {gateway && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">
+                URL do Webhook — cole no painel do {gInfo?.label}
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-mono text-gray-600 truncate select-all">
+                  {webhookUrl || <span className="text-gray-300">Configure o VITE_SUPABASE_URL primeiro</span>}
+                </div>
+                <button
+                  onClick={copiar}
+                  disabled={!webhookUrl}
+                  className={`shrink-0 px-3 py-2.5 rounded-xl text-xs font-medium border transition-all
+                    ${copiado ? "bg-green-50 border-green-200 text-green-600" : "bg-white border-gray-200 text-gray-600 hover:border-indigo-300"}`}
+                >
+                  {copiado ? "✓ Copiado" : "Copiar"}
+                </button>
+              </div>
+              {gInfo?.docs && (
+                <a href={gInfo.docs} target="_blank" rel="noopener noreferrer"
+                  className="text-[10px] text-indigo-400 hover:text-indigo-600 mt-1 inline-block">
+                  → Como configurar no {gInfo.label}
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Webhook secret */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
+              Webhook Secret <span className="font-normal text-gray-400">(opcional — para validação de assinatura)</span>
+            </label>
+            <input
+              type="password"
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              placeholder="whsec_..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 font-mono"
+            />
+          </div>
+
+          {/* Como funciona */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+            <p className="text-xs font-semibold text-blue-700 mb-1.5">Como funciona</p>
+            <ol className="text-xs text-blue-600 flex flex-col gap-1 list-decimal list-inside">
+              <li>Cadastre o cliente e crie a assinatura com o ID gerado pelo gateway</li>
+              <li>Configure a URL do webhook acima no painel do gateway</li>
+              <li>Ao receber pagamento confirmado, o sistema ativa automaticamente</li>
+              <li>Atrasos, cancelamentos e inadimplências também são atualizados</li>
+            </ol>
+          </div>
+
+          <button
+            onClick={salvar}
+            disabled={salvando || !gateway}
+            className="self-start bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {salvando ? "Salvando..." : "Salvar configuração"}
+          </button>
+
+          {/* Logs do webhook */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Logs do webhook
+              </p>
+              <button onClick={recarregarLogs} className="text-[10px] text-indigo-400 hover:text-indigo-600">
+                ↻ Atualizar
+              </button>
+            </div>
+            {loading ? (
+              <div className="h-12 animate-pulse bg-gray-50 rounded-xl" />
+            ) : logs.length === 0 ? (
+              <div className="bg-gray-50 rounded-xl px-4 py-6 text-center">
+                <p className="text-xs text-gray-400">Nenhum evento recebido ainda.</p>
+                <p className="text-[10px] text-gray-300 mt-1">Os eventos aparecerão aqui assim que o gateway enviar o primeiro webhook.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
+                {logs.map((l) => (
+                  <div key={l.id} className={`flex items-start gap-3 px-3 py-2.5 rounded-xl text-xs
+                    ${l.erro ? "bg-red-50 border border-red-100" : l.processado ? "bg-green-50 border border-green-100" : "bg-gray-50 border border-gray-100"}`}>
+                    <span className="shrink-0 mt-0.5">
+                      {l.erro ? "❌" : l.processado ? "✅" : "⏳"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-700">{l.evento}</span>
+                        {l.gateway && <span className="text-gray-400">{l.gateway}</span>}
+                      </div>
+                      {l.erro && <p className="text-red-500 mt-0.5 truncate">{l.erro}</p>}
+                    </div>
+                    <span className="shrink-0 text-gray-300">
+                      {new Date(l.created_at).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {toast && (
+            <p className={`text-xs font-medium ${toast.startsWith("Erro") ? "text-red-500" : "text-green-600"}`}>
+              {toast}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlanosManager() {
   const [planos, setPlanos]         = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -587,6 +810,8 @@ function PlanosManager() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <GatewayConfig />
     </div>
   );
 }

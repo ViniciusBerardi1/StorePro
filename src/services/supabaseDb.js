@@ -388,6 +388,24 @@ async function getConfiguracao(chave) {
   return data?.valor ?? null;
 }
 
+async function setConfiguracao(chave, valor) {
+  const v = typeof valor === "string" ? valor : JSON.stringify(valor);
+  const { error } = await supabase
+    .from("configuracoes")
+    .upsert({ chave, valor: v }, { onConflict: "chave" });
+  if (error) throw new Error(error.message);
+}
+
+async function getWebhookLogs(limit = 20) {
+  const { data, error } = await supabase
+    .from("webhook_logs")
+    .select("id, gateway, evento, processado, erro, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 // ─── Comandas ────────────────────────────────────────────────────
 async function getComandaByGcalId(gcalEventId) {
   const { data, error } = await supabase
@@ -707,6 +725,8 @@ export const db = {
   getAtendimentosPeriodo,
   getComandasFechadasPeriodo,
   getProdutosByTipo,
+  setConfiguracao,
+  getWebhookLogs,
   getPlanos,
   upsertPlano,
   getAssinaturasAtivas,
