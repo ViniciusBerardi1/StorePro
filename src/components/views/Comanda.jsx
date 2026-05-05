@@ -46,6 +46,9 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
   const [carregando, setCarregando] = useState(true);
   const [bloqueado, setBloqueado] = useState(false);
   const [eraFechada, setEraFechada] = useState(false);
+  const [clienteNome, setClienteNome] = useState(
+    (evento?.summary || "").replace(/^✅\s*/, "").split(/\s*[-—]\s*/).pop().trim() || ""
+  );
 
   const [servicosSel, setServicosSel] = useState(new Set());
   const [qtdBar, setQtdBar] = useState({});
@@ -79,6 +82,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
         if (cmd) {
           if (cmd.status === "fechada") { setBloqueado(true); setEraFechada(true); }
           if (cmd.forma_pagamento) setFormaPagamento(cmd.forma_pagamento);
+          if (cmd.cliente_nome) setClienteNome(cmd.cliente_nome);
 
           const selSvcs = new Set();
           (cmd.servicos ?? []).forEach((s) => { if (s.id) selSvcs.add(s.id); });
@@ -182,7 +186,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
           <div className="flex-1 min-w-0 mr-3">
             <h3 className="font-semibold text-gray-800 text-base truncate">
-              Comanda{evento?.summary ? ` — ${evento.summary.replace(/^✅\s*/, "")}` : ""}
+              Comanda{clienteNome ? ` — ${clienteNome}` : ""}
             </h3>
           </div>
           <div className="flex items-center gap-2 shrink-0">
