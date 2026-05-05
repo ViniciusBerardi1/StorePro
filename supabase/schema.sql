@@ -142,6 +142,50 @@ alter table comandas add column if not exists cliente_id integer references clie
 alter table comandas add column if not exists desconto jsonb;
 alter table servicos add column if not exists duracao_minutos integer default 30;
 
+-- ─── Planos de assinatura ────────────────────────────────────────
+create table if not exists planos (
+  id         serial primary key,
+  nome       text not null,
+  valor      numeric(10,2) not null default 0,
+  intervalo  text not null default 'mensal'
+             check (intervalo in ('semanal','mensal','trimestral','anual')),
+  descricao  text,
+  ativo      boolean not null default true,
+  created_at timestamptz default now()
+);
+
+-- ─── Assinaturas ─────────────────────────────────────────────────
+create table if not exists assinaturas (
+  id                      serial primary key,
+  cliente_id              integer references clientes(id) on delete cascade,
+  plano_id                integer references planos(id) on delete set null,
+  status                  text not null default 'pendente'
+                          check (status in ('ativa','pendente','cancelada','inadimplente','expirada')),
+  gateway                 text,
+  gateway_customer_id     text,
+  gateway_subscription_id text,
+  data_inicio             date,
+  data_renovacao          date,
+  valor                   numeric(10,2),
+  observacoes             text,
+  created_at              timestamptz default now(),
+  updated_at              timestamptz default now()
+);
+
+create index if not exists assinaturas_cliente_idx on assinaturas(cliente_id);
+create index if not exists assinaturas_status_idx  on assinaturas(status);
+
+-- ─── Log de webhooks de pagamento ────────────────────────────────
+create table if not exists webhook_logs (
+  id         serial primary key,
+  gateway    text,
+  evento     text,
+  payload    jsonb,
+  processado boolean default false,
+  erro       text,
+  created_at timestamptz default now()
+);
+
 -- ─── Horários especiais ───────────────────────────────────────────
 create table if not exists horarios_especiais (
   id              serial primary key,
@@ -165,4 +209,7 @@ alter table historico     disable row level security;
 alter table servicos      disable row level security;
 alter table barbeiros            disable row level security;
 alter table comandas             disable row level security;
+alter table planos               disable row level security;
+alter table assinaturas          disable row level security;
+alter table webhook_logs         disable row level security;
 alter table horarios_especiais   disable row level security;

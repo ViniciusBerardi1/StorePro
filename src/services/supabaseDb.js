@@ -572,6 +572,65 @@ async function deleteBarbeiro(id) {
   if (error) throw error;
 }
 
+// ─── Planos e assinaturas ─────────────────────────────────────────
+async function getPlanos() {
+  const { data, error } = await supabase.from("planos").select("*").eq("ativo", true).order("valor");
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function upsertPlano(p) {
+  const { id, created_at, ...payload } = p;
+  const { data, error } = await supabase
+    .from("planos")
+    .upsert(id ? { id, ...payload } : payload)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function getAssinaturasAtivas() {
+  const { data, error } = await supabase
+    .from("assinaturas")
+    .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo)")
+    .eq("status", "ativa")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function getAssinaturasByCliente(clienteId) {
+  const { data, error } = await supabase
+    .from("assinaturas")
+    .select("*, planos(id, nome, valor, intervalo)")
+    .eq("cliente_id", clienteId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function upsertAssinatura(a) {
+  const { id, created_at, updated_at, planos: _p, ...payload } = a;
+  if (id) {
+    const { data, error } = await supabase
+      .from("assinaturas")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+  const { data, error } = await supabase
+    .from("assinaturas")
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 // ─── Horários especiais ───────────────────────────────────────────
 async function getHorariosEspeciais() {
   const { data, error } = await supabase.from("horarios_especiais").select("*").order("data");
@@ -648,6 +707,11 @@ export const db = {
   getAtendimentosPeriodo,
   getComandasFechadasPeriodo,
   getProdutosByTipo,
+  getPlanos,
+  upsertPlano,
+  getAssinaturasAtivas,
+  getAssinaturasByCliente,
+  upsertAssinatura,
   getHorariosEspeciais,
   upsertHorarioEspecial,
   deleteHorarioEspecial,

@@ -19,6 +19,14 @@ const fmtFreq  = (days) => {
   return `${(days / 365).toFixed(1)} anos`;
 };
 
+const STATUS_ASSINATURA = {
+  ativa:        { label: "Ativa",        cls: "bg-green-100 text-green-700"   },
+  pendente:     { label: "Pendente",     cls: "bg-yellow-100 text-yellow-700" },
+  inadimplente: { label: "Inadimplente", cls: "bg-red-100 text-red-600"       },
+  cancelada:    { label: "Cancelada",    cls: "bg-gray-100 text-gray-500"     },
+  expirada:     { label: "Expirada",     cls: "bg-gray-100 text-gray-500"     },
+};
+
 // ─── Avatar ──────────────────────────────────────────────────────
 function Avatar({ nome, size = "md" }) {
   const initials = (nome || "?")
@@ -31,6 +39,245 @@ function Avatar({ nome, size = "md" }) {
   );
 }
 
+// ─── Seção de assinatura (dentro do perfil) ───────────────────────
+function AssinaturaSection({ clienteId }) {
+  const [assinaturas, setAssinaturas] = useState([]);
+  const [planos, setPlanos]           = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [showForm, setShowForm]       = useState(false);
+  const [form, setForm]               = useState(null);
+  const [salvando, setSalvando]       = useState(false);
+  const [erro, setErro]               = useState(null);
+
+  const carregar = useCallback(() => {
+    setLoading(true);
+    Promise.all([db.getAssinaturasByCliente(clienteId), db.getPlanos()])
+      .then(([ass, pl]) => { setAssinaturas(ass); setPlanos(pl); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [clienteId]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const ativa = assinaturas.find((a) => a.status === "ativa");
+  const historico = assinaturas.filter((a) => a.status !== "ativa");
+
+  const abrirForm = (base = null) => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    setForm(base
+      ? { ...base, plano_id: base.plano_id ?? "", valor: base.valor ?? "", gateway: base.gateway ?? "", gateway_subscription_id: base.gateway_subscription_id ?? "", data_renovacao: base.data_renovacao ?? "", observacoes: base.observacoes ?? "" }
+      : { status: "ativa", plano_id: "", data_inicio: hoje, data_renovacao: "", valor: "", gateway: "", gateway_subscription_id: "", observacoes: "" }
+    );
+    setShowForm(true);
+  };
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleSalvar = async () => {
+    setSalvando(true);
+    setErro(null);
+    try {
+      await db.upsertAssinatura({
+        ...form,
+        cliente_id: clienteId,
+        plano_id:   form.plano_id   ? Number(form.plano_id)   : null,
+        valor:      form.valor      ? Number(form.valor)       : null,
+        data_renovacao: form.data_renovacao || null,
+        observacoes:    form.observacoes    || null,
+        gateway:        form.gateway        || null,
+        gateway_subscription_id: form.gateway_subscription_id || null,
+      });
+      setShowForm(false);
+      carregar();
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const handleCancelar = async (id) => {
+    try {
+      await db.upsertAssinatura({ id, status: "cancelada", cliente_id: clienteId });
+      carregar();
+    } catch (e) {
+      setErro(e.message);
+    }
+  };
+
+  if (loading) return <div className="h-24 animate-pulse bg-gray-50 rounded-2xl" />;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <span>👑</span> Assinatura
+        </h3>
+        {!showForm && (
+          <button
+            onClick={() => abrirForm(ativa ?? null)}
+            className="text-xs text-indigo-500 hover:bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-200 transition-colors font-medium"
+          >
+            {ativa ? "Gerenciar" : "+ Ativar"}
+          </button>
+        )}
+      </div>
+
+      {/* Status atual */}
+      {!showForm && (
+        ativa ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between px-3 py-3 bg-amber-50 border border-amber-100 rounded-xl">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_ASSINATURA[ativa.status]?.cls}`}>
+                    {STATUS_ASSINATURA[ativa.status]?.label}
+                  </span>
+                  {ativa.planos?.nome && (
+                    <span className="text-xs font-semibold text-gray-700">{ativa.planos.nome}</span>
+                  )}
+                </div>
+                {ativa.data_renovacao && (
+                  <p className="text-[10px] text-gray-500">Renova em {fmtData(ativa.data_renovacao)}</p>
+                )}
+                {ativa.gateway && (
+                  <p className="text-[10px] text-gray-300 mt-0.5 truncate">
+                    {ativa.gateway}{ativa.gateway_subscription_id ? ` · ${ativa.gateway_subscription_id}` : ""}
+                  </p>
+                )}
+              </div>
+              {(ativa.valor ?? ativa.planos?.valor) > 0 && (
+                <span className="text-sm font-bold text-amber-700 shrink-0 ml-3">
+                  {BRL(ativa.valor ?? ativa.planos?.valor)}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => handleCancelar(ativa.id)}
+              className="text-xs text-red-400 hover:text-red-600 text-left px-1 transition-colors"
+            >
+              Cancelar assinatura
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Sem assinatura ativa.</p>
+        )
+      )}
+
+      {/* Formulário */}
+      {showForm && form && (
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Status</label>
+              <select value={form.status} onChange={set("status")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                <option value="ativa">Ativa</option>
+                <option value="pendente">Pendente</option>
+                <option value="inadimplente">Inadimplente</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+            </div>
+            {planos.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Plano</label>
+                <select
+                  value={form.plano_id}
+                  onChange={(e) => {
+                    const pl = planos.find((p) => p.id === Number(e.target.value));
+                    setForm((f) => ({ ...f, plano_id: e.target.value, valor: pl?.valor ?? f.valor }));
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                >
+                  <option value="">Sem plano</option>
+                  {planos.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nome} — {BRL(p.valor)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Início</label>
+              <input type="date" value={form.data_inicio ?? ""} onChange={set("data_inicio")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Renovação</label>
+              <input type="date" value={form.data_renovacao ?? ""} onChange={set("data_renovacao")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Valor (R$)</label>
+            <input type="number" step="0.01" min="0" value={form.valor ?? ""} onChange={set("valor")}
+              placeholder="0,00"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Gateway</label>
+              <select value={form.gateway ?? ""} onChange={set("gateway")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                <option value="">Manual</option>
+                <option value="asaas">Asaas</option>
+                <option value="mercadopago">Mercado Pago</option>
+                <option value="stripe">Stripe</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">ID no gateway</label>
+              <input type="text" value={form.gateway_subscription_id ?? ""} onChange={set("gateway_subscription_id")}
+                placeholder="sub_xxx..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+          </div>
+
+          {erro && (
+            <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowForm(false); setErro(null); }}
+              className="flex-1 border border-gray-200 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+            >Cancelar</button>
+            <button
+              onClick={handleSalvar}
+              disabled={salvando}
+              className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
+            >{salvando ? "Salvando..." : "Salvar"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Histórico */}
+      {historico.length > 0 && !showForm && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wide mb-2">Histórico</p>
+          <div className="flex flex-col gap-1">
+            {historico.map((a) => (
+              <div key={a.id} className="flex items-center justify-between text-xs text-gray-400">
+                <span className="flex items-center gap-1.5">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_ASSINATURA[a.status]?.cls}`}>
+                    {STATUS_ASSINATURA[a.status]?.label}
+                  </span>
+                  {a.planos?.nome && <span>{a.planos.nome}</span>}
+                </span>
+                <span>{fmtData(a.created_at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Modal de cadastro / edição ──────────────────────────────────
 function ClienteForm({ cliente, clientes, onSalvar, onFechar }) {
   const [form, setForm] = useState({
@@ -39,7 +286,7 @@ function ClienteForm({ cliente, clientes, onSalvar, onFechar }) {
     email:       cliente?.email       || "",
     observacoes: cliente?.observacoes || "",
   });
-  const [erros, setErros]     = useState({});
+  const [erros, setErros]       = useState({});
   const [salvando, setSalvando] = useState(false);
 
   const set = (field) => (e) => {
@@ -159,7 +406,7 @@ function ClienteForm({ cliente, clientes, onSalvar, onFechar }) {
 }
 
 // ─── Perfil do cliente ───────────────────────────────────────────
-function ClientePerfil({ cliente, clientes, onVoltar, onEditado, onDeletado }) {
+function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, onDeletado }) {
   const [atendimentos, setAtendimentos] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [editando, setEditando]         = useState(false);
@@ -234,9 +481,21 @@ function ClientePerfil({ cliente, clientes, onVoltar, onEditado, onDeletado }) {
       {/* Info card */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex items-start gap-4">
-          <Avatar nome={cliente.nome} size="lg" />
+          <div className="relative shrink-0">
+            <Avatar nome={cliente.nome} size="lg" />
+            {isAssinante && (
+              <span className="absolute -top-1 -right-1 text-base leading-none">👑</span>
+            )}
+          </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold text-gray-800">{cliente.nome}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg font-semibold text-gray-800">{cliente.nome}</h2>
+              {isAssinante && (
+                <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                  Assinante
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500">{fmtTel(cliente.telefone)}</p>
             {cliente.email && <p className="text-xs text-gray-400 mt-0.5">{cliente.email}</p>}
             <p className="text-xs text-gray-400 mt-1">Cadastrado em {fmtData(cliente.data_cadastro)}</p>
@@ -249,6 +508,9 @@ function ClientePerfil({ cliente, clientes, onVoltar, onEditado, onDeletado }) {
           </div>
         )}
       </div>
+
+      {/* Assinatura */}
+      <AssinaturaSection clienteId={cliente.id} />
 
       {/* KPIs */}
       {loading ? (
@@ -387,17 +649,30 @@ function ClientePerfil({ cliente, clientes, onVoltar, onEditado, onDeletado }) {
 }
 
 // ─── Card de cliente na listagem ─────────────────────────────────
-function ClienteCard({ cliente, onVer }) {
+function ClienteCard({ cliente, isAssinante, onVer }) {
   const { stats = {} } = cliente;
   return (
     <motion.button
       layout
       onClick={onVer}
-      className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 flex items-center gap-4 text-left hover:border-indigo-200 hover:shadow-sm transition-all"
+      className={`w-full bg-white border rounded-2xl px-4 py-3.5 flex items-center gap-4 text-left hover:shadow-sm transition-all
+        ${isAssinante ? "border-amber-200 hover:border-amber-300" : "border-gray-200 hover:border-indigo-200"}`}
     >
-      <Avatar nome={cliente.nome} />
+      <div className="relative shrink-0">
+        <Avatar nome={cliente.nome} />
+        {isAssinante && (
+          <span className="absolute -top-1 -right-1 text-xs leading-none">👑</span>
+        )}
+      </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 truncate">{cliente.nome}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-semibold text-gray-800 truncate">{cliente.nome}</p>
+          {isAssinante && (
+            <span className="text-[9px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full shrink-0">
+              ASSINANTE
+            </span>
+          )}
+        </div>
         <p className="text-xs text-gray-400 truncate">{fmtTel(cliente.telefone)}</p>
         {cliente.email && <p className="text-[10px] text-gray-300 truncate">{cliente.email}</p>}
       </div>
@@ -429,20 +704,27 @@ const ORDENACOES = [
 const PAGE_SIZE = 20;
 
 export default function ClientesLista() {
-  const [clientes, setClientes]     = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [erro, setErro]             = useState(null);
-  const [busca, setBusca]           = useState("");
-  const [ordenacao, setOrdenacao]   = useState("recentes");
-  const [visivel, setVisivel]       = useState(PAGE_SIZE);
-  const [showForm, setShowForm]     = useState(false);
-  const [clienteSel, setClienteSel] = useState(null);
+  const [clientes, setClientes]             = useState([]);
+  const [assinantesIds, setAssinantesIds]   = useState(new Set());
+  const [loading, setLoading]               = useState(true);
+  const [erro, setErro]                     = useState(null);
+  const [busca, setBusca]                   = useState("");
+  const [ordenacao, setOrdenacao]           = useState("recentes");
+  const [aba, setAba]                       = useState("todos");
+  const [visivel, setVisivel]               = useState(PAGE_SIZE);
+  const [showForm, setShowForm]             = useState(false);
+  const [clienteSel, setClienteSel]         = useState(null);
 
   const carregar = useCallback(async () => {
     setLoading(true);
     setErro(null);
     try {
-      setClientes(await db.getClientesComStats());
+      const [clts, assinaturas] = await Promise.all([
+        db.getClientesComStats(),
+        db.getAssinaturasAtivas(),
+      ]);
+      setClientes(clts);
+      setAssinantesIds(new Set(assinaturas.map((a) => a.cliente_id)));
     } catch (e) {
       setErro("Erro ao carregar clientes.");
       console.error(e);
@@ -464,17 +746,20 @@ export default function ClientesLista() {
         )
       : [...clientes];
 
+    if (aba === "assinantes") lista = lista.filter((c) => assinantesIds.has(c.id));
+
     if (ordenacao === "atendimentos") lista.sort((a, b) => (b.stats?.count || 0) - (a.stats?.count || 0));
     else if (ordenacao === "gasto")   lista.sort((a, b) => (b.stats?.total || 0) - (a.stats?.total || 0));
     else if (ordenacao === "nome")    lista.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     return lista;
-  }, [clientes, busca, ordenacao]);
+  }, [clientes, busca, ordenacao, aba, assinantesIds]);
 
   if (clienteSel) {
     return (
       <ClientePerfil
         cliente={clienteSel}
         clientes={clientes}
+        isAssinante={assinantesIds.has(clienteSel.id)}
         onVoltar={() => setClienteSel(null)}
         onEditado={async () => {
           await carregar();
@@ -497,6 +782,7 @@ export default function ClientesLista() {
           {!loading && (
             <p className="text-xs text-gray-400 mt-0.5">
               {clientes.length} cadastrado{clientes.length !== 1 ? "s" : ""}
+              {assinantesIds.size > 0 && ` · ${assinantesIds.size} assinante${assinantesIds.size !== 1 ? "s" : ""}`}
             </p>
           )}
         </div>
@@ -504,6 +790,31 @@ export default function ClientesLista() {
           onClick={() => setShowForm(true)}
           className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
         >+ Novo cliente</button>
+      </div>
+
+      {/* Abas */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        {[
+          { id: "todos",      label: "Todos"       },
+          { id: "assinantes", label: "👑 Assinantes" },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => { setAba(t.id); setVisivel(PAGE_SIZE); }}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              aba === t.id
+                ? "bg-white text-gray-800 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {t.label}
+            {t.id === "assinantes" && assinantesIds.size > 0 && (
+              <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full font-bold">
+                {assinantesIds.size}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Busca + Ordenação */}
@@ -554,11 +865,15 @@ export default function ClientesLista() {
         </div>
       ) : filtrados.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-2xl px-5 py-12 text-center">
-          <div className="text-4xl mb-3">{busca ? "🔍" : "👥"}</div>
+          <div className="text-4xl mb-3">{aba === "assinantes" ? "👑" : busca ? "🔍" : "👥"}</div>
           <p className="text-sm font-medium text-gray-500">
-            {busca ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
+            {aba === "assinantes"
+              ? "Nenhum assinante ativo"
+              : busca
+              ? "Nenhum cliente encontrado"
+              : "Nenhum cliente cadastrado"}
           </p>
-          {!busca && (
+          {!busca && aba === "todos" && (
             <button
               onClick={() => setShowForm(true)}
               className="mt-4 text-sm text-indigo-500 hover:text-indigo-600 font-medium"
@@ -568,7 +883,12 @@ export default function ClientesLista() {
       ) : (
         <div className="flex flex-col gap-2">
           {filtrados.slice(0, visivel).map((c) => (
-            <ClienteCard key={c.id} cliente={c} onVer={() => setClienteSel(c)} />
+            <ClienteCard
+              key={c.id}
+              cliente={c}
+              isAssinante={assinantesIds.has(c.id)}
+              onVer={() => setClienteSel(c)}
+            />
           ))}
           {visivel < filtrados.length && (
             <button
