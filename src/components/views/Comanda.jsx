@@ -181,10 +181,9 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
           <div className="flex-1 min-w-0 mr-3">
-            <h3 className="font-semibold text-gray-800 text-base">Comanda</h3>
-            <p className="text-xs text-gray-400 mt-0.5 truncate">
-              {evento?.summary?.replace(/^✅\s*/, "") || "(sem título)"}
-            </p>
+            <h3 className="font-semibold text-gray-800 text-base truncate">
+              Comanda{evento?.summary ? ` — ${evento.summary.replace(/^✅\s*/, "")}` : ""}
+            </h3>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {bloqueado && (
