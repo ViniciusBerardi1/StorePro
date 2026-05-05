@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { getRelatoriosPeriodo, getRelatoriosPeriodoAnterior, getUltimaVisitaClientes } from "../../services/relatoriosDb";
 
@@ -414,6 +414,9 @@ function fmtHoras(minutos) {
 // ─── Aba: Barbeiros ───────────────────────────────────────────────
 
 function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
+  // useState deve vir antes de qualquer early return
+  const [detalhe, setDetalhe] = useState(null);
+
   const ok = atendimentos.filter((a) => a.status === "concluido");
 
   if (!ok.length) {
@@ -485,7 +488,6 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
   const totalFat = lista.reduce((s, b) => s + b.faturamento, 0);
   const totalMin = lista.reduce((s, b) => s + b.minutos, 0);
 
-  const [detalhe, setDetalhe] = useState(null);
   const barbDetalhe = detalhe ? lista.find((b) => b.nome === detalhe) : null;
 
   return (
@@ -556,9 +558,8 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
             </thead>
             <tbody>
               {lista.map((b) => (
-                <>
+                <React.Fragment key={b.nome}>
                   <tr
-                    key={b.nome}
                     className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
                     onClick={() => setDetalhe(detalhe === b.nome ? null : b.nome)}
                   >
@@ -577,7 +578,7 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
                     </td>
                   </tr>
                   {detalhe === b.nome && barbDetalhe && (
-                    <tr key={b.nome + "_det"}>
+                    <tr>
                       <td colSpan={9} className="pb-3 pt-1 px-3">
                         <div className="bg-gray-50 rounded-xl p-3 flex flex-col gap-3">
                           {/* Serviços */}
@@ -617,7 +618,7 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
             <tfoot>
