@@ -1391,7 +1391,7 @@ export default function ClientesLista({ initialAba = "todos" }) {
               ? "Nenhum cliente encontrado"
               : "Nenhum cliente cadastrado"}
           </p>
-          {!busca && aba === "todos" && (
+          {!busca && (
             <button
               onClick={() => setShowForm(true)}
               className="mt-4 text-sm text-indigo-500 hover:text-indigo-600 font-medium"
