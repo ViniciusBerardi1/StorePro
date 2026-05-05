@@ -51,7 +51,7 @@ function fmtHora(iso) {
 
 // ─── Modal de confirmação para abrir comanda ──────────────────────
 function ConfirmacaoComanda({ evento, onConfirmar, onCancelar }) {
-  const clienteNome = evento?.summary?.replace(/^✅\s*/, "").split(/[-—]/)[0].trim() || "cliente";
+  const clienteNome = (evento?.summary || "").replace(/^✅\s*/, "").split(/\s*[-—]\s*/).pop().trim() || "cliente";
   return (
     <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
       <motion.div

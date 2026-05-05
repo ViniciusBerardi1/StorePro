@@ -326,7 +326,8 @@ function AppPrincipal() {
   const onAbrirComanda = useCallback(async (evento) => {
     const clienteNome = (evento.summary || "")
       .replace(/^✅\s*/, "")
-      .split(/[-—]/)[0]
+      .split(/\s*[-—]\s*/)
+      .pop()
       .trim() || "Cliente";
     try {
       await db.criarComanda({
