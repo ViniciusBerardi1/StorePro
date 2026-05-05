@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { getRelatoriosPeriodo, getRelatoriosPeriodoAnterior, getUltimaVisitaClientes } from "../../services/relatoriosDb";
 
@@ -496,49 +496,27 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard icon="✂️" label="Barbeiros ativos" valor={lista.length} sub="no período" />
         <KpiCard icon="💰" label="Faturamento total" valor={BRL(totalFat)} sub="equipe completa" />
-        <KpiCard
-          icon="⏱️"
-          label="Horas totais"
-          valor={fmtHoras(totalMin)}
-          sub="tempo em atendimentos"
-        />
-        <KpiCard
-          icon="💳"
-          label="Ticket médio geral"
-          valor={BRL(ok.length > 0 ? totalFat / ok.length : 0)}
-          sub="todos os barbeiros"
-        />
+        <KpiCard icon="⏱️" label="Horas totais" valor={fmtHoras(totalMin)} sub="tempo em atendimentos" />
+        <KpiCard icon="💳" label="Ticket médio geral" valor={BRL(ok.length > 0 ? totalFat / ok.length : 0)} sub="todos os barbeiros" />
       </div>
 
       {/* Rankings */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <SectionTitle>💰 Faturamento</SectionTitle>
-          <RankingBars
-            itens={lista.map((b) => ({ nome: b.nome, valor: b.faturamento, sub: `${b.atendimentos}x` }))}
-            formatValor={BRL}
-            cor="bg-indigo-400"
-          />
+          <RankingBars itens={lista.map((b) => ({ nome: b.nome, valor: b.faturamento, sub: `${b.atendimentos}x` }))} formatValor={BRL} cor="bg-indigo-400" />
         </Card>
         <Card>
           <SectionTitle>💳 Ticket médio</SectionTitle>
-          <RankingBars
-            itens={lista.map((b) => ({ nome: b.nome, valor: b.ticket }))}
-            formatValor={BRL}
-            cor="bg-emerald-400"
-          />
+          <RankingBars itens={lista.map((b) => ({ nome: b.nome, valor: b.ticket }))} formatValor={BRL} cor="bg-emerald-400" />
         </Card>
         <Card>
           <SectionTitle>⏱️ Horas trabalhadas</SectionTitle>
-          <RankingBars
-            itens={lista.map((b) => ({ nome: b.nome, valor: b.minutos, sub: fmtHoras(b.minutos) }))}
-            formatValor={fmtHoras}
-            cor="bg-amber-400"
-          />
+          <RankingBars itens={lista.map((b) => ({ nome: b.nome, valor: b.minutos, sub: fmtHoras(b.minutos) }))} formatValor={fmtHoras} cor="bg-amber-400" />
         </Card>
       </div>
 
-      {/* Tabela completa */}
+      {/* Tabela completa — sem Fragment em tbody */}
       <Card>
         <SectionTitle>📋 Performance por profissional</SectionTitle>
         <div className="overflow-x-auto">
@@ -553,99 +531,86 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros }) {
                 <th className="text-right py-2 font-medium">% Fat.</th>
                 <th className="text-right py-2 font-medium hidden lg:table-cell">Produtos</th>
                 <th className="text-right py-2 font-medium hidden lg:table-cell">Rec. Produtos</th>
-                <th className="py-2 w-6" />
               </tr>
             </thead>
             <tbody>
               {lista.map((b) => (
-                <React.Fragment key={b.nome}>
-                  <tr
-                    className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => setDetalhe(detalhe === b.nome ? null : b.nome)}
-                  >
-                    <td className="py-2.5 font-medium text-gray-700">{b.nome}</td>
-                    <td className="py-2.5 text-right text-gray-500">{b.atendimentos}</td>
-                    <td className="py-2.5 text-right font-semibold text-gray-700">{BRL(b.faturamento)}</td>
-                    <td className="py-2.5 text-right text-gray-500">{BRL(b.ticket)}</td>
-                    <td className="py-2.5 text-right text-gray-500">{fmtHoras(b.minutos)}</td>
-                    <td className="py-2.5 text-right text-gray-400">
-                      {totalFat > 0 ? ((b.faturamento / totalFat) * 100).toFixed(1) : 0}%
-                    </td>
-                    <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{b.totalProdutos}x</td>
-                    <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{BRL(b.receitaProdutos)}</td>
-                    <td className="py-2.5 text-center text-gray-300 text-xs">
-                      {detalhe === b.nome ? "▾" : "▸"}
-                    </td>
-                  </tr>
-                  {detalhe === b.nome && barbDetalhe && (
-                    <tr>
-                      <td colSpan={9} className="pb-3 pt-1 px-3">
-                        <div className="bg-gray-50 rounded-xl p-3 flex flex-col gap-3">
-                          {/* Serviços */}
-                          {Object.keys(b.servicos).length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">✂️ Serviços realizados</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {Object.entries(b.servicos)
-                                  .sort((a, z) => z[1] - a[1])
-                                  .map(([nome, cnt]) => (
-                                    <span key={nome} className="bg-indigo-50 text-indigo-600 text-[10px] font-medium px-2 py-0.5 rounded-full">
-                                      {nome} × {cnt}
-                                    </span>
-                                  ))}
-                              </div>
-                            </div>
-                          )}
-                          {/* Produtos */}
-                          {Object.keys(b.produtos).length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">📦 Produtos vendidos</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {Object.entries(b.produtos)
-                                  .sort((a, z) => z[1].count - a[1].count)
-                                  .map(([nome, p]) => (
-                                    <span key={nome} className="bg-amber-50 text-amber-600 text-[10px] font-medium px-2 py-0.5 rounded-full">
-                                      {nome} × {p.count} · {BRL(p.receita)}
-                                    </span>
-                                  ))}
-                              </div>
-                            </div>
-                          )}
-                          {Object.keys(b.servicos).length === 0 && Object.keys(b.produtos).length === 0 && (
-                            <p className="text-xs text-gray-400">Sem detalhes disponíveis.</p>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
+                <tr
+                  key={b.nome}
+                  className={`border-b border-gray-50 cursor-pointer transition-colors ${detalhe === b.nome ? "bg-indigo-50" : "hover:bg-gray-50"}`}
+                  onClick={() => setDetalhe(detalhe === b.nome ? null : b.nome)}
+                >
+                  <td className="py-2.5 font-medium text-gray-700">
+                    {b.nome} <span className="text-gray-300 text-[10px]">{detalhe === b.nome ? "▾" : "▸"}</span>
+                  </td>
+                  <td className="py-2.5 text-right text-gray-500">{b.atendimentos}</td>
+                  <td className="py-2.5 text-right font-semibold text-gray-700">{BRL(b.faturamento)}</td>
+                  <td className="py-2.5 text-right text-gray-500">{BRL(b.ticket)}</td>
+                  <td className="py-2.5 text-right text-gray-500">{fmtHoras(b.minutos)}</td>
+                  <td className="py-2.5 text-right text-gray-400">
+                    {totalFat > 0 ? ((b.faturamento / totalFat) * 100).toFixed(1) : 0}%
+                  </td>
+                  <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{b.totalProdutos}x</td>
+                  <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{BRL(b.receitaProdutos)}</td>
+                </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t border-gray-200">
                 <td className="py-2 font-bold text-gray-700">Total</td>
-                <td className="py-2 text-right font-semibold text-gray-600">
-                  {lista.reduce((s, b) => s + b.atendimentos, 0)}
-                </td>
+                <td className="py-2 text-right font-semibold text-gray-600">{lista.reduce((s, b) => s + b.atendimentos, 0)}</td>
                 <td className="py-2 text-right font-bold text-gray-800">{BRL(totalFat)}</td>
-                <td className="py-2 text-right text-gray-400">
-                  {BRL(ok.length > 0 ? totalFat / ok.length : 0)}
-                </td>
+                <td className="py-2 text-right text-gray-400">{BRL(ok.length > 0 ? totalFat / ok.length : 0)}</td>
                 <td className="py-2 text-right text-gray-400">{fmtHoras(totalMin)}</td>
                 <td className="py-2 text-right text-gray-400">100%</td>
-                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">
-                  {lista.reduce((s, b) => s + b.totalProdutos, 0)}x
-                </td>
-                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">
-                  {BRL(lista.reduce((s, b) => s + b.receitaProdutos, 0))}
-                </td>
-                <td />
+                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">{lista.reduce((s, b) => s + b.totalProdutos, 0)}x</td>
+                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">{BRL(lista.reduce((s, b) => s + b.receitaProdutos, 0))}</td>
               </tr>
             </tfoot>
           </table>
         </div>
-        <p className="text-[10px] text-gray-300 mt-2">Clique em um profissional para ver detalhes de serviços e produtos.</p>
+        <p className="text-[10px] text-gray-300 mt-2">Clique em um profissional para ver detalhes.</p>
       </Card>
+
+      {/* Painel de detalhes — fora da tabela, sem Fragment */}
+      {barbDetalhe && (
+        <Card>
+          <SectionTitle>🔍 Detalhes — {barbDetalhe.nome}</SectionTitle>
+          <div className="flex flex-col gap-3">
+            {Object.keys(barbDetalhe.servicos).length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">✂️ Serviços realizados</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(barbDetalhe.servicos)
+                    .sort((a, z) => z[1] - a[1])
+                    .map(([nome, cnt]) => (
+                      <span key={nome} className="bg-indigo-50 text-indigo-600 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                        {nome} × {cnt}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+            {Object.keys(barbDetalhe.produtos).length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">📦 Produtos vendidos</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(barbDetalhe.produtos)
+                    .sort((a, z) => z[1].count - a[1].count)
+                    .map(([nome, p]) => (
+                      <span key={nome} className="bg-amber-50 text-amber-600 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                        {nome} × {p.count} · {BRL(p.receita)}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+            {Object.keys(barbDetalhe.servicos).length === 0 && Object.keys(barbDetalhe.produtos).length === 0 && (
+              <p className="text-xs text-gray-400">Sem detalhes disponíveis.</p>
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
