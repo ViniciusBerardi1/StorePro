@@ -420,6 +420,8 @@ function AppPrincipal() {
               <Comandas onAtendimentoFinalizado={carregarDashboard} />
             ) : view === "clientes_lista" ? (
               <ClientesLista />
+            ) : view === "planos" ? (
+              <ClientesLista initialAba="planos" />
             ) : view === "agenda" ? (
               <Agenda
                 onAtendimentoFinalizado={carregarDashboard}

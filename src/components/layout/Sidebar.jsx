@@ -24,10 +24,13 @@ const MENU = [
     ],
   },
   {
-    type: "item",
-    view: "clientes_lista",
+    type: "group",
     label: "Clientes",
     icon: "👥",
+    itens: [
+      { view: "clientes_lista", label: "Lista de clientes" },
+      { view: "planos",         label: "Planos de assinatura" },
+    ],
   },
   {
     type: "item",
@@ -59,7 +62,7 @@ const MENU = [
   },
 ];
 
-const VIEWS_ATIVAS = ["agenda", "comandas", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros", "clientes_lista"];
+const VIEWS_ATIVAS = ["agenda", "comandas", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros", "clientes_lista", "planos"];
 
 function isAtivo(entrada, view) {
   if (entrada.type === "item") return view === entrada.view;

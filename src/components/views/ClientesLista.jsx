@@ -1252,14 +1252,14 @@ const ORDENACOES = [
 
 const PAGE_SIZE = 20;
 
-export default function ClientesLista() {
+export default function ClientesLista({ initialAba = "todos" }) {
   const [clientes, setClientes]             = useState([]);
   const [assinantesIds, setAssinantesIds]   = useState(new Set());
   const [loading, setLoading]               = useState(true);
   const [erro, setErro]                     = useState(null);
   const [busca, setBusca]                   = useState("");
   const [ordenacao, setOrdenacao]           = useState("recentes");
-  const [aba, setAba]                       = useState("todos");
+  const [aba, setAba]                       = useState(initialAba);
   const [visivel, setVisivel]               = useState(PAGE_SIZE);
   const [showForm, setShowForm]             = useState(false);
   const [clienteSel, setClienteSel]         = useState(null);
@@ -1346,7 +1346,6 @@ export default function ClientesLista() {
         {[
           { id: "todos",      label: "Todos"        },
           { id: "assinantes", label: "👑 Assinantes" },
-          { id: "planos",     label: "📋 Planos"     },
         ].map((t) => (
           <button
             key={t.id}
