@@ -220,27 +220,28 @@ function AppPrincipal() {
 
   // ─── Auto-lock por inatividade (1 min) ──────────────────────────
   const inactivityTimer = useRef(null);
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
 
   useEffect(() => {
     if (!financeiroDesbloqueado) return;
 
     const TIMEOUT_MS = 60_000;
+    const EVENTOS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+
+    const bloquear = () => {
+      setFinanceiroDesbloqueado(false);
+      if (viewRef.current === "financeiro" || viewRef.current === "relatorios") {
+        setPendingView(viewRef.current);
+        setShowSenhaModal(true);
+      }
+    };
 
     const resetTimer = () => {
       clearTimeout(inactivityTimer.current);
-      inactivityTimer.current = setTimeout(() => {
-        setFinanceiroDesbloqueado(false);
-        setView((v) => {
-          if (v === "financeiro" || v === "relatorios") {
-            setPendingView(v);
-            setShowSenhaModal(true);
-          }
-          return v;
-        });
-      }, TIMEOUT_MS);
+      inactivityTimer.current = setTimeout(bloquear, TIMEOUT_MS);
     };
 
-    const EVENTOS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
     EVENTOS.forEach((ev) => window.addEventListener(ev, resetTimer, { passive: true }));
     resetTimer();
 
