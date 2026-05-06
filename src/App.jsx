@@ -219,36 +219,44 @@ function AppPrincipal() {
   const [desejoOrigemId, setDesejoOrigemId] = useState(null);
 
   // ─── Auto-lock por inatividade (1 min) ──────────────────────────
-  const inactivityTimer = useRef(null);
-  const viewRef = useRef(view);
+  const viewRef          = useRef(view);
+  const lastActivityRef  = useRef(Date.now());
+  const desbloqueadoRef  = useRef(false);
+  const checkRef         = useRef(null);
+
   useEffect(() => { viewRef.current = view; }, [view]);
+  useEffect(() => { desbloqueadoRef.current = financeiroDesbloqueado; }, [financeiroDesbloqueado]);
 
+  // Listeners de atividade — adicionados uma única vez, sem remoção
   useEffect(() => {
-    if (!financeiroDesbloqueado) return;
-
-    const TIMEOUT_MS = 60_000;
+    const atualizar = () => { lastActivityRef.current = Date.now(); };
     const EVENTOS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+    EVENTOS.forEach((ev) => window.addEventListener(ev, atualizar, { passive: true }));
+    // sem cleanup — vivem enquanto o app existir
+  }, []);
 
-    const bloquear = () => {
-      setFinanceiroDesbloqueado(false);
-      if (viewRef.current === "financeiro" || viewRef.current === "relatorios") {
-        setPendingView(viewRef.current);
-        setShowSenhaModal(true);
+  // Polling a cada 2s: só age quando desbloqueado
+  useEffect(() => {
+    if (!financeiroDesbloqueado) {
+      clearInterval(checkRef.current);
+      return;
+    }
+
+    lastActivityRef.current = Date.now(); // zera contagem ao desbloquear
+
+    checkRef.current = setInterval(() => {
+      if (!desbloqueadoRef.current) return;
+      if (Date.now() - lastActivityRef.current >= 60_000) {
+        clearInterval(checkRef.current);
+        setFinanceiroDesbloqueado(false);
+        if (viewRef.current === "financeiro" || viewRef.current === "relatorios") {
+          setPendingView(viewRef.current);
+          setShowSenhaModal(true);
+        }
       }
-    };
+    }, 2_000);
 
-    const resetTimer = () => {
-      clearTimeout(inactivityTimer.current);
-      inactivityTimer.current = setTimeout(bloquear, TIMEOUT_MS);
-    };
-
-    EVENTOS.forEach((ev) => window.addEventListener(ev, resetTimer, { passive: true }));
-    resetTimer();
-
-    return () => {
-      clearTimeout(inactivityTimer.current);
-      EVENTOS.forEach((ev) => window.removeEventListener(ev, resetTimer));
-    };
+    return () => clearInterval(checkRef.current);
   }, [financeiroDesbloqueado]);
 
   useEffect(() => {
