@@ -75,14 +75,19 @@ create index if not exists atendimentos_cliente_idx on atendimentos(cliente_id);
 
 -- ─── Histórico de estoque ────────────────────────────────────
 create table if not exists historico (
-  id             serial primary key,
-  produto_id     integer,
-  produto_nome   text,
-  produto_cor    text,
-  categoria_nome text,
-  foto           text,
-  data_zerado    timestamptz default now()
+  id                serial primary key,
+  produto_id        integer,
+  produto_nome      text,
+  produto_cor       text,
+  categoria_nome    text,
+  foto              text,
+  data_zerado       timestamptz default now(),
+  data_reposto      timestamptz,
+  quantidade_reposta integer
 );
+-- migrações incrementais
+alter table historico add column if not exists data_reposto       timestamptz;
+alter table historico add column if not exists quantidade_reposta integer;
 
 -- ─── Serviços ────────────────────────────────────────────────
 create table if not exists servicos (

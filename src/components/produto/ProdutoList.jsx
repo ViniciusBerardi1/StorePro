@@ -61,6 +61,133 @@ function ControladorQuantidade({ produto, onAtualizar, onDeletar }) {
   );
 }
 
+function fmtDataHora(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function diasPassados(iso) {
+  if (!iso) return null;
+  const dias = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (dias === 0) return "hoje";
+  if (dias === 1) return "ontem";
+  return `há ${dias} dias`;
+}
+
+function TabHistorico({ historico }) {
+  const [busca, setBusca] = useState("");
+
+  const filtrados = historico
+    .filter((h) => h.produto_nome?.toLowerCase().includes(busca.toLowerCase()))
+    .sort((a, b) => new Date(b.data_zerado) - new Date(a.data_zerado));
+
+  if (!historico.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+        <span className="text-4xl">📋</span>
+        <p className="text-gray-500 font-medium">Nenhum registro ainda</p>
+        <p className="text-gray-400 text-sm">O histórico será preenchido quando produtos esgotarem ou forem repostos.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <input
+        type="text"
+        placeholder="Buscar produto..."
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+      />
+
+      {filtrados.length === 0 ? (
+        <p className="text-center text-gray-400 text-sm py-8">Nenhum resultado.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {filtrados.map((h) => {
+            const reposto = !!h.data_reposto;
+            const semAberto = !reposto;
+            return (
+              <div
+                key={h.id}
+                className={`bg-white border rounded-xl overflow-hidden ${semAberto ? "border-orange-200" : "border-green-200"}`}
+              >
+                {/* Cabeçalho do produto */}
+                <div className="flex items-center gap-3 px-4 py-3">
+                  {h.foto ? (
+                    <img src={h.foto} alt={h.produto_nome} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg shrink-0">🧴</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{h.produto_nome}{h.produto_cor ? ` · ${h.produto_cor}` : ""}</p>
+                    {h.categoria_nome && <p className="text-xs text-gray-400">{h.categoria_nome}</p>}
+                  </div>
+                  {semAberto && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 shrink-0">
+                      sem estoque
+                    </span>
+                  )}
+                </div>
+
+                {/* Linha do tempo */}
+                <div className="border-t border-gray-100 px-4 py-3 flex flex-col gap-2.5">
+                  {/* Evento: acabou */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-sm">🔴</div>
+                      {reposto && <div className="w-0.5 h-4 bg-gray-200" />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-red-600">Estoque zerado</p>
+                      <p className="text-[11px] text-gray-500">{fmtDataHora(h.data_zerado)}</p>
+                      <p className="text-[10px] text-gray-400">{diasPassados(h.data_zerado)}</p>
+                    </div>
+                  </div>
+
+                  {/* Evento: reposto */}
+                  {reposto ? (
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-sm shrink-0">🟢</div>
+                      <div>
+                        <p className="text-xs font-semibold text-green-600">
+                          Reposto{h.quantidade_reposta ? ` (+${h.quantidade_reposta} un.)` : ""}
+                        </p>
+                        <p className="text-[11px] text-gray-500">{fmtDataHora(h.data_reposto)}</p>
+                        {h.data_zerado && h.data_reposto && (
+                          <p className="text-[10px] text-gray-400">
+                            ficou {Math.round((new Date(h.data_reposto) - new Date(h.data_zerado)) / 86400000)} dias sem estoque
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-sm shrink-0">⏳</div>
+                      <div>
+                        <p className="text-xs text-gray-400">Aguardando reposição</p>
+                        {h.data_zerado && (
+                          <p className="text-[10px] text-orange-400 font-medium">
+                            {Math.round((Date.now() - new Date(h.data_zerado).getTime()) / 86400000)} dias sem estoque
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProdutoList({
   titulo,
   produtos,
@@ -70,7 +197,9 @@ function ProdutoList({
   onNovo,
   mostrarBotaoNovo,
   onAtualizarQuantidade,
+  historicoEstoque = [],
 }) {
+  const [aba, setAba] = useState("produtos");
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [busca, setBusca] = useState("");
   const [ordenacao, setOrdenacao] = useState("recentes");
@@ -98,12 +227,40 @@ function ProdutoList({
       return ordem === "desc" ? -comparacao : comparacao;
     });
 
+  const semEstoqueAberto = historicoEstoque.filter((h) => !h.data_reposto).length;
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-gray-800">{titulo}</h2>
       </div>
 
+      {/* Abas Produtos / Histórico */}
+      <div className="flex gap-1 mb-5">
+        {[
+          { id: "produtos",   label: "Produtos",    icon: "🧴" },
+          { id: "historico",  label: "Histórico",   icon: "📋", badge: semEstoqueAberto > 0 ? semEstoqueAberto : null },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setAba(t.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors relative
+              ${aba === t.id ? "bg-rose-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+          >
+            {t.icon} {t.label}
+            {t.badge != null && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${aba === t.id ? "bg-white text-rose-600" : "bg-orange-100 text-orange-600"}`}>
+                {t.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {aba === "historico" ? (
+        <TabHistorico historico={historicoEstoque} />
+      ) : (
+      <>
       <div className="flex flex-col gap-3 mb-5">
         <div className="flex gap-3">
           <input
@@ -252,6 +409,8 @@ function ProdutoList({
           />
         )}
       </AnimatePresence>
+      </>
+      )}
     </div>
   );
 }

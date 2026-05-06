@@ -209,6 +209,7 @@ function AppPrincipal() {
   const [showSenhaModal, setShowSenhaModal] = useState(false);
   const [produtos, setProdutos] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [historicoEstoque, setHistoricoEstoque] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [editando, setEditando] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -223,9 +224,10 @@ function AppPrincipal() {
 
   const carregar = useCallback(async () => {
     try {
-      const [p, c] = await Promise.all([db.getProdutos(), db.getCategorias()]);
+      const [p, c, h] = await Promise.all([db.getProdutos(), db.getCategorias(), db.getHistorico()]);
       setProdutos(p);
       setCategorias(c);
+      setHistoricoEstoque(h ?? []);
     } catch (err) {
       console.error("erro ao carregar:", err);
       setToast("Erro ao carregar dados. Tente novamente.");
@@ -305,8 +307,9 @@ function AppPrincipal() {
 
   const handleAtualizarQuantidade = useCallback(async (produto, quantidade) => {
     try {
+      const qtdAnterior = produto.quantidade ?? 0;
       await db.updateProduto({ ...produto, quantidade });
-      if (quantidade === 0) {
+      if (quantidade === 0 && qtdAnterior > 0) {
         await db.addHistorico({
           produto_id: produto.id,
           produto_nome: produto.nome,
@@ -315,6 +318,8 @@ function AppPrincipal() {
           foto: produto.foto || "",
           data_zerado: new Date().toISOString(),
         });
+      } else if (quantidade > 0 && qtdAnterior === 0) {
+        await db.registrarReposicao(produto.id, quantidade);
       }
       await carregar();
     } catch (err) {
@@ -452,6 +457,7 @@ function AppPrincipal() {
                 onDeletar={handleDeletar}
                 onNovo={handleNovo}
                 onAtualizarQuantidade={handleAtualizarQuantidade}
+                historicoEstoque={historicoEstoque}
                 mostrarBotaoNovo={true}
               />
             ) : (

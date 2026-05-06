@@ -85,6 +85,25 @@ async function limparHistorico() {
   if (error) throw error;
 }
 
+// Marca o registro mais recente em aberto para produto_id como reposto
+async function registrarReposicao(produto_id, quantidade_reposta) {
+  const { data, error } = await supabase
+    .from("historico")
+    .select("id")
+    .eq("produto_id", produto_id)
+    .is("data_reposto", null)
+    .order("data_zerado", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return;
+  const { error: ue } = await supabase
+    .from("historico")
+    .update({ data_reposto: new Date().toISOString(), quantidade_reposta })
+    .eq("id", data.id);
+  if (ue) throw ue;
+}
+
 // ─── Clientes ───────────────────────────────────────────────────
 async function getClientes() {
   const { data, error } = await supabase.from("clientes").select("*").order("nome");
@@ -692,6 +711,7 @@ export const db = {
   addHistorico,
   getHistorico,
   limparHistorico,
+  registrarReposicao,
   getClientes,
   getClientesComStats,
   getAtendimentosByCliente,
