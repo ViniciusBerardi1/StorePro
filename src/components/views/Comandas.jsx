@@ -249,19 +249,26 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
             : lista.map((p) => {
               const qtd  = qtds[p.id] || 0;
               const isBar = tab === "bar";
+              const estoqueDisp = p.quantidade != null ? p.quantidade - qtd : Infinity;
+              const semEstoque  = p.quantidade != null && p.quantidade <= 0 && qtd === 0;
+              const maxAtingido = estoqueDisp <= 0;
               return (
                 <div
                   key={p.id}
                   className={`flex items-center justify-between p-3 rounded-xl border transition-all
-                    ${qtd > 0 ? (isBar ? "bg-amber-50 border-amber-200" : "bg-indigo-50 border-indigo-200") : "bg-white border-gray-200"}`}
+                    ${semEstoque ? "bg-gray-50 border-gray-200 opacity-50" :
+                      qtd > 0 ? (isBar ? "bg-amber-50 border-amber-200" : "bg-indigo-50 border-indigo-200") : "bg-white border-gray-200"}`}
                 >
                   <div className="min-w-0 flex-1 mr-3">
-                    <p className={`text-sm font-medium truncate ${qtd > 0 ? (isBar ? "text-amber-700" : "text-indigo-700") : "text-gray-700"}`}>{p.nome}</p>
+                    <p className={`text-sm font-medium truncate ${semEstoque ? "text-gray-400" : qtd > 0 ? (isBar ? "text-amber-700" : "text-indigo-700") : "text-gray-700"}`}>
+                      {p.nome}
+                      {semEstoque && <span className="ml-1.5 text-[10px] font-normal text-gray-400">sem estoque</span>}
+                    </p>
                     <p className={`text-xs ${qtd > 0 ? (isBar ? "text-amber-500" : "text-indigo-500") : "text-gray-400"}`}>
                       {fmtValor(p.preco_venda)}
                       {p.quantidade != null && (
-                        <span className={`ml-1.5 ${qtd > (p.quantidade ?? 0) ? "text-red-400 font-medium" : "text-gray-300"}`}>
-                          · estoque: {Math.max(0, (p.quantidade ?? 0) - qtd)}
+                        <span className={`ml-1.5 ${maxAtingido && qtd > 0 ? "text-red-400 font-medium" : "text-gray-300"}`}>
+                          · estoque: {Math.max(0, p.quantidade - qtd)}
                         </span>
                       )}
                     </p>
@@ -275,7 +282,8 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
                     <span className={`w-5 text-center text-sm font-bold ${qtd > 0 ? (isBar ? "text-amber-600" : "text-indigo-600") : "text-gray-400"}`}>{qtd}</span>
                     <button
                       onClick={() => changeQtd(setter, p.id, 1)}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors border
+                      disabled={semEstoque || maxAtingido}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors border disabled:opacity-30 disabled:cursor-not-allowed
                         ${isBar ? "border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100" : "border-indigo-300 bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}
                     >+</button>
                   </div>
