@@ -25,7 +25,7 @@ export async function getRelatoriosPeriodo(dataIni, dataFim) {
       supabase
         .from("comandas")
         // atendimento_id permite cruzar itens consumidos com barbeiro_id do atendimento
-        .select("id, atendimento_id, created_at, status, cliente_nome, valor_total, valor_servicos, valor_bar, valor_loja, forma_pagamento, itens_bar, itens_loja, servicos, desconto")
+        .select("id, atendimento_id, barbeiro_id, created_at, status, cliente_nome, valor_total, valor_servicos, valor_bar, valor_loja, forma_pagamento, itens_bar, itens_loja, servicos, desconto")
         .eq("status", "fechada")
         .gte("created_at", ini)
         .lte("created_at", fim),

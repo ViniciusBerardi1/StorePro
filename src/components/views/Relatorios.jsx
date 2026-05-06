@@ -460,10 +460,10 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
     }
   }
 
-  // Cruzar produtos consumidos com barbeiro via atendimento_id
+  // Cruzar produtos consumidos com barbeiro — usa barbeiro_id direto da comanda
+  // ou fallback via atendimento_id para registros antigos
   for (const cmd of comandas) {
-    if (!cmd.atendimento_id) continue;
-    const barbId = atendBarbeiro[cmd.atendimento_id];
+    const barbId = cmd.barbeiro_id ?? atendBarbeiro[cmd.atendimento_id];
     if (!barbId) continue;
     const entry = getEntry(barbId);
     for (const item of [...(cmd.itens_bar || []), ...(cmd.itens_loja || [])]) {
