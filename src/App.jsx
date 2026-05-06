@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Sidebar from "./components/layout/Sidebar";
 import ProdutoList from "./components/produto/ProdutoList";
@@ -218,6 +218,37 @@ function AppPrincipal() {
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [desejoOrigemId, setDesejoOrigemId] = useState(null);
 
+  // ─── Auto-lock por inatividade (1 min) ──────────────────────────
+  const inactivityTimer = useRef(null);
+
+  useEffect(() => {
+    if (!financeiroDesbloqueado) return;
+
+    const TIMEOUT_MS = 60_000;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = setTimeout(() => {
+        setFinanceiroDesbloqueado(false);
+        setView((v) => {
+          if (v === "financeiro" || v === "relatorios") {
+            setPendingView(v);
+            setShowSenhaModal(true);
+          }
+          return v;
+        });
+      }, TIMEOUT_MS);
+    };
+
+    const EVENTOS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+    EVENTOS.forEach((ev) => window.addEventListener(ev, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer.current);
+      EVENTOS.forEach((ev) => window.removeEventListener(ev, resetTimer));
+    };
+  }, [financeiroDesbloqueado]);
 
   useEffect(() => {
     localStorage.setItem("storepro_view", view);
