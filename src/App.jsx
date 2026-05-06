@@ -143,8 +143,8 @@ function SenhaModal({ onConfirmar, onFechar }) {
       >
         <div className="text-center mb-5">
           <div className="text-3xl mb-2">🔒</div>
-          <h3 className="font-semibold text-gray-800">Área Financeira</h3>
-          <p className="text-xs text-gray-400 mt-1">Digite a senha para continuar</p>
+          <h3 className="font-semibold text-gray-800">Área de Gestão</h3>
+          <p className="text-xs text-gray-400 mt-1">Financeiro e Relatórios · digite a senha para continuar</p>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
@@ -207,6 +207,7 @@ function AppPrincipal() {
   });
   const [financeiroDesbloqueado, setFinanceiroDesbloqueado] = useState(false);
   const [showSenhaModal, setShowSenhaModal] = useState(false);
+  const [pendingView, setPendingView] = useState("financeiro");
   const [produtos, setProdutos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [historicoEstoque, setHistoricoEstoque] = useState([]);
@@ -357,7 +358,8 @@ function AppPrincipal() {
   }, []);
 
   const navegar = useCallback((destino) => {
-    if (destino === "financeiro" && !financeiroDesbloqueado) {
+    if ((destino === "financeiro" || destino === "relatorios") && !financeiroDesbloqueado) {
+      setPendingView(destino);
       setShowSenhaModal(true);
     } else {
       setView(destino);
@@ -498,7 +500,7 @@ function AppPrincipal() {
             onConfirmar={() => {
               setFinanceiroDesbloqueado(true);
               setShowSenhaModal(false);
-              setView("financeiro");
+              setView(pendingView);
             }}
             onFechar={() => setShowSenhaModal(false)}
           />
