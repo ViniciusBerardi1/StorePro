@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { atualizarEvento } from "../../services/googleCalendar";
@@ -51,7 +51,7 @@ function labelDesconto(desc) {
 }
 
 // ─── Editor inline de uma comanda ───────────────────────────────────
-function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover }) {
+function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover, onAutosave }) {
   const [tab, setTab] = useState("servicos");
   const [barbeiroId, setBarbeiroId] = useState(comanda.barbeiro_id ?? null);
 
@@ -75,6 +75,8 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const [finalizando, setFinalizando] = useState(false);
   const [removendo, setRemovendo]     = useState(false);
   const [erro, setErro] = useState(null);
+  const [statusSalvo, setStatusSalvo] = useState("idle"); // idle | saving | saved | error
+  const isInitialRender = useRef(true);
 
   const toggleServico = (id) =>
     setServicosSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -97,6 +99,46 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const lista  = tab === "bar" ? produtosBar : produtosLoja;
   const qtds   = tab === "bar" ? qtdBar      : qtdLoja;
   const setter = tab === "bar" ? setQtdBar   : setQtdLoja;
+
+  // ─── Autosave (debounce 600 ms) ─────────────────────────────────
+  // Persiste qualquer mudança de itens / desconto / pagamento na DB
+  // enquanto a comanda está aberta, sem precisar finalizar.
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+    if (finalizando || removendo) return;
+
+    const timer = setTimeout(async () => {
+      const payload = {
+        servicos:   servicos.filter((s) => servicosSel.has(s.id))
+                            .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor) })),
+        itens_bar:  produtosBar.filter((p) => qtdBar[p.id])
+                               .map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdBar[p.id] })),
+        itens_loja: produtosLoja.filter((p) => qtdLoja[p.id])
+                                .map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdLoja[p.id] })),
+        valor_servicos: totalServicos,
+        valor_bar:      totalBar,
+        valor_loja:     totalLoja,
+        valor_total:    total,
+        forma_pagamento: formaPagamento,
+        desconto: valorDesconto > 0 ? { ...desconto, valor_calculado: valorDesconto } : null,
+      };
+      try {
+        setStatusSalvo("saving");
+        await db.updateComanda(comanda.id, payload);
+        onAutosave?.(comanda.id, payload);
+        setStatusSalvo("saved");
+      } catch (e) {
+        console.error("Falha ao salvar rascunho da comanda:", e);
+        setStatusSalvo("error");
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicosSel, qtdBar, qtdLoja, formaPagamento, desconto.tipo, desconto.valor, desconto.alvo]);
 
   const handleFinalizar = async () => {
     if (!formaPagamento) return setErro("Selecione a forma de pagamento.");
@@ -145,16 +187,31 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           </select>
         </div>
       )}
-      {/* Tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-medium transition-colors
-              ${tab === t.id ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
-          >{t.emoji} {t.label}</button>
-        ))}
+      {/* Tabs + indicador autosave */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-medium transition-colors
+                ${tab === t.id ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+            >{t.emoji} {t.label}</button>
+          ))}
+        </div>
+        {statusSalvo !== "idle" && (
+          <span
+            className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors
+              ${statusSalvo === "saving" ? "bg-gray-100 text-gray-500" : ""}
+              ${statusSalvo === "saved"  ? "bg-green-50 text-green-600" : ""}
+              ${statusSalvo === "error"  ? "bg-red-50 text-red-500" : ""}
+            `}
+          >
+            {statusSalvo === "saving" && "Salvando..."}
+            {statusSalvo === "saved"  && "✓ Salvo"}
+            {statusSalvo === "error"  && "⚠️ Falha ao salvar"}
+          </span>
+        )}
       </div>
 
       {/* Itens */}
@@ -327,7 +384,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
 }
 
 // ─── Card de comanda (colapsável) ──────────────────────────────────
-function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover }) {
+function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover, onAutosave }) {
   const eventoGcal = comanda.evento_gcal;
   const horario = eventoGcal?.start?.dateTime
     ? `${fmtHora(eventoGcal.start.dateTime)} – ${fmtHora(eventoGcal.end?.dateTime)}`
@@ -383,6 +440,7 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
               produtosLoja={produtosLoja}
               onFinalizar={onFinalizar}
               onRemover={onRemover}
+              onAutosave={onAutosave}
             />
           </motion.div>
         )}
@@ -542,6 +600,11 @@ export default function Comandas({ onAtendimentoFinalizado }) {
     if (expandida === comanda.id) setExpandida(null);
   };
 
+  // Mantém o card colapsado em sincronia com os autosaves do editor
+  const handleAutosave = useCallback((comandaId, payload) => {
+    setComandas((prev) => prev.map((c) => (c.id === comandaId ? { ...c, ...payload } : c)));
+  }, []);
+
   return (
     <div className="w-full flex flex-col gap-5">
       {/* Header */}
@@ -650,6 +713,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
               produtosLoja={produtosLoja}
               onFinalizar={(data) => handleFinalizar(cmd, data)}
               onRemover={() => handleRemover(cmd)}
+              onAutosave={handleAutosave}
             />
           ))}
         </div>

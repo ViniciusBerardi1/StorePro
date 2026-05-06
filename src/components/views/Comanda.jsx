@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 
@@ -59,9 +59,12 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
 
   const [finalizando, setFinalizando] = useState(false);
   const [erro, setErro] = useState(null);
+  const [statusSalvo, setStatusSalvo] = useState("idle"); // idle | saving | saved | error
+  const isInitialRender = useRef(true);
 
   useEffect(() => {
     setCarregando(true);
+    isInitialRender.current = true;
     Promise.all([
       db.getServicos(),
       db.getProdutosByTipo("bar"),
@@ -137,6 +140,53 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
   const total = Math.max(0, subtotal - valorDesconto);
   const hasItems = servicosSel.size > 0 || Object.keys(qtdBar).length > 0 || Object.keys(qtdLoja).length > 0;
 
+  // ─── Autosave (debounce 600 ms) ─────────────────────────────────
+  // Persiste itens / desconto / pagamento na comanda (status "aberta")
+  // assim que o usuário adiciona ou altera algo. Encerramento real
+  // continua sendo via "Fechar comanda".
+  useEffect(() => {
+    if (carregando || bloqueado || finalizando) return;
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+    if (!evento?.id) return;
+
+    const timer = setTimeout(async () => {
+      const payload = {
+        gcal_event_id: evento.id,
+        cliente_nome: clienteNome,
+        status: "aberta",
+        servicos: servicos
+          .filter((s) => servicosSel.has(s.id))
+          .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor), duracao_minutos: s.duracao_minutos || 30 })),
+        itens_bar: produtosBar
+          .filter((p) => qtdBar[p.id])
+          .map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdBar[p.id] })),
+        itens_loja: produtosLoja
+          .filter((p) => qtdLoja[p.id])
+          .map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdLoja[p.id] })),
+        valor_servicos: totalServicos,
+        valor_bar: totalBar,
+        valor_loja: totalLoja,
+        valor_total: total,
+        forma_pagamento: formaPagamento,
+        desconto: valorDesconto > 0 ? { ...desconto, valor_calculado: valorDesconto } : null,
+      };
+      try {
+        setStatusSalvo("saving");
+        await db.saveComanda(payload);
+        setStatusSalvo("saved");
+      } catch (e) {
+        console.error("Falha ao salvar rascunho da comanda:", e);
+        setStatusSalvo("error");
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicosSel, qtdBar, qtdLoja, formaPagamento, desconto.tipo, desconto.valor, desconto.alvo]);
+
   const handleFinalizar = async () => {
     if (!formaPagamento) return setErro("Selecione a forma de pagamento.");
     setErro(null);
@@ -190,6 +240,19 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
             </h3>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {!bloqueado && statusSalvo !== "idle" && (
+              <span
+                className={`text-[11px] font-medium px-2 py-0.5 rounded-full
+                  ${statusSalvo === "saving" ? "bg-gray-100 text-gray-500" : ""}
+                  ${statusSalvo === "saved"  ? "bg-green-50 text-green-600" : ""}
+                  ${statusSalvo === "error"  ? "bg-red-50 text-red-500" : ""}
+                `}
+              >
+                {statusSalvo === "saving" && "Salvando..."}
+                {statusSalvo === "saved"  && "✓ Salvo"}
+                {statusSalvo === "error"  && "⚠️"}
+              </span>
+            )}
             {bloqueado && (
               <span className="text-xs font-medium bg-green-100 text-green-600 px-2 py-0.5 rounded-full">
                 Fechada
