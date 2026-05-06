@@ -222,5 +222,6 @@ alter table barbeiros            disable row level security;
 alter table comandas             disable row level security;
 alter table planos               disable row level security;
 alter table assinaturas          disable row level security;
+alter table assinaturas add column if not exists barbeiro_id integer references barbeiros(id) on delete set null;
 alter table webhook_logs         disable row level security;
 alter table horarios_especiais   disable row level security;

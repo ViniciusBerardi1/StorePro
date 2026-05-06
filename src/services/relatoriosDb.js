@@ -13,7 +13,12 @@ export async function getRelatoriosPeriodo(dataIni, dataFim) {
   const ini = new Date(dataIni + "T00:00:00").toISOString();
   const fim = new Date(dataFim + "T23:59:59.999").toISOString();
 
-  const [{ data: atendimentos, error: e1 }, { data: comandas, error: e2 }, { data: barbeiros, error: e3 }] =
+  const [
+    { data: atendimentos, error: e1 },
+    { data: comandas, error: e2 },
+    { data: barbeiros, error: e3 },
+    { data: assinaturas, error: e4 },
+  ] =
     await Promise.all([
       supabase
         .from("atendimentos")
@@ -30,16 +35,26 @@ export async function getRelatoriosPeriodo(dataIni, dataFim) {
         .gte("created_at", ini)
         .lte("created_at", fim),
       supabase.from("barbeiros").select("id, nome").eq("ativo", true),
+      // Assinaturas ativas durante o período: início <= fim E (renovação >= ini OU sem renovação)
+      supabase
+        .from("assinaturas")
+        .select("id, barbeiro_id, valor, status, data_inicio, data_renovacao, planos(nome, valor)")
+        .eq("status", "ativa")
+        .not("barbeiro_id", "is", null)
+        .lte("data_inicio", fim)
+        .or(`data_renovacao.gte.${ini},data_renovacao.is.null`),
     ]);
 
   if (e1) throw e1;
   if (e2) throw e2;
   if (e3) throw e3;
+  if (e4) throw e4;
 
   return {
     atendimentos: atendimentos ?? [],
     comandas: comandas ?? [],
     barbeiros: barbeiros ?? [],
+    assinaturas: assinaturas ?? [],
   };
 }
 
@@ -57,6 +72,19 @@ export async function getRelatoriosPeriodoAnterior(dataIni, dataFim) {
     .gte("data_hora", antIni.toISOString())
     .lte("data_hora", antFim.toISOString());
 
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Carteira de planos por barbeiro — todas as assinaturas ativas com barbeiro vinculado
+// Sem filtro de período: reflete o estado atual ("vivo") de cada barbeiro
+export async function getComissoesPorBarbeiro() {
+  const { data, error } = await supabase
+    .from("assinaturas")
+    .select("id, barbeiro_id, valor, data_inicio, data_renovacao, status, planos(nome, valor, intervalo), clientes(nome)")
+    .eq("status", "ativa")
+    .not("barbeiro_id", "is", null)
+    .order("data_inicio", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }

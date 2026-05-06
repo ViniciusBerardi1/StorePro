@@ -40,7 +40,7 @@ function Avatar({ nome, size = "md" }) {
 }
 
 // ─── Seção de assinatura (dentro do perfil) ───────────────────────
-function AssinaturaSection({ clienteId }) {
+function AssinaturaSection({ clienteId, barbeiros = [] }) {
   const [assinaturas, setAssinaturas] = useState([]);
   const [planos, setPlanos]           = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -65,8 +65,8 @@ function AssinaturaSection({ clienteId }) {
   const abrirForm = (base = null) => {
     const hoje = new Date().toISOString().slice(0, 10);
     setForm(base
-      ? { ...base, plano_id: base.plano_id ?? "", valor: base.valor ?? "", gateway: base.gateway ?? "", gateway_subscription_id: base.gateway_subscription_id ?? "", data_renovacao: base.data_renovacao ?? "", observacoes: base.observacoes ?? "" }
-      : { status: "ativa", plano_id: "", data_inicio: hoje, data_renovacao: "", valor: "", gateway: "", gateway_subscription_id: "", observacoes: "" }
+      ? { ...base, plano_id: base.plano_id ?? "", valor: base.valor ?? "", gateway: base.gateway ?? "", gateway_subscription_id: base.gateway_subscription_id ?? "", data_renovacao: base.data_renovacao ?? "", observacoes: base.observacoes ?? "", barbeiro_id: base.barbeiro_id ?? "" }
+      : { status: "ativa", plano_id: "", data_inicio: hoje, data_renovacao: "", valor: "", gateway: "", gateway_subscription_id: "", observacoes: "", barbeiro_id: "" }
     );
     setShowForm(true);
   };
@@ -79,9 +79,10 @@ function AssinaturaSection({ clienteId }) {
     try {
       await db.upsertAssinatura({
         ...form,
-        cliente_id: clienteId,
-        plano_id:   form.plano_id   ? Number(form.plano_id)   : null,
-        valor:      form.valor      ? Number(form.valor)       : null,
+        cliente_id:  clienteId,
+        plano_id:    form.plano_id    ? Number(form.plano_id)    : null,
+        barbeiro_id: form.barbeiro_id ? Number(form.barbeiro_id) : null,
+        valor:       form.valor       ? Number(form.valor)       : null,
         data_renovacao: form.data_renovacao || null,
         observacoes:    form.observacoes    || null,
         gateway:        form.gateway        || null,
@@ -140,6 +141,9 @@ function AssinaturaSection({ clienteId }) {
                 {ativa.data_renovacao && (
                   <p className="text-[10px] text-gray-500">Renova em {fmtData(ativa.data_renovacao)}</p>
                 )}
+                {ativa.barbeiros?.nome && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">✂️ {ativa.barbeiros.nome}</p>
+                )}
                 {ativa.gateway && (
                   <p className="text-[10px] text-gray-300 mt-0.5 truncate">
                     {ativa.gateway}{ativa.gateway_subscription_id ? ` · ${ativa.gateway_subscription_id}` : ""}
@@ -197,6 +201,19 @@ function AssinaturaSection({ clienteId }) {
               </div>
             )}
           </div>
+
+          {barbeiros.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Barbeiro que vendeu</label>
+              <select value={form.barbeiro_id ?? ""} onChange={set("barbeiro_id")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                <option value="">Sem barbeiro</option>
+                {barbeiros.map((b) => (
+                  <option key={b.id} value={b.id}>{b.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -957,6 +974,7 @@ function ClienteForm({ cliente, clientes, onSalvar, onFechar }) {
 // ─── Perfil do cliente ───────────────────────────────────────────
 function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, onDeletado }) {
   const [atendimentos, setAtendimentos] = useState([]);
+  const [barbeiros, setBarbeiros]       = useState([]);
   const [loading, setLoading]           = useState(true);
   const [editando, setEditando]         = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -964,8 +982,11 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
 
   useEffect(() => {
     setLoading(true);
-    db.getAtendimentosByCliente(cliente.id, cliente.nome)
-      .then(setAtendimentos)
+    Promise.all([
+      db.getAtendimentosByCliente(cliente.id, cliente.nome),
+      db.getBarbeiros(),
+    ])
+      .then(([ats, barbs]) => { setAtendimentos(ats); setBarbeiros(barbs); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [cliente.id, cliente.nome]);
@@ -1059,7 +1080,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
       </div>
 
       {/* Assinatura */}
-      <AssinaturaSection clienteId={cliente.id} />
+      <AssinaturaSection clienteId={cliente.id} barbeiros={barbeiros} />
 
       {/* KPIs */}
       {loading ? (

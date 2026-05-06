@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { getRelatoriosPeriodo, getRelatoriosPeriodoAnterior, getUltimaVisitaClientes } from "../../services/relatoriosDb";
+import { getRelatoriosPeriodo, getRelatoriosPeriodoAnterior, getUltimaVisitaClientes, getComissoesPorBarbeiro } from "../../services/relatoriosDb";
 
 const BRL = (v) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -23,6 +23,18 @@ function inicioMes() {
 
 function diasEntre(a, b) {
   return Math.round((new Date(b) - new Date(a)) / 86400000);
+}
+
+function fmtData(iso) {
+  return iso ? new Date(iso + "T00:00:00").toLocaleDateString("pt-BR") : "—";
+}
+
+function mesesAtivos(dataInicio) {
+  if (!dataInicio) return 1;
+  const ini = new Date(dataInicio + "T00:00:00");
+  const hoje = new Date();
+  const meses = (hoje.getFullYear() - ini.getFullYear()) * 12 + (hoje.getMonth() - ini.getMonth());
+  return Math.max(1, meses + 1);
 }
 
 // ─── Primitivos UI ────────────────────────────────────────────────
@@ -413,10 +425,10 @@ function fmtHoras(minutos) {
 
 // ─── Aba: Barbeiros ───────────────────────────────────────────────
 
-function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }) {
+function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], carteira = [], detalhe, setDetalhe }) {
   const ok = atendimentos.filter((a) => a.status === "concluido");
 
-  if (!ok.length) {
+  if (!ok.length && !assinaturas.length) {
     return (
       <Card>
         <p className="text-sm text-gray-400 text-center py-8">Nenhum atendimento concluído no período.</p>
@@ -443,6 +455,8 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
         minutos: 0,
         servicos: {},        // { nome: count }
         produtos: {},        // { nome: { count, receita } }
+        planosVendidos: 0,
+        receitaPlanos: 0,
       };
     }
     return mapa[key];
@@ -473,6 +487,14 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
     }
   }
 
+  // Acumular planos vendidos por barbeiro
+  for (const ass of assinaturas) {
+    if (!ass.barbeiro_id) continue;
+    const entry = getEntry(ass.barbeiro_id);
+    entry.planosVendidos++;
+    entry.receitaPlanos += Number(ass.valor ?? ass.planos?.valor ?? 0);
+  }
+
   const lista = Object.values(mapa).map((b) => ({
     ...b,
     ticket: b.atendimentos > 0 ? b.faturamento / b.atendimentos : 0,
@@ -484,6 +506,8 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
 
   const totalFat = lista.reduce((s, b) => s + b.faturamento, 0);
   const totalMin = lista.reduce((s, b) => s + b.minutos, 0);
+  const totalPlanos = lista.reduce((s, b) => s + b.planosVendidos, 0);
+  const totalReceitaPlanos = lista.reduce((s, b) => s + b.receitaPlanos, 0);
 
   const barbDetalhe = detalhe ? lista.find((b) => b.nome === detalhe) : null;
 
@@ -496,6 +520,12 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
         <KpiCard icon="⏱️" label="Horas totais" valor={fmtHoras(totalMin)} sub="tempo em atendimentos" />
         <KpiCard icon="💳" label="Ticket médio geral" valor={BRL(ok.length > 0 ? totalFat / ok.length : 0)} sub="todos os barbeiros" />
       </div>
+      {totalPlanos > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          <KpiCard icon="👑" label="Planos vendidos" valor={totalPlanos} sub="no período" />
+          <KpiCard icon="💎" label="Receita de planos" valor={BRL(totalReceitaPlanos)} sub="por barbeiros" />
+        </div>
+      )}
 
       {/* Rankings */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -528,6 +558,8 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
                 <th className="text-right py-2 font-medium">% Fat.</th>
                 <th className="text-right py-2 font-medium hidden lg:table-cell">Produtos</th>
                 <th className="text-right py-2 font-medium hidden lg:table-cell">Rec. Produtos</th>
+                <th className="text-right py-2 font-medium hidden lg:table-cell">Planos</th>
+                <th className="text-right py-2 font-medium hidden lg:table-cell">Rec. Planos</th>
               </tr>
             </thead>
             <tbody>
@@ -549,6 +581,16 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
                   </td>
                   <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{b.totalProdutos}x</td>
                   <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">{BRL(b.receitaProdutos)}</td>
+                  <td className="py-2.5 text-right hidden lg:table-cell">
+                    {b.planosVendidos > 0
+                      ? <span className="text-amber-600 font-medium">{b.planosVendidos}x</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="py-2.5 text-right hidden lg:table-cell">
+                    {b.receitaPlanos > 0
+                      ? <span className="text-amber-600 font-medium">{BRL(b.receitaPlanos)}</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -562,6 +604,8 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
                 <td className="py-2 text-right text-gray-400">100%</td>
                 <td className="py-2 text-right text-gray-400 hidden lg:table-cell">{lista.reduce((s, b) => s + b.totalProdutos, 0)}x</td>
                 <td className="py-2 text-right text-gray-400 hidden lg:table-cell">{BRL(lista.reduce((s, b) => s + b.receitaProdutos, 0))}</td>
+                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">{totalPlanos > 0 ? `${totalPlanos}x` : "—"}</td>
+                <td className="py-2 text-right text-gray-400 hidden lg:table-cell">{totalReceitaPlanos > 0 ? BRL(totalReceitaPlanos) : "—"}</td>
               </tr>
             </tfoot>
           </table>
@@ -608,6 +652,80 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, detalhe, setDetalhe }
           </div>
         </Card>
       )}
+
+      {/* Carteira de Planos — visão "viva" independente do período */}
+      {carteira.length > 0 && (() => {
+        // Agrupa assinaturas ativas por barbeiro
+        const porBarbeiro = {};
+        for (const ass of carteira) {
+          const barb = barbeiros.find((b) => b.id === ass.barbeiro_id);
+          const key = String(ass.barbeiro_id);
+          if (!porBarbeiro[key]) {
+            porBarbeiro[key] = { nome: barb?.nome ?? "Barbeiro #" + ass.barbeiro_id, assinaturas: [] };
+          }
+          porBarbeiro[key].assinaturas.push(ass);
+        }
+        const grupos = Object.values(porBarbeiro).sort((a, b) => a.nome.localeCompare(b.nome));
+
+        return (
+          <Card>
+            <SectionTitle>👑 Carteira de Planos — Comissões Recorrentes</SectionTitle>
+            <p className="text-[10px] text-gray-400 mb-4 -mt-2">
+              Assinaturas ativas vinculadas a cada barbeiro. Desaparece automaticamente quando a assinatura é cancelada.
+            </p>
+            <div className="flex flex-col gap-5">
+              {grupos.map((grupo) => {
+                const receitaMensal = grupo.assinaturas.reduce((s, a) => s + Number(a.valor ?? a.planos?.valor ?? 0), 0);
+                const totalAcumulado = grupo.assinaturas.reduce((s, a) => {
+                  const meses = mesesAtivos(a.data_inicio);
+                  const val = Number(a.valor ?? a.planos?.valor ?? 0);
+                  return s + val * meses;
+                }, 0);
+
+                return (
+                  <div key={grupo.nome}>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-gray-700">✂️ {grupo.nome}</p>
+                      <div className="flex gap-3 text-right">
+                        <div>
+                          <p className="text-[10px] text-gray-400">Recorrente/mês</p>
+                          <p className="text-sm font-bold text-amber-600">{BRL(receitaMensal)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400">Total acumulado</p>
+                          <p className="text-sm font-bold text-gray-700">{BRL(totalAcumulado)}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {grupo.assinaturas.map((ass) => {
+                        const meses = mesesAtivos(ass.data_inicio);
+                        const val = Number(ass.valor ?? ass.planos?.valor ?? 0);
+                        return (
+                          <div key={ass.id} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-xs">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <span className="font-medium text-gray-700 truncate">
+                                {ass.clientes?.nome ?? "Cliente"}
+                              </span>
+                              <span className="text-[10px] text-gray-400">
+                                {ass.planos?.nome ?? "Plano"} · desde {fmtData(ass.data_inicio)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
+                              <span className="font-semibold text-amber-700">{BRL(val)}/mês</span>
+                              <span className="text-[10px] text-gray-400">{meses} {meses === 1 ? "mês" : "meses"} · {BRL(val * meses)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
@@ -1211,6 +1329,8 @@ export default function Relatorios() {
   const [prevAtendimentos, setPrevAtendimentos] = useState([]);
   const [comandas, setComandas] = useState([]);
   const [barbeiros, setBarbeiros] = useState([]);
+  const [assinaturas, setAssinaturas] = useState([]);
+  const [carteiraBarbeiros, setCarteiraBarbeiros] = useState([]);
   const [clientesUltimaVisita, setClientesUltimaVisita] = useState([]);
   const [insights, setInsights] = useState([]);
 
@@ -1218,15 +1338,18 @@ export default function Relatorios() {
     setLoading(true);
     setErro(null);
     try {
-      const [{ atendimentos: at, comandas: cm, barbeiros: barbs }, prev, clientes] = await Promise.all([
+      const [{ atendimentos: at, comandas: cm, barbeiros: barbs, assinaturas: ass }, prev, clientes, carteira] = await Promise.all([
         getRelatoriosPeriodo(dataIni, dataFim),
         getRelatoriosPeriodoAnterior(dataIni, dataFim),
         getUltimaVisitaClientes(),
+        getComissoesPorBarbeiro(),
       ]);
       setAtendimentos(at);
       setPrevAtendimentos(prev);
       setComandas(cm);
       setBarbeiros(barbs);
+      setAssinaturas(ass);
+      setCarteiraBarbeiros(carteira);
       setClientesUltimaVisita(clientes);
       setInsights(gerarInsights(at, prev, cm, clientes, barbs));
     } catch (e) {
@@ -1314,7 +1437,7 @@ export default function Relatorios() {
           {tab === "produtos"  && <TabProdutos comandas={comandas} />}
           {tab === "horarios"  && <TabHorarios atendimentos={atendimentos} />}
           {tab === "clientes"  && <TabClientes atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
-          {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} detalhe={detalheBarbeiro} setDetalhe={setDetalheBarbeiro} />}
+          {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} assinaturas={assinaturas} carteira={carteiraBarbeiros} detalhe={detalheBarbeiro} setDetalhe={setDetalheBarbeiro} />}
           {tab === "retencao"  && <TabRetencao atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
         </motion.div>
       )}
