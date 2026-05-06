@@ -1324,6 +1324,8 @@ export default function Relatorios() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(null);
   const [detalheBarbeiro, setDetalheBarbeiro] = useState(null);
+  const [baixando, setBaixando] = useState(false);
+  const [erroDownload, setErroDownload] = useState(null);
 
   const [atendimentos, setAtendimentos] = useState([]);
   const [prevAtendimentos, setPrevAtendimentos] = useState([]);
@@ -1369,6 +1371,29 @@ export default function Relatorios() {
     setDataFim(fim);
   }, []);
 
+  const handleDownload = useCallback(async () => {
+    setBaixando(true);
+    setErroDownload(null);
+    try {
+      const res = await fetch(`/api/exportar-financeiro?dataInicio=${dataIni}&dataFim=${dataFim}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ erro: "Erro ao gerar exportação" }));
+        throw new Error(body.erro ?? "Erro ao gerar exportação");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `financeiro_${dataIni}_${dataFim}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErroDownload(e.message);
+    } finally {
+      setBaixando(false);
+    }
+  }, [dataIni, dataFim]);
+
   const alertasCount = insights.filter((i) => i.tipo === "alerta").length;
 
   return (
@@ -1379,19 +1404,32 @@ export default function Relatorios() {
           <h2 className="text-xl font-semibold text-gray-800">Relatórios</h2>
           <p className="text-xs text-gray-400 mt-0.5">Análise estratégica por período</p>
         </div>
-        <button
-          onClick={carregar}
-          disabled={loading}
-          className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
-          title="Atualizar"
-        >
-          🔄
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownload}
+            disabled={baixando}
+            className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
+            title="Exportar Excel do período selecionado"
+          >
+            {baixando ? "⏳" : "⬇️"} {baixando ? "Gerando…" : "Excel"}
+          </button>
+          <button
+            onClick={carregar}
+            disabled={loading}
+            className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
+            title="Atualizar"
+          >
+            🔄
+          </button>
+        </div>
       </div>
 
       {/* Date range */}
       <Card className="!p-3">
         <DateRangePicker dataIni={dataIni} dataFim={dataFim} onChange={handlePeriodo} />
+        {erroDownload && (
+          <p className="mt-2 text-xs text-red-500 flex items-center gap-1">⚠️ {erroDownload}</p>
+        )}
       </Card>
 
       {/* Tabs */}
