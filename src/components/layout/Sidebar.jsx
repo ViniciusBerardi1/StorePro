@@ -2,42 +2,26 @@ import { useState, memo } from "react";
 import { Home } from "lucide-react";
 
 const MENU = [
-  {
-    type: "item",
-    view: "agenda",
-    label: "Agenda",
-    icon: "📅",
-  },
-  {
-    type: "item",
-    view: "comandas",
-    label: "Comandas",
-    icon: "🧾",
-  },
-  {
-    type: "group",
-    label: "Atendimento",
-    icon: "✂️",
-    itens: [
-      { view: "servicos", label: "Serviços" },
-      { view: "barbeiros", label: "Barbeiros" },
-    ],
-  },
-  {
-    type: "group",
-    label: "Clientes",
-    icon: "👥",
-    itens: [
-      { view: "clientes_lista", label: "Lista de clientes" },
-      { view: "planos",         label: "Planos de assinatura" },
-    ],
-  },
-  {
-    type: "item",
-    view: "financeiro",
-    label: "Financeiro",
-    icon: "💰",
-  },
+  // ── OPERAÇÃO ────────────────────────────────────────────────────
+  { type: "section", label: "OPERAÇÃO" },
+  { type: "item", view: "agenda",   label: "Agenda",   icon: "📅" },
+  { type: "item", view: "comandas", label: "Comandas", icon: "🧾" },
+
+  // ── ATENDIMENTO ─────────────────────────────────────────────────
+  { type: "section", label: "ATENDIMENTO" },
+  { type: "item", view: "servicos",  label: "Serviços", icon: "✂️" },
+  { type: "item", view: "barbeiros", label: "Equipe",   icon: "👥" },
+
+  // ── CLIENTES ────────────────────────────────────────────────────
+  { type: "section", label: "CLIENTES" },
+  { type: "item", view: "clientes_lista", label: "Lista de clientes",   icon: "👤" },
+  { type: "item", view: "planos",         label: "Planos / Assinaturas", icon: "⭐" },
+  { type: "item", view: "fidelidade",     label: "Fidelidade",           icon: "🎁" },
+
+  // ── GESTÃO ──────────────────────────────────────────────────────
+  { type: "section", label: "GESTÃO" },
+  { type: "item", view: "financeiro", label: "Financeiro", icon: "💰" },
+  { type: "item", view: "relatorios", label: "Relatórios", icon: "📊" },
   {
     type: "group",
     label: "Estoque",
@@ -45,26 +29,23 @@ const MENU = [
     badge: "estoqueBaixo",
     itens: [
       { view: "estoque_loja", label: "Loja 🛍️" },
-      { view: "estoque_bar", label: "Bar 🍺" },
+      { view: "estoque_bar",  label: "Bar 🍺"  },
     ],
   },
-  {
-    type: "item",
-    view: "relatorios",
-    label: "Relatórios",
-    icon: "📊",
-  },
-  {
-    type: "item",
-    view: "configuracoes",
-    label: "Configurações",
-    icon: "⚙️",
-  },
+
+  // ── CONFIGURAÇÕES ───────────────────────────────────────────────
+  { type: "item", view: "configuracoes", label: "Configurações", icon: "⚙️" },
 ];
 
-const VIEWS_ATIVAS = ["agenda", "comandas", "estoque_loja", "estoque_bar", "financeiro", "servicos", "barbeiros", "clientes_lista", "planos", "relatorios"];
+const VIEWS_ATIVAS = [
+  "agenda", "comandas",
+  "servicos", "barbeiros",
+  "clientes_lista", "planos",
+  "financeiro", "relatorios", "estoque_loja", "estoque_bar",
+];
 
 function isAtivo(entrada, view) {
+  if (entrada.type === "section") return false;
   if (entrada.type === "item") return view === entrada.view;
   return entrada.itens.some((i) => i.view === view);
 }
@@ -75,6 +56,14 @@ function Logo() {
       <span className="text-2xl">🏪</span>
       <h1 className="font-semibold text-gray-800 text-lg">StorePro</h1>
     </div>
+  );
+}
+
+function SectionLabel({ label }) {
+  return (
+    <p className="px-3 pt-4 pb-1 text-[10px] font-semibold tracking-widest text-gray-400 uppercase select-none">
+      {label}
+    </p>
   );
 }
 
@@ -162,13 +151,15 @@ function ItemGroup({ entrada, view, navegar, alertas }) {
 function MenuConteudo({ view, navegar, alertas }) {
   return (
     <div className="flex flex-col gap-0.5">
-      {MENU.map((entrada) =>
-        entrada.type === "item" ? (
-          <ItemSingle key={entrada.view} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />
-        ) : (
-          <ItemGroup key={entrada.label} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />
-        )
-      )}
+      {MENU.map((entrada, i) => {
+        if (entrada.type === "section") {
+          return <SectionLabel key={entrada.label + i} label={entrada.label} />;
+        }
+        if (entrada.type === "group") {
+          return <ItemGroup key={entrada.label} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />;
+        }
+        return <ItemSingle key={entrada.view} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />;
+      })}
     </div>
   );
 }
