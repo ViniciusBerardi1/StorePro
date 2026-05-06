@@ -85,23 +85,24 @@ async function limparHistorico() {
   if (error) throw error;
 }
 
-// Marca o registro mais recente em aberto para produto_id como reposto
-async function registrarReposicao(produto_id, quantidade_reposta) {
-  const { data, error } = await supabase
-    .from("historico")
-    .select("id")
-    .eq("produto_id", produto_id)
-    .is("data_reposto", null)
-    .order("data_zerado", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return;
-  const { error: ue } = await supabase
-    .from("historico")
-    .update({ data_reposto: new Date().toISOString(), quantidade_reposta })
-    .eq("id", data.id);
-  if (ue) throw ue;
+// Registra qualquer movimentação de estoque como evento independente
+async function registrarMovimento(produto, qtdAnterior, qtdNova) {
+  if (qtdAnterior === qtdNova) return;
+  const tipo =
+    qtdNova === 0   ? "zerado"  :
+    qtdNova > qtdAnterior ? (qtdAnterior === 0 ? "reposto" : "entrada") :
+    "saida";
+  await supabase.from("historico").insert({
+    produto_id:          produto.id,
+    produto_nome:        produto.nome,
+    produto_cor:         produto.cor         || "",
+    categoria_nome:      produto.categoria_nome || "",
+    foto:                produto.foto         || "",
+    tipo,
+    quantidade_anterior: qtdAnterior,
+    quantidade_nova:     qtdNova,
+    data_zerado:         new Date().toISOString(),
+  });
 }
 
 // ─── Clientes ───────────────────────────────────────────────────
@@ -547,20 +548,19 @@ async function baixarEstoqueComanda(itens_bar = [], itens_loja = []) {
 
   await Promise.all(
     (produtos ?? []).map(async (prod) => {
-      const novaQtd = Math.max(0, (prod.quantidade ?? 0) - agregado[prod.id]);
+      const qtdAnterior = prod.quantidade ?? 0;
+      const novaQtd = Math.max(0, qtdAnterior - agregado[prod.id]);
       const { error: ue } = await supabase
         .from("produtos")
         .update({ quantidade: novaQtd })
         .eq("id", prod.id);
       if (ue) throw ue;
-      if (novaQtd === 0 && (prod.quantidade ?? 0) > 0) {
-        await supabase.from("historico").insert({
-          produto_id: prod.id,
-          produto_nome: prod.nome,
-          produto_cor: prod.cor || "",
-          foto: prod.foto || "",
-          data_zerado: new Date().toISOString(),
-        });
+      if (qtdAnterior !== novaQtd) {
+        await registrarMovimento(
+          { id: prod.id, nome: prod.nome, cor: prod.cor, categoria_nome: "", foto: prod.foto },
+          qtdAnterior,
+          novaQtd
+        );
       }
     })
   );
@@ -711,7 +711,7 @@ export const db = {
   addHistorico,
   getHistorico,
   limparHistorico,
-  registrarReposicao,
+  registrarMovimento,
   getClientes,
   getClientesComStats,
   getAtendimentosByCliente,

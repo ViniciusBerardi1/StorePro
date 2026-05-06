@@ -88,6 +88,9 @@ create table if not exists historico (
 -- migrações incrementais
 alter table historico add column if not exists data_reposto       timestamptz;
 alter table historico add column if not exists quantidade_reposta integer;
+alter table historico add column if not exists tipo               text default 'zerado';
+alter table historico add column if not exists quantidade_anterior integer;
+alter table historico add column if not exists quantidade_nova    integer;
 
 -- ─── Serviços ────────────────────────────────────────────────
 create table if not exists servicos (

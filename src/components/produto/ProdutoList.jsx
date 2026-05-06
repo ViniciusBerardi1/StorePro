@@ -77,11 +77,26 @@ function diasPassados(iso) {
   return `há ${dias} dias`;
 }
 
+const TIPO_CONFIG = {
+  zerado:  { icon: "🔴", label: "Zerou",   bg: "bg-red-50",    border: "border-red-100",    text: "text-red-600"    },
+  saida:   { icon: "🟠", label: "Consumo", bg: "bg-orange-50", border: "border-orange-100", text: "text-orange-600" },
+  reposto: { icon: "🟢", label: "Reposto", bg: "bg-green-50",  border: "border-green-100",  text: "text-green-600"  },
+  entrada: { icon: "🔵", label: "Entrada", bg: "bg-blue-50",   border: "border-blue-100",   text: "text-blue-600"   },
+};
+
 function TabHistorico({ historico }) {
   const [busca, setBusca] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("todos");
 
   const filtrados = historico
-    .filter((h) => h.produto_nome?.toLowerCase().includes(busca.toLowerCase()))
+    .filter((h) => {
+      const tipo = h.tipo || "zerado";
+      const matchBusca = (h.produto_nome || "").toLowerCase().includes(busca.toLowerCase());
+      const matchTipo = filtroTipo === "todos" || tipo === filtroTipo ||
+        (filtroTipo === "entradas" && (tipo === "entrada" || tipo === "reposto")) ||
+        (filtroTipo === "saidas"   && (tipo === "saida"   || tipo === "zerado"));
+      return matchBusca && matchTipo;
+    })
     .sort((a, b) => new Date(b.data_zerado) - new Date(a.data_zerado));
 
   if (!historico.length) {
@@ -89,94 +104,86 @@ function TabHistorico({ historico }) {
       <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
         <span className="text-4xl">📋</span>
         <p className="text-gray-500 font-medium">Nenhum registro ainda</p>
-        <p className="text-gray-400 text-sm">O histórico será preenchido quando produtos esgotarem ou forem repostos.</p>
+        <p className="text-gray-400 text-sm">O histórico será preenchido a cada entrada ou saída de estoque.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <input
-        type="text"
-        placeholder="Buscar produto..."
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
-      />
+    <div className="flex flex-col gap-3">
+      {/* Filtros */}
+      <div className="flex flex-col gap-2">
+        <input
+          type="text"
+          placeholder="Buscar produto..."
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+        />
+        <div className="flex gap-1 flex-wrap">
+          {[
+            { id: "todos",    label: "Todos" },
+            { id: "entradas", label: "🟢 Entradas" },
+            { id: "saidas",   label: "🔴 Saídas"   },
+          ].map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFiltroTipo(f.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors
+                ${filtroTipo === f.id ? "bg-rose-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+            >
+              {f.label}
+            </button>
+          ))}
+          <span className="ml-auto text-[10px] text-gray-300 self-center">{filtrados.length} evento{filtrados.length !== 1 ? "s" : ""}</span>
+        </div>
+      </div>
 
       {filtrados.length === 0 ? (
         <p className="text-center text-gray-400 text-sm py-8">Nenhum resultado.</p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           {filtrados.map((h) => {
-            const reposto = !!h.data_reposto;
-            const semAberto = !reposto;
+            const tipo = h.tipo || "zerado";
+            const cfg  = TIPO_CONFIG[tipo] ?? TIPO_CONFIG.zerado;
+            const delta = h.quantidade_nova != null && h.quantidade_anterior != null
+              ? h.quantidade_nova - h.quantidade_anterior
+              : null;
             return (
               <div
                 key={h.id}
-                className={`bg-white border rounded-xl overflow-hidden ${semAberto ? "border-orange-200" : "border-green-200"}`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}
               >
-                {/* Cabeçalho do produto */}
-                <div className="flex items-center gap-3 px-4 py-3">
-                  {h.foto ? (
-                    <img src={h.foto} alt={h.produto_nome} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-lg shrink-0">🧴</div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{h.produto_nome}{h.produto_cor ? ` · ${h.produto_cor}` : ""}</p>
-                    {h.categoria_nome && <p className="text-xs text-gray-400">{h.categoria_nome}</p>}
-                  </div>
-                  {semAberto && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 shrink-0">
-                      sem estoque
-                    </span>
-                  )}
+                {/* Ícone */}
+                <span className="text-lg shrink-0">{cfg.icon}</span>
+
+                {/* Foto */}
+                {h.foto ? (
+                  <img src={h.foto} alt={h.produto_nome} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center text-sm shrink-0">🧴</div>
+                )}
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-800 truncate">
+                    {h.produto_nome}{h.produto_cor ? ` · ${h.produto_cor}` : ""}
+                  </p>
+                  <p className="text-[10px] text-gray-400">{diasPassados(h.data_zerado)} · {fmtDataHora(h.data_zerado)}</p>
                 </div>
 
-                {/* Linha do tempo */}
-                <div className="border-t border-gray-100 px-4 py-3 flex flex-col gap-2.5">
-                  {/* Evento: acabou */}
-                  <div className="flex items-start gap-3">
-                    <div className="flex flex-col items-center gap-1 shrink-0">
-                      <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center text-sm">🔴</div>
-                      {reposto && <div className="w-0.5 h-4 bg-gray-200" />}
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-red-600">Estoque zerado</p>
-                      <p className="text-[11px] text-gray-500">{fmtDataHora(h.data_zerado)}</p>
-                      <p className="text-[10px] text-gray-400">{diasPassados(h.data_zerado)}</p>
-                    </div>
-                  </div>
-
-                  {/* Evento: reposto */}
-                  {reposto ? (
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-sm shrink-0">🟢</div>
-                      <div>
-                        <p className="text-xs font-semibold text-green-600">
-                          Reposto{h.quantidade_reposta ? ` (+${h.quantidade_reposta} un.)` : ""}
-                        </p>
-                        <p className="text-[11px] text-gray-500">{fmtDataHora(h.data_reposto)}</p>
-                        {h.data_zerado && h.data_reposto && (
-                          <p className="text-[10px] text-gray-400">
-                            ficou {Math.round((new Date(h.data_reposto) - new Date(h.data_zerado)) / 86400000)} dias sem estoque
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-3">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-sm shrink-0">⏳</div>
-                      <div>
-                        <p className="text-xs text-gray-400">Aguardando reposição</p>
-                        {h.data_zerado && (
-                          <p className="text-[10px] text-orange-400 font-medium">
-                            {Math.round((Date.now() - new Date(h.data_zerado).getTime()) / 86400000)} dias sem estoque
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                {/* Badge tipo + delta */}
+                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/70 ${cfg.text}`}>
+                    {cfg.label}
+                  </span>
+                  {delta !== null && (
+                    <span className={`text-xs font-bold ${delta > 0 ? "text-green-600" : "text-red-500"}`}>
+                      {delta > 0 ? "+" : ""}{delta} un.
+                    </span>
+                  )}
+                  {h.quantidade_nova != null && (
+                    <span className="text-[10px] text-gray-400">→ {h.quantidade_nova} un.</span>
                   )}
                 </div>
               </div>
@@ -227,7 +234,18 @@ function ProdutoList({
       return ordem === "desc" ? -comparacao : comparacao;
     });
 
-  const semEstoqueAberto = historicoEstoque.filter((h) => !h.data_reposto).length;
+  // Produtos que zerou e não tiveram entrada/reposto posterior
+  const produtosZerados = new Set(
+    historicoEstoque
+      .filter((h) => (h.tipo || "zerado") === "zerado")
+      .map((h) => h.produto_id)
+      .filter((id) => !historicoEstoque.some(
+        (h2) => h2.produto_id === id &&
+          (h2.tipo === "entrada" || h2.tipo === "reposto") &&
+          new Date(h2.data_zerado) > new Date(historicoEstoque.find((z) => z.produto_id === id && (z.tipo || "zerado") === "zerado")?.data_zerado ?? 0)
+      ))
+  );
+  const semEstoqueAberto = produtosZerados.size;
 
   return (
     <div>

@@ -309,18 +309,7 @@ function AppPrincipal() {
     try {
       const qtdAnterior = produto.quantidade ?? 0;
       await db.updateProduto({ ...produto, quantidade });
-      if (quantidade === 0 && qtdAnterior > 0) {
-        await db.addHistorico({
-          produto_id: produto.id,
-          produto_nome: produto.nome,
-          produto_cor: produto.cor || "",
-          categoria_nome: produto.categoria_nome || "",
-          foto: produto.foto || "",
-          data_zerado: new Date().toISOString(),
-        });
-      } else if (quantidade > 0 && qtdAnterior === 0) {
-        await db.registrarReposicao(produto.id, quantidade);
-      }
+      await db.registrarMovimento(produto, qtdAnterior, quantidade);
       await carregar();
     } catch (err) {
       console.error("erro ao atualizar quantidade:", err);
