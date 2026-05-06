@@ -51,8 +51,9 @@ function labelDesconto(desc) {
 }
 
 // ─── Editor inline de uma comanda ───────────────────────────────────
-function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinalizar, onRemover }) {
+function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover }) {
   const [tab, setTab] = useState("servicos");
+  const [barbeiroId, setBarbeiroId] = useState(comanda.barbeiro_id ?? null);
 
   const [servicosSel, setServicosSel] = useState(() => {
     const s = new Set();
@@ -112,6 +113,7 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
         valor_total:    total,
         forma_pagamento: formaPagamento,
         desconto: valorDesconto > 0 ? { ...desconto, valor_calculado: valorDesconto } : null,
+        barbeiro_id: barbeiroId,
       });
     } catch (e) {
       setErro(e.message);
@@ -127,6 +129,22 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
 
   return (
     <div className="flex flex-col gap-4 pt-4 border-t border-gray-100 mt-3">
+      {/* Barbeiro */}
+      {barbeiros.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 shrink-0">✂️ Barbeiro:</span>
+          <select
+            value={barbeiroId ?? ""}
+            onChange={(e) => setBarbeiroId(e.target.value ? Number(e.target.value) : null)}
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+          >
+            <option value="">— não definido —</option>
+            {barbeiros.map((b) => (
+              <option key={b.id} value={b.id}>{b.nome}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {/* Tabs */}
       <div className="flex gap-2 flex-wrap">
         {TABS.map((t) => (
@@ -309,12 +327,13 @@ function ComandaEditor({ comanda, servicos, produtosBar, produtosLoja, onFinaliz
 }
 
 // ─── Card de comanda (colapsável) ──────────────────────────────────
-function ComandaCard({ comanda, aberta, onToggle, servicos, produtosBar, produtosLoja, onFinalizar, onRemover }) {
+function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover }) {
   const eventoGcal = comanda.evento_gcal;
   const horario = eventoGcal?.start?.dateTime
     ? `${fmtHora(eventoGcal.start.dateTime)} – ${fmtHora(eventoGcal.end?.dateTime)}`
     : null;
   const resumo = resumoItens(comanda);
+  const barbeiro = barbeiros.find((b) => b.id === comanda.barbeiro_id);
 
   return (
     <motion.div
@@ -330,6 +349,7 @@ function ComandaCard({ comanda, aberta, onToggle, servicos, produtosBar, produto
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{comanda.cliente_nome}</p>
           <p className="text-xs text-gray-400 mt-0.5 truncate">
+            {barbeiro && <span className="mr-2 text-indigo-400 font-medium">✂️ {barbeiro.nome}</span>}
             {horario && <span className="mr-2">{horario}</span>}
             {resumo
               ? <span className="text-gray-500">{resumo}</span>
@@ -357,6 +377,7 @@ function ComandaCard({ comanda, aberta, onToggle, servicos, produtosBar, produto
           >
             <ComandaEditor
               comanda={comanda}
+              barbeiros={barbeiros}
               servicos={servicos}
               produtosBar={produtosBar}
               produtosLoja={produtosLoja}
@@ -377,10 +398,12 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   const [produtosBar, setProdutosBar]     = useState([]);
   const [produtosLoja, setProdutosLoja]   = useState([]);
   const [clientes, setClientes]           = useState([]);
+  const [barbeiros, setBarbeiros]         = useState([]);
   const [carregando, setCarregando]       = useState(true);
   const [expandida, setExpandida]         = useState(null);
   const [criandoNova, setCriandoNova]     = useState(false);
   const [clienteSel, setClienteSel]       = useState(null);
+  const [barbeiroCriando, setBarbeiroCriando] = useState(null);
   const [salvandoNova, setSalvandoNova]   = useState(false);
   const [erroNova, setErroNova]           = useState(null);
   const [erro, setErro]                   = useState(null);
@@ -389,18 +412,20 @@ export default function Comandas({ onAtendimentoFinalizado }) {
     setCarregando(true);
     setErro(null);
     try {
-      const [cmds, svcs, bar, loja, cls] = await Promise.all([
+      const [cmds, svcs, bar, loja, cls, barbs] = await Promise.all([
         db.getComandasAbertas(),
         db.getServicos(),
         db.getProdutosByTipo("bar"),
         db.getProdutosByTipo("loja"),
         db.getClientes(),
+        db.getBarbeiros(),
       ]);
       setComandas(cmds);
       setServicos(svcs.filter((s) => s.ativo));
       setProdutosBar(bar);
       setProdutosLoja(loja);
       setClientes(cls);
+      setBarbeiros(barbs.filter((b) => b.ativo));
     } catch (e) {
       setErro("Erro ao carregar comandas.");
       console.error(e);
@@ -419,6 +444,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       const payload = {
         cliente_nome: clienteSel.nome,
         ...(clienteSel.id ? { cliente_id: clienteSel.id } : {}),
+        ...(barbeiroCriando ? { barbeiro_id: barbeiroCriando } : {}),
         status: "aberta",
         servicos: [],
         itens_bar: [],
@@ -431,6 +457,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       const cmd = await db.criarComanda(payload);
       setComandas((prev) => [cmd, ...prev]);
       setClienteSel(null);
+      setBarbeiroCriando(null);
       setCriandoNova(false);
       setExpandida(cmd.id);
     } catch (e) {
@@ -442,7 +469,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   };
 
   const handleFinalizar = async (comanda, editorData) => {
-    const { servicos: svcs, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, desconto } = editorData;
+    const { servicos: svcs, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, desconto, barbeiro_id } = editorData;
 
     await db.baixarEstoqueComanda(itens_bar, itens_loja);
 
@@ -456,8 +483,11 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       valor_total,
       forma_pagamento,
       desconto: desconto ?? null,
+      ...(barbeiro_id != null ? { barbeiro_id } : {}),
       status: "fechada",
     });
+
+    const barbPayload = barbeiro_id != null ? { barbeiro_id } : {};
 
     if (comanda.gcal_event_id) {
       const ev = comanda.evento_gcal;
@@ -471,6 +501,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
           data_hora: ev?.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : new Date().toISOString(),
           cliente_nome: comanda.cliente_nome,
           ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
+          ...barbPayload,
           servicos: svcs,
           valor_total,
           forma_pagamento,
@@ -492,6 +523,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         data_hora: new Date().toISOString(),
         cliente_nome: comanda.cliente_nome,
         ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
+        ...barbPayload,
         servicos: svcs,
         valor_total,
         forma_pagamento,
@@ -549,12 +581,24 @@ export default function Comandas({ onAtendimentoFinalizado }) {
               value={clienteSel}
               onChange={(v) => { setClienteSel(v); setErroNova(null); }}
             />
+            {barbeiros.length > 0 && (
+              <select
+                value={barbeiroCriando ?? ""}
+                onChange={(e) => setBarbeiroCriando(e.target.value ? Number(e.target.value) : null)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+              >
+                <option value="">✂️ Barbeiro (opcional)</option>
+                {barbeiros.map((b) => (
+                  <option key={b.id} value={b.id}>{b.nome}</option>
+                ))}
+              </select>
+            )}
             {erroNova && (
               <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erroNova}</p>
             )}
             <div className="flex gap-2">
               <button
-                onClick={() => { setCriandoNova(false); setClienteSel(null); setErroNova(null); }}
+                onClick={() => { setCriandoNova(false); setClienteSel(null); setBarbeiroCriando(null); setErroNova(null); }}
                 className="px-3 py-2 rounded-xl text-sm text-gray-400 hover:bg-gray-100 transition-colors"
               >Cancelar</button>
               <button
@@ -600,6 +644,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
               comanda={cmd}
               aberta={expandida === cmd.id}
               onToggle={() => setExpandida(expandida === cmd.id ? null : cmd.id)}
+              barbeiros={barbeiros}
               servicos={servicos}
               produtosBar={produtosBar}
               produtosLoja={produtosLoja}

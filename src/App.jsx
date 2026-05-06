@@ -330,6 +330,12 @@ function AppPrincipal() {
       .pop()
       .trim() || "Cliente";
     try {
+      let barbeiro_id = null;
+      if (evento.colorId) {
+        const barbeiros = await db.getBarbeiros();
+        const barb = barbeiros.find((b) => b.gcal_color_id === evento.colorId);
+        if (barb) barbeiro_id = barb.id;
+      }
       await db.criarComanda({
         gcal_event_id: evento.id,
         cliente_nome: clienteNome,
@@ -341,6 +347,7 @@ function AppPrincipal() {
         valor_bar: 0,
         valor_loja: 0,
         valor_total: 0,
+        ...(barbeiro_id ? { barbeiro_id } : {}),
         evento_gcal: {
           summary: evento.summary,
           start: evento.start,
