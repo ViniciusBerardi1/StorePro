@@ -731,6 +731,380 @@ function TabRetencao({ atendimentos, clientesUltimaVisita }) {
   );
 }
 
+// ─── Aba: Serviços ────────────────────────────────────────────────
+
+function TabServicos({ atendimentos }) {
+  const ok = atendimentos.filter((a) => a.status === "concluido");
+
+  const mapa = {};
+  for (const a of ok) {
+    for (const s of a.servicos || []) {
+      if (!mapa[s.nome]) mapa[s.nome] = { nome: s.nome, count: 0, receita: 0 };
+      mapa[s.nome].count++;
+      mapa[s.nome].receita += Number(s.valor || 0);
+    }
+  }
+  const lista = Object.values(mapa).sort((a, b) => b.count - a.count);
+  const totalServicos = lista.reduce((s, i) => s + i.count, 0);
+  const receitaTotal  = lista.reduce((s, i) => s + i.receita, 0);
+  const topServico    = lista[0]?.nome ?? "—";
+
+  if (!ok.length) return (
+    <Card><p className="text-sm text-gray-400 text-center py-8">Nenhum atendimento concluído no período.</p></Card>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon="✂️" label="Serviços realizados" valor={totalServicos} sub={`${ok.length} atendimentos`} />
+        <KpiCard icon="💰" label="Receita de serviços" valor={BRL(receitaTotal)} sub="valor total" />
+        <KpiCard icon="🏆" label="Mais realizado" valor={topServico} sub={lista[0] ? `${lista[0].count}× · ${BRL(lista[0].receita)}` : undefined} />
+        <KpiCard icon="💳" label="Ticket médio/serviço" valor={BRL(totalServicos > 0 ? receitaTotal / totalServicos : 0)} sub="por serviço" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <SectionTitle>📊 Ranking por quantidade</SectionTitle>
+          <RankingBars itens={lista.map((s) => ({ nome: s.nome, valor: s.count, sub: BRL(s.receita) }))} formatValor={(v) => `${v}×`} cor="bg-indigo-400" />
+        </Card>
+        <Card>
+          <SectionTitle>💰 Ranking por receita</SectionTitle>
+          <RankingBars itens={[...lista].sort((a, b) => b.receita - a.receita).map((s) => ({ nome: s.nome, valor: s.receita, sub: `${s.count}×` }))} formatValor={BRL} cor="bg-violet-400" />
+        </Card>
+      </div>
+
+      <Card>
+        <SectionTitle>📋 Tabela completa de serviços</SectionTitle>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-100">
+                <th className="text-left py-2 font-medium">Serviço</th>
+                <th className="text-right py-2 font-medium">Qtd</th>
+                <th className="text-right py-2 font-medium">Receita</th>
+                <th className="text-right py-2 font-medium">Ticket médio</th>
+                <th className="text-right py-2 font-medium">% do total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lista.map((s) => (
+                <tr key={s.nome} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-2.5 font-medium text-gray-700">{s.nome}</td>
+                  <td className="py-2.5 text-right text-gray-500">{s.count}</td>
+                  <td className="py-2.5 text-right font-semibold text-gray-700">{BRL(s.receita)}</td>
+                  <td className="py-2.5 text-right text-gray-500">{BRL(s.count > 0 ? s.receita / s.count : 0)}</td>
+                  <td className="py-2.5 text-right text-gray-400">{receitaTotal > 0 ? ((s.receita / receitaTotal) * 100).toFixed(1) : 0}%</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-gray-200">
+                <td className="py-2 font-bold text-gray-700">Total</td>
+                <td className="py-2 text-right font-semibold text-gray-600">{totalServicos}</td>
+                <td className="py-2 text-right font-bold text-gray-800">{BRL(receitaTotal)}</td>
+                <td className="py-2 text-right text-gray-400">{BRL(totalServicos > 0 ? receitaTotal / totalServicos : 0)}</td>
+                <td className="py-2 text-right text-gray-400">100%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Aba: Produtos ────────────────────────────────────────────────
+
+function TabProdutos({ comandas }) {
+  const mapaBar  = {};
+  const mapaLoja = {};
+
+  for (const cmd of comandas) {
+    for (const item of cmd.itens_bar || []) {
+      if (!item.nome) continue;
+      if (!mapaBar[item.nome]) mapaBar[item.nome] = { nome: item.nome, count: 0, receita: 0 };
+      mapaBar[item.nome].count   += item.quantidade || 1;
+      mapaBar[item.nome].receita += (item.quantidade || 1) * Number(item.preco_venda || 0);
+    }
+    for (const item of cmd.itens_loja || []) {
+      if (!item.nome) continue;
+      if (!mapaLoja[item.nome]) mapaLoja[item.nome] = { nome: item.nome, count: 0, receita: 0 };
+      mapaLoja[item.nome].count   += item.quantidade || 1;
+      mapaLoja[item.nome].receita += (item.quantidade || 1) * Number(item.preco_venda || 0);
+    }
+  }
+
+  const listaBar  = Object.values(mapaBar).sort((a, b) => b.count - a.count);
+  const listaLoja = Object.values(mapaLoja).sort((a, b) => b.count - a.count);
+  const totalItens = [...listaBar, ...listaLoja].reduce((s, i) => s + i.count, 0);
+  const receitaBar  = listaBar.reduce((s, i) => s + i.receita, 0);
+  const receitaLoja = listaLoja.reduce((s, i) => s + i.receita, 0);
+
+  if (!comandas.length) return (
+    <Card><p className="text-sm text-gray-400 text-center py-8">Nenhuma comanda fechada no período.</p></Card>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon="📦" label="Itens vendidos" valor={totalItens} sub={`${comandas.length} comandas`} />
+        <KpiCard icon="🍺" label="Receita bar" valor={BRL(receitaBar)} sub={`${listaBar.reduce((s, i) => s + i.count, 0)} itens`} />
+        <KpiCard icon="🛍️" label="Receita loja" valor={BRL(receitaLoja)} sub={`${listaLoja.reduce((s, i) => s + i.count, 0)} itens`} />
+        <KpiCard icon="💰" label="Total produtos" valor={BRL(receitaBar + receitaLoja)} sub="bar + loja" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {listaBar.length > 0 && (
+          <Card>
+            <SectionTitle>🍺 Produtos mais vendidos — Bar</SectionTitle>
+            <RankingBars itens={listaBar.map((p) => ({ nome: p.nome, valor: p.count, sub: BRL(p.receita) }))} formatValor={(v) => `${v}×`} cor="bg-amber-400" />
+          </Card>
+        )}
+        {listaLoja.length > 0 && (
+          <Card>
+            <SectionTitle>🛍️ Produtos mais vendidos — Loja</SectionTitle>
+            <RankingBars itens={listaLoja.map((p) => ({ nome: p.nome, valor: p.count, sub: BRL(p.receita) }))} formatValor={(v) => `${v}×`} cor="bg-emerald-400" />
+          </Card>
+        )}
+        {listaBar.length === 0 && listaLoja.length === 0 && (
+          <Card className="col-span-2"><p className="text-sm text-gray-400 text-center py-8">Nenhum produto vendido em comandas no período.</p></Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Aba: Horários ────────────────────────────────────────────────
+
+function TabHorarios({ atendimentos }) {
+  const HORAS = Array.from({ length: 13 }, (_, i) => i + 8); // 8h–20h
+  const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+  const cntHora  = {};
+  const cntDow   = Array(7).fill(0);
+  const heatmap  = {}; // "dow-hora" → count
+
+  for (const a of atendimentos) {
+    const d = new Date(a.data_hora);
+    const h = d.getHours();
+    const dow = d.getDay();
+    cntHora[h]  = (cntHora[h]  || 0) + 1;
+    cntDow[dow] += 1;
+    const key = `${dow}-${h}`;
+    heatmap[key] = (heatmap[key] || 0) + 1;
+  }
+
+  const maxHora = Math.max(...Object.values(cntHora), 1);
+  const maxCell = Math.max(...Object.values(heatmap), 1);
+
+  const peakHora = Object.entries(cntHora).sort((a, b) => b[1] - a[1])[0];
+  const peakDow  = cntDow.indexOf(Math.max(...cntDow));
+
+  if (!atendimentos.length) return (
+    <Card><p className="text-sm text-gray-400 text-center py-8">Nenhum atendimento no período.</p></Card>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon="⏰" label="Horário de pico" valor={peakHora ? `${peakHora[0]}h` : "—"} sub={peakHora ? `${peakHora[1]} atendimentos` : undefined} />
+        <KpiCard icon="📅" label="Dia mais movimentado" valor={DIAS_SEMANA[peakDow]} sub={`${cntDow[peakDow]} atendimentos`} />
+        <KpiCard icon="✂️" label="Total no período" valor={atendimentos.length} sub="atendimentos" />
+        <KpiCard icon="💤" label="Horários ociosos" valor={HORAS.filter((h) => !cntHora[h]).length} sub="sem atendimento" />
+      </div>
+
+      {/* Barras por hora */}
+      <Card>
+        <SectionTitle>📊 Atendimentos por horário</SectionTitle>
+        <div className="flex items-end gap-1 h-32 mt-2">
+          {HORAS.map((h) => {
+            const cnt = cntHora[h] || 0;
+            const pct = (cnt / maxHora) * 100;
+            return (
+              <div key={h} className="flex-1 flex flex-col items-center gap-1">
+                <div className="w-full flex items-end justify-center" style={{ height: 96 }}>
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${Math.max(pct, cnt > 0 ? 5 : 0)}%` }}
+                    transition={{ duration: 0.4, delay: (h - 8) * 0.04 }}
+                    className={`w-full rounded-t-md ${cnt > 0 ? (h === Number(peakHora?.[0]) ? "bg-indigo-500" : "bg-indigo-300") : "bg-gray-100"}`}
+                    title={`${h}h: ${cnt} atendimento${cnt !== 1 ? "s" : ""}`}
+                  />
+                </div>
+                <span className="text-[9px] text-gray-400">{h}h</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Heatmap dia × hora */}
+      <Card>
+        <SectionTitle>🗓️ Heatmap — dia da semana × horário</SectionTitle>
+        <div className="overflow-x-auto">
+          <table className="text-[9px] border-collapse w-full">
+            <thead>
+              <tr>
+                <th className="text-gray-300 pr-2 font-normal text-right w-8"></th>
+                {HORAS.map((h) => (
+                  <th key={h} className="text-gray-400 font-normal text-center py-1 px-0.5 w-7">{h}h</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {DIAS_SEMANA.map((dia, dow) => (
+                <tr key={dia}>
+                  <td className="text-gray-400 pr-2 text-right py-0.5 font-medium">{dia}</td>
+                  {HORAS.map((h) => {
+                    const cnt = heatmap[`${dow}-${h}`] || 0;
+                    const intensity = cnt / maxCell;
+                    const bg = cnt === 0
+                      ? "bg-gray-50"
+                      : intensity < 0.25 ? "bg-indigo-100"
+                      : intensity < 0.5  ? "bg-indigo-200"
+                      : intensity < 0.75 ? "bg-indigo-400"
+                      : "bg-indigo-600";
+                    const text = intensity >= 0.5 ? "text-white" : "text-indigo-800";
+                    return (
+                      <td key={h} className="py-0.5 px-0.5">
+                        <div
+                          className={`${bg} ${cnt > 0 ? text : "text-gray-200"} rounded text-center leading-none flex items-center justify-center font-semibold`}
+                          style={{ width: 24, height: 20, fontSize: 9 }}
+                          title={`${dia} ${h}h: ${cnt}`}
+                        >
+                          {cnt || ""}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Barras por dia da semana */}
+      <Card>
+        <SectionTitle>📅 Atendimentos por dia da semana</SectionTitle>
+        <div className="flex items-end gap-2 h-28 mt-2">
+          {DIAS_SEMANA.map((dia, dow) => {
+            const cnt = cntDow[dow];
+            const pct = (cnt / Math.max(...cntDow, 1)) * 100;
+            return (
+              <div key={dia} className="flex-1 flex flex-col items-center gap-1">
+                <div className="w-full flex items-end justify-center" style={{ height: 88 }}>
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${Math.max(pct, cnt > 0 ? 5 : 0)}%` }}
+                    transition={{ duration: 0.4, delay: dow * 0.06 }}
+                    className={`w-full rounded-t-md ${cnt > 0 ? (dow === peakDow ? "bg-emerald-500" : "bg-emerald-300") : "bg-gray-100"}`}
+                    title={`${dia}: ${cnt}`}
+                  />
+                </div>
+                <span className="text-[10px] text-gray-400">{dia}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Aba: Clientes ────────────────────────────────────────────────
+
+function TabClientes({ atendimentos, clientesUltimaVisita }) {
+  const ok = atendimentos.filter((a) => a.status === "concluido");
+
+  const mapa = {};
+  for (const a of ok) {
+    const nome = (a.cliente_nome || "").trim() || "Sem nome";
+    if (!mapa[nome]) mapa[nome] = { nome, visitas: 0, gasto: 0, datas: [] };
+    mapa[nome].visitas++;
+    mapa[nome].gasto += Number(a.valor_total || 0);
+    mapa[nome].datas.push(new Date(a.data_hora));
+  }
+
+  const ranking = Object.values(mapa).sort((a, b) => b.gasto - a.gasto);
+  const totalUnicos = ranking.length;
+  const gastoMedio  = totalUnicos > 0 ? ranking.reduce((s, c) => s + c.gasto, 0) / totalUnicos : 0;
+  const mapaHistorico = {};
+  for (const c of clientesUltimaVisita) {
+    mapaHistorico[(c.nome || "").toLowerCase().trim()] = c.total_visitas;
+  }
+  const recorrentes = ranking.filter((c) => (mapaHistorico[c.nome.toLowerCase()] || 1) > 1).length;
+
+  if (!ok.length) return (
+    <Card><p className="text-sm text-gray-400 text-center py-8">Nenhum atendimento concluído no período.</p></Card>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard icon="👥" label="Clientes únicos" valor={totalUnicos} sub="no período" />
+        <KpiCard icon="🔁" label="Recorrentes" valor={recorrentes} sub="com histórico anterior" />
+        <KpiCard icon="💰" label="Gasto médio" valor={BRL(gastoMedio)} sub="por cliente" />
+        <KpiCard icon="📊" label="Taxa de retorno" valor={`${totalUnicos > 0 ? ((recorrentes / totalUnicos) * 100).toFixed(0) : 0}%`} sub="clientes que voltaram" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <SectionTitle>🏆 Top clientes por gasto</SectionTitle>
+          <RankingBars
+            itens={ranking.slice(0, 10).map((c) => ({ nome: c.nome, valor: c.gasto, sub: `${c.visitas}x` }))}
+            formatValor={BRL}
+            cor="bg-violet-400"
+          />
+        </Card>
+        <Card>
+          <SectionTitle>🔁 Top clientes por visitas</SectionTitle>
+          <RankingBars
+            itens={[...ranking].sort((a, b) => b.visitas - a.visitas).slice(0, 10).map((c) => ({ nome: c.nome, valor: c.visitas, sub: BRL(c.gasto) }))}
+            formatValor={(v) => `${v}×`}
+            cor="bg-indigo-400"
+          />
+        </Card>
+      </div>
+
+      <Card>
+        <SectionTitle>📋 Todos os clientes do período</SectionTitle>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-100">
+                <th className="text-left py-2 font-medium">Cliente</th>
+                <th className="text-right py-2 font-medium">Visitas</th>
+                <th className="text-right py-2 font-medium">Total gasto</th>
+                <th className="text-right py-2 font-medium">Ticket médio</th>
+                <th className="text-right py-2 font-medium hidden lg:table-cell">Histórico</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranking.map((c) => {
+                const totalHist = mapaHistorico[c.nome.toLowerCase()] ?? c.visitas;
+                return (
+                  <tr key={c.nome} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2.5 font-medium text-gray-700">{c.nome}</td>
+                    <td className="py-2.5 text-right text-gray-500">{c.visitas}</td>
+                    <td className="py-2.5 text-right font-semibold text-gray-700">{BRL(c.gasto)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{BRL(c.visitas > 0 ? c.gasto / c.visitas : 0)}</td>
+                    <td className="py-2.5 text-right text-gray-400 hidden lg:table-cell">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${totalHist > 1 ? "bg-green-50 text-green-600" : "bg-gray-50 text-gray-400"}`}>
+                        {totalHist > 1 ? `${totalHist}× total` : "novo"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Date Range Picker ────────────────────────────────────────────
 
 const PRESETS = [
@@ -815,7 +1189,11 @@ function DateRangePicker({ dataIni, dataFim, onChange }) {
 const TABS = [
   { id: "insights",  icon: "🧠", label: "Insights"  },
   { id: "resumo",    icon: "📊", label: "Resumo"    },
-  { id: "barbeiros", icon: "✂️", label: "Barbeiros" },
+  { id: "servicos",  icon: "✂️", label: "Serviços"  },
+  { id: "produtos",  icon: "📦", label: "Produtos"  },
+  { id: "horarios",  icon: "🕐", label: "Horários"  },
+  { id: "clientes",  icon: "👤", label: "Clientes"  },
+  { id: "barbeiros", icon: "💈", label: "Barbeiros" },
   { id: "retencao",  icon: "👥", label: "Retenção"  },
 ];
 
@@ -932,6 +1310,10 @@ export default function Relatorios() {
         >
           {tab === "insights"  && <TabInsights insights={insights} />}
           {tab === "resumo"    && <TabResumo atendimentos={atendimentos} prevAtendimentos={prevAtendimentos} />}
+          {tab === "servicos"  && <TabServicos atendimentos={atendimentos} />}
+          {tab === "produtos"  && <TabProdutos comandas={comandas} />}
+          {tab === "horarios"  && <TabHorarios atendimentos={atendimentos} />}
+          {tab === "clientes"  && <TabClientes atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
           {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} detalhe={detalheBarbeiro} setDetalhe={setDetalheBarbeiro} />}
           {tab === "retencao"  && <TabRetencao atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
         </motion.div>
