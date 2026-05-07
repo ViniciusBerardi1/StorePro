@@ -630,7 +630,7 @@ async function upsertPlano(p) {
 async function getAssinaturasAtivas() {
   const { data, error } = await supabase
     .from("assinaturas")
-    .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo)")
+    .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo, beneficios)")
     .eq("status", "ativa")
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);

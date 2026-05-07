@@ -52,7 +52,7 @@ function labelDesconto(desc) {
 }
 
 // ─── Editor inline de uma comanda ───────────────────────────────────
-function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover, onAutosave }) {
+function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover, onAutosave, assinaturaData }) {
   const [tab, setTab] = useState("servicos");
   const [barbeiroId, setBarbeiroId] = useState(comanda.barbeiro_id ?? null);
 
@@ -79,49 +79,42 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const [statusSalvo, setStatusSalvo] = useState("idle");
   const isInitialRender = useRef(true);
 
-  // ─── Assinatura do cliente ───────────────────────────────────────
-  const [assinaturaAtiva, setAssinaturaAtiva] = useState(null);
-  const [usoBeneficios, setUsoBeneficios]     = useState([]);
+  // ─── Uso de benefícios do ciclo atual ───────────────────────────
+  const [usoBeneficios, setUsoBeneficios] = useState([]);
 
   useEffect(() => {
-    if (!comanda.cliente_id) return;
-    db.getAssinaturaAtivaByCliente(comanda.cliente_id)
-      .then(async (ass) => {
-        setAssinaturaAtiva(ass);
-        if (ass?.id) {
-          const uso = await db.getUsoBeneficios(ass.id, cicloAtual());
-          setUsoBeneficios(uso);
-        }
-      })
+    if (!assinaturaData?.id) { setUsoBeneficios([]); return; }
+    db.getUsoBeneficios(assinaturaData.id, cicloAtual())
+      .then(setUsoBeneficios)
       .catch(console.error);
-  }, [comanda.cliente_id]);
+  }, [assinaturaData?.id]);
 
   // ─── Cálculo de benefícios ──────────────────────────────────────
   const { beneficioDesconto, beneficiosAplicados, benefRegistros } = useMemo(() => {
-    if (!assinaturaAtiva) return { beneficioDesconto: 0, beneficiosAplicados: [], benefRegistros: [] };
+    if (!assinaturaData) return { beneficioDesconto: 0, beneficiosAplicados: [], benefRegistros: [] };
     return calcularBeneficios({
-      plano: assinaturaAtiva.planos,
-      assinatura: assinaturaAtiva,
+      plano: assinaturaData.planos,
+      assinatura: assinaturaData,
       servicosSelecionados: servicos.filter((s) => servicosSel.has(s.id)),
       itensLoja: produtosLoja.filter((p) => qtdLoja[p.id]).map((p) => ({ ...p, quantidade: qtdLoja[p.id] })),
       itensBar:  produtosBar.filter((p) => qtdBar[p.id]).map((p) => ({ ...p, quantidade: qtdBar[p.id] })),
       usoBeneficios,
     });
-  }, [assinaturaAtiva, servicos, servicosSel, produtosLoja, qtdLoja, produtosBar, qtdBar, usoBeneficios]);
+  }, [assinaturaData, servicos, servicosSel, produtosLoja, qtdLoja, produtosBar, qtdBar, usoBeneficios]);
 
   // Mapa servico_id → benefício disponível (para badges nos cards)
   const beneficioDispPorServico = useMemo(() => {
     const usoMap = {};
     for (const uso of usoBeneficios) usoMap[uso.beneficio_id] = (usoMap[uso.beneficio_id] || 0) + uso.quantidade;
     const map = {};
-    for (const b of assinaturaAtiva?.planos?.beneficios ?? []) {
+    for (const b of assinaturaData?.planos?.beneficios ?? []) {
       if (!b.servico_id) continue;
       const usado = usoMap[b.id] || 0;
       const limite = b.limite_mes != null ? Number(b.limite_mes) : Infinity;
       if (usado < limite) map[b.servico_id] = b;
     }
     return map;
-  }, [assinaturaAtiva, usoBeneficios]);
+  }, [assinaturaData, usoBeneficios]);
 
   // ─── Totais ─────────────────────────────────────────────────────
   const toggleServico = (id) =>
@@ -238,15 +231,15 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
       )}
 
       {/* Badge de assinante */}
-      {assinaturaAtiva && (
+      {assinaturaData && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
           <span className="text-sm">👑</span>
           <span className="text-xs font-medium text-amber-700">
-            Assinante {assinaturaAtiva.planos?.nome}
+            Assinante {assinaturaData.planos?.nome}
           </span>
-          {(assinaturaAtiva.planos?.beneficios ?? []).length > 0 && (
+          {(assinaturaData.planos?.beneficios ?? []).length > 0 && (
             <span className="ml-auto text-[10px] text-amber-500">
-              {(assinaturaAtiva.planos.beneficios).length} benefício{(assinaturaAtiva.planos.beneficios).length !== 1 ? "s" : ""}
+              {assinaturaData.planos.beneficios.length} benefício{assinaturaData.planos.beneficios.length !== 1 ? "s" : ""}
             </span>
           )}
         </div>
@@ -483,7 +476,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
 }
 
 // ─── Card de comanda (colapsável) ──────────────────────────────────
-function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover, onAutosave }) {
+function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover, onAutosave, assinaturaData }) {
   const eventoGcal = comanda.evento_gcal;
   const horario = eventoGcal?.start?.dateTime
     ? `${fmtHora(eventoGcal.start.dateTime)} – ${fmtHora(eventoGcal.end?.dateTime)}`
@@ -494,16 +487,24 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
   return (
     <motion.div
       layout
-      className={`bg-white border rounded-2xl overflow-hidden transition-shadow ${aberta ? "border-indigo-200 shadow-md" : "border-gray-200"}`}
+      className={`bg-white border rounded-2xl overflow-hidden transition-shadow
+        ${aberta ? "border-indigo-200 shadow-md" : assinaturaData ? "border-amber-200" : "border-gray-200"}`}
     >
       {/* Header */}
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
       >
-        <span className="text-xl shrink-0">🧾</span>
+        <span className="text-xl shrink-0">{assinaturaData ? "👑" : "🧾"}</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-800 truncate">{comanda.cliente_nome}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-gray-800 truncate">{comanda.cliente_nome}</p>
+            {assinaturaData && (
+              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">
+                {assinaturaData.planos?.nome ?? "Assinante"}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-gray-400 mt-0.5 truncate">
             {barbeiro && <span className="mr-2 text-indigo-400 font-medium">✂️ {barbeiro.nome}</span>}
             {horario && <span className="mr-2">{horario}</span>}
@@ -540,6 +541,7 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
               onFinalizar={onFinalizar}
               onRemover={onRemover}
               onAutosave={onAutosave}
+              assinaturaData={assinaturaData}
             />
           </motion.div>
         )}
@@ -556,6 +558,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   const [produtosLoja, setProdutosLoja]   = useState([]);
   const [clientes, setClientes]           = useState([]);
   const [barbeiros, setBarbeiros]         = useState([]);
+  const [assinaturasMap, setAssinaturasMap] = useState({});
   const [carregando, setCarregando]       = useState(true);
   const [expandida, setExpandida]         = useState(null);
   const [criandoNova, setCriandoNova]     = useState(false);
@@ -569,13 +572,14 @@ export default function Comandas({ onAtendimentoFinalizado }) {
     setCarregando(true);
     setErro(null);
     try {
-      const [cmds, svcs, bar, loja, cls, barbs] = await Promise.all([
+      const [cmds, svcs, bar, loja, cls, barbs, assinaturas] = await Promise.all([
         db.getComandasAbertas(),
         db.getServicos(),
         db.getProdutosByTipo("bar"),
         db.getProdutosByTipo("loja"),
         db.getClientes(),
         db.getBarbeiros(),
+        db.getAssinaturasAtivas().catch(() => []),
       ]);
       setComandas(cmds);
       setServicos(svcs.filter((s) => s.ativo));
@@ -583,6 +587,9 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       setProdutosLoja(loja);
       setClientes(cls);
       setBarbeiros(barbs.filter((b) => b.ativo));
+      const aMap = {};
+      for (const a of assinaturas) if (a.cliente_id) aMap[a.cliente_id] = a;
+      setAssinaturasMap(aMap);
     } catch (e) {
       setErro("Erro ao carregar comandas.");
       console.error(e);
@@ -826,6 +833,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
               onFinalizar={(data) => handleFinalizar(cmd, data)}
               onRemover={() => handleRemover(cmd)}
               onAutosave={handleAutosave}
+              assinaturaData={cmd.cliente_id ? (assinaturasMap[cmd.cliente_id] ?? null) : null}
             />
           ))}
         </div>
