@@ -488,7 +488,7 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 40 }}
         transition={{ duration: 0.2 }}
-        className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl max-h-[92vh] overflow-y-auto"
+        className="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-xl max-h-[94vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-semibold text-gray-800">{plano ? "Editar plano" : "Novo plano"}</h3>
@@ -496,17 +496,16 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Nome *</label>
-            <input
-              type="text" value={form.nome} onChange={set("nome")}
-              placeholder="Ex: VIP, Premium, Básico..."
-              autoFocus required
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-1">
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Nome *</label>
+              <input
+                type="text" value={form.nome} onChange={set("nome")}
+                placeholder="Ex: VIP, Premium..."
+                autoFocus required
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">Valor (R$) *</label>
               <input
@@ -524,14 +523,25 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Descrição (opcional)</label>
-            <textarea
-              value={form.descricao} onChange={set("descricao")}
-              placeholder="Resumo dos benefícios..."
-              rows={2}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Descrição (opcional)</label>
+              <textarea
+                value={form.descricao} onChange={set("descricao")}
+                placeholder="Resumo dos benefícios..."
+                rows={2}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Link de checkout (opcional)</label>
+              <input
+                type="url" value={form.checkout_url} onChange={set("checkout_url")}
+                placeholder="https://..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">URL gerada no painel do gateway (Asaas, Mercado Pago, Stripe…)</p>
+            </div>
           </div>
 
           {/* Benefícios estruturados */}
@@ -550,8 +560,9 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
               <p className="text-[11px] text-gray-400 italic">Nenhum benefício configurado.</p>
             )}
 
+            <div className="grid grid-cols-2 gap-1.5">
             {form.beneficios.map((b) => (
-              <div key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg mb-1.5">
+              <div key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
                     {LABEL_TIPO[b.tipo] ?? b.tipo}
@@ -567,6 +578,7 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
                   className="text-gray-300 hover:text-red-400 shrink-0 text-xs transition-colors">✕</button>
               </div>
             ))}
+            </div>
 
             {showBenefForm && (
               <BeneficioForm
@@ -575,16 +587,6 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
                 onCancelar={() => setShowBenefForm(false)}
               />
             )}
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Link de checkout (opcional)</label>
-            <input
-              type="url" value={form.checkout_url} onChange={set("checkout_url")}
-              placeholder="https://..."
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <p className="text-[10px] text-gray-400 mt-1">URL gerada no painel do gateway (Asaas, Mercado Pago, Stripe…)</p>
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer select-none">
