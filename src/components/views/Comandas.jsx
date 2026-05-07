@@ -222,6 +222,8 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   };
 
   const handleRemover = async () => {
+    console.log("[cancel] clicked — removendo:", removendo, "motivoCancel:", motivoCancel);
+    if (removendo) return;
     setRemovendo(true);
     setErro(null);
     try {
@@ -501,6 +503,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
               className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors"
             >Voltar</button>
             <button
+              type="button"
               onClick={handleRemover}
               disabled={removendo}
               className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
@@ -733,7 +736,9 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   };
 
   const handleRemover = async (comanda, motivo = null) => {
+    console.log("[parent handleRemover] comanda:", comanda?.id, "motivo:", motivo);
     await db.deleteComanda(comanda.id, motivo);
+    console.log("[parent handleRemover] deleteComanda OK");
     db.registrarEventoComanda(
       comanda.id, "cancelada",
       motivo ? `Cancelada: ${motivo}` : "Cancelada sem motivo informado",
