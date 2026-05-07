@@ -492,8 +492,7 @@ async function deleteComanda(id, motivo = null) {
   await supabase
     .from("uso_beneficios")
     .update({ estornado: true })
-    .eq("comanda_id", id)
-    .catch(() => {});
+    .eq("comanda_id", id); // retorna { data, error }, não lança exceção
 
   const { error } = await supabase
     .from("comandas")
