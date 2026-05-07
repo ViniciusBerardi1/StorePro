@@ -463,14 +463,14 @@ async function criarComanda(comanda) {
 
     if (existente) {
       if (existente.status === "aberta") return existente;
-      const { data: updated, error } = await supabase
+      // Comanda anterior fechada/cancelada: desvincula o gcal_event_id dela
+      // para que a constraint UNIQUE permita associá-lo à nova comanda.
+      // O trigger só bloqueia mudanças de STATUS em 'fechada', não outros campos.
+      const { error: clearErr } = await supabase
         .from("comandas")
-        .update({ ...comanda, status: "aberta" })
-        .eq("id", existente.id)
-        .select()
-        .single();
-      if (error) throw error;
-      return updated;
+        .update({ gcal_event_id: null })
+        .eq("id", existente.id);
+      if (clearErr) throw clearErr;
     }
   }
 

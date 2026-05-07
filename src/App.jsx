@@ -409,10 +409,10 @@ function AppPrincipal() {
           { fonte: "agenda", gcal_event_id: evento.id, cliente_id: cliente_id ?? null, barbeiro_id: barbeiro_id ?? null }
         ).catch(() => {});
       }
+      setView("comandas");
     } catch (e) {
       console.error("Erro ao criar comanda:", e);
     }
-    setView("comandas");
   }, []);
 
   const navegar = useCallback((destino) => {

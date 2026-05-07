@@ -198,7 +198,8 @@ create table if not exists comandas (
   updated_at           timestamptz default now(),
   closed_at            timestamptz,
   deleted_at           timestamptz,
-  deleted_reason       text
+  deleted_reason       text,
+  version              integer not null default 1
 );
 
 create index if not exists idx_comandas_status    on comandas(status, created_at desc);
@@ -468,10 +469,11 @@ create or replace function validar_fechamento_comanda()
 returns trigger language plpgsql as $$
 declare v_soma numeric;
 begin
-  -- Comandas fechadas são completamente imutáveis
-  if OLD.status = 'fechada' then
+  -- Bloqueia apenas mudanças de status a partir de 'fechada'
+  -- (permite atualizar outros campos, ex: gcal_event_id = null ao reabrir agenda)
+  if OLD.status = 'fechada' and NEW.status is distinct from OLD.status then
     raise exception
-      'Comanda % já está fechada e não pode ser modificada', OLD.id
+      'Comanda % já está fechada e não pode ser reaberta', OLD.id
       using errcode = 'P0002';
   end if;
 
