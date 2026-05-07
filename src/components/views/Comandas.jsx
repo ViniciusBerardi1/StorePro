@@ -223,7 +223,14 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
 
   const handleRemover = async () => {
     setRemovendo(true);
-    try { await onRemover(motivoCancel || null); } catch { setRemovendo(false); }
+    setErro(null);
+    try {
+      await onRemover(motivoCancel || null);
+    } catch (e) {
+      console.error("[cancelar comanda]", e);
+      setErro(e?.message || "Erro ao cancelar comanda.");
+      setRemovendo(false);
+    }
   };
 
   return (
@@ -485,9 +492,12 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
             className="border border-red-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-200 bg-white"
             autoFocus
           />
+          {erro && (
+            <p className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-lg px-2 py-1">⚠️ {erro}</p>
+          )}
           <div className="flex gap-2">
             <button
-              onClick={() => { setCancelando(false); setMotivoCancel(""); }}
+              onClick={() => { setCancelando(false); setMotivoCancel(""); setErro(null); }}
               className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors"
             >Voltar</button>
             <button
