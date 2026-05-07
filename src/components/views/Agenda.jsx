@@ -934,7 +934,16 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
   function handleConfirmarComanda() {
     const ev = confirmacaoComanda;
     setConfirmacaoComanda(null);
-    onAbrirComanda?.(ev);
+
+    // Recupera serviços pelo título do evento: "Corte + Barba — Cliente"
+    const tituloSemStatus = (ev.summary || "").replace(/^✅\s*/, "");
+    const parteServicos = tituloSemStatus.split(/\s*[-—]\s*/)[0].trim();
+    const nomesNoTitulo = parteServicos.split(/\s*\+\s*/).map((n) => n.trim().toLowerCase()).filter(Boolean);
+    const servicosPreSel = servicosDisponiveis
+      .filter((s) => nomesNoTitulo.includes(s.nome.trim().toLowerCase()))
+      .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor), duracao_minutos: s.duracao_minutos || 30 }));
+
+    onAbrirComanda?.(ev, servicosPreSel);
   }
 
   // Finalização de comanda concluída (modal de visualização — só Supabase, GCal já tem ✅)

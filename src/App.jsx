@@ -356,7 +356,7 @@ function AppPrincipal() {
     }
   }, [carregar]);
 
-  const onAbrirComanda = useCallback(async (evento) => {
+  const onAbrirComanda = useCallback(async (evento, servicosPreSel = []) => {
     const clienteNome = (evento.summary || "")
       .replace(/^✅\s*/, "")
       .split(/\s*[-—]\s*/)
@@ -369,17 +369,18 @@ function AppPrincipal() {
         const barb = barbeiros.find((b) => b.gcal_color_id === evento.colorId);
         if (barb) barbeiro_id = barb.id;
       }
+      const valorServicos = servicosPreSel.reduce((sum, s) => sum + Number(s.valor), 0);
       await db.criarComanda({
         gcal_event_id: evento.id,
         cliente_nome: clienteNome,
         status: "aberta",
-        servicos: [],
+        servicos: servicosPreSel,
         itens_bar: [],
         itens_loja: [],
-        valor_servicos: 0,
+        valor_servicos: valorServicos,
         valor_bar: 0,
         valor_loja: 0,
-        valor_total: 0,
+        valor_total: valorServicos,
         ...(barbeiro_id ? { barbeiro_id } : {}),
         evento_gcal: {
           summary: evento.summary,
