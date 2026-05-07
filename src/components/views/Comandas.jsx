@@ -92,19 +92,14 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   // ─── Cálculo de benefícios ──────────────────────────────────────
   const { beneficioDesconto, beneficiosAplicados, benefRegistros } = useMemo(() => {
     if (!assinaturaData) return { beneficioDesconto: 0, beneficiosAplicados: [], benefRegistros: [] };
-    const svcsSel = servicos.filter((s) => servicosSel.has(s.id));
-    console.log('[DEBUG calcBeneficios] plano.beneficios:', assinaturaData.planos?.beneficios);
-    console.log('[DEBUG calcBeneficios] servicosSelecionados:', svcsSel.map(s => ({ id: s.id, nome: s.nome })));
-    const result = calcularBeneficios({
+    return calcularBeneficios({
       plano: assinaturaData.planos,
       assinatura: assinaturaData,
-      servicosSelecionados: svcsSel,
+      servicosSelecionados: servicos.filter((s) => servicosSel.has(s.id)),
       itensLoja: produtosLoja.filter((p) => qtdLoja[p.id]).map((p) => ({ ...p, quantidade: qtdLoja[p.id] })),
       itensBar:  produtosBar.filter((p) => qtdBar[p.id]).map((p) => ({ ...p, quantidade: qtdBar[p.id] })),
       usoBeneficios,
     });
-    console.log('[DEBUG calcBeneficios] resultado:', result);
-    return result;
   }, [assinaturaData, servicos, servicosSel, produtosLoja, qtdLoja, produtosBar, qtdBar, usoBeneficios]);
 
   // Mapa servico_id → benefício disponível (para badges nos cards)
@@ -595,8 +590,6 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       setBarbeiros(barbs.filter((b) => b.ativo));
       const aMap = {};
       for (const a of assinaturas) if (a.cliente_id) aMap[a.cliente_id] = a;
-      console.log('[DEBUG assinaturas]', assinaturas);
-      console.log('[DEBUG assinaturasMap]', aMap);
       setAssinaturasMap(aMap);
     } catch (e) {
       setErro("Erro ao carregar comandas.");

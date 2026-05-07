@@ -363,16 +363,28 @@ function AppPrincipal() {
       .pop()
       .trim() || "Cliente";
     try {
+      const [barbeiros, clientes] = await Promise.all([
+        db.getBarbeiros(),
+        db.getClientes(),
+      ]);
+
       let barbeiro_id = null;
       if (evento.colorId) {
-        const barbeiros = await db.getBarbeiros();
         const barb = barbeiros.find((b) => b.gcal_color_id === evento.colorId);
         if (barb) barbeiro_id = barb.id;
       }
+
+      // Vincula cliente_id pelo nome para habilitar benefícios de assinatura
+      const clienteMatch = clientes.find(
+        (c) => c.nome.trim().toLowerCase() === clienteNome.trim().toLowerCase()
+      );
+      const cliente_id = clienteMatch?.id ?? null;
+
       const valorServicos = servicosPreSel.reduce((sum, s) => sum + Number(s.valor), 0);
       await db.criarComanda({
         gcal_event_id: evento.id,
         cliente_nome: clienteNome,
+        ...(cliente_id ? { cliente_id } : {}),
         status: "aberta",
         servicos: servicosPreSel,
         itens_bar: [],
