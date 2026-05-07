@@ -4,19 +4,23 @@ import { Home } from "lucide-react";
 const MENU = [
   // ── OPERAÇÃO ────────────────────────────────────────────────────
   { type: "section", label: "OPERAÇÃO" },
-  { type: "item", view: "agenda",   label: "Agenda",   icon: "📅" },
+  { type: "item", view: "agenda", label: "Agenda", icon: "📅" },
   { type: "item", view: "comandas", label: "Comandas", icon: "🧾" },
 
   // ── ATENDIMENTO ─────────────────────────────────────────────────
   { type: "section", label: "ATENDIMENTO" },
-  { type: "item", view: "servicos",  label: "Serviços", icon: "✂️" },
-  { type: "item", view: "barbeiros", label: "Equipe",   icon: "👥" },
+  { type: "item", view: "servicos", label: "Serviços", icon: "✂️" },
+  { type: "item", view: "barbeiros", label: "Equipe", icon: "👥" },
 
   // ── CLIENTES ────────────────────────────────────────────────────
   { type: "section", label: "CLIENTES" },
-  { type: "item", view: "clientes_lista", label: "Lista de clientes",   icon: "👤" },
-  { type: "item", view: "planos",         label: "Planos / Assinaturas", icon: "⭐" },
-  { type: "item", view: "fidelidade",     label: "Fidelidade",           icon: "🎁" },
+  {
+    type: "item",
+    view: "clientes_lista",
+    label: "Lista de clientes",
+    icon: "👤",
+  },
+  { type: "item", view: "planos", label: "Planos / Assinaturas", icon: "⭐" },
 
   // ── GESTÃO ──────────────────────────────────────────────────────
   { type: "section", label: "GESTÃO" },
@@ -29,7 +33,7 @@ const MENU = [
     badge: "estoqueBaixo",
     itens: [
       { view: "estoque_loja", label: "Loja 🛍️" },
-      { view: "estoque_bar",  label: "Bar 🍺"  },
+      { view: "estoque_bar", label: "Bar 🍺" },
     ],
   },
 
@@ -38,10 +42,16 @@ const MENU = [
 ];
 
 const VIEWS_ATIVAS = [
-  "agenda", "comandas",
-  "servicos", "barbeiros",
-  "clientes_lista", "planos",
-  "financeiro", "relatorios", "estoque_loja", "estoque_bar",
+  "agenda",
+  "comandas",
+  "servicos",
+  "barbeiros",
+  "clientes_lista",
+  "planos",
+  "financeiro",
+  "relatorios",
+  "estoque_loja",
+  "estoque_bar",
 ];
 
 function isAtivo(entrada, view) {
@@ -80,7 +90,9 @@ function SubItem({ item, view, navegar }) {
         ${emBreve ? "opacity-40 cursor-default" : ""}`}
     >
       <span>{item.label}</span>
-      {emBreve && <span className="text-xs text-gray-300 font-normal">em breve</span>}
+      {emBreve && (
+        <span className="text-xs text-gray-300 font-normal">em breve</span>
+      )}
     </button>
   );
 }
@@ -102,7 +114,9 @@ function ItemSingle({ entrada, view, navegar, alertas }) {
         <span className="text-base">{entrada.icon}</span>
         {entrada.label}
       </span>
-      {emBreve && <span className="text-xs text-gray-300 font-normal">em breve</span>}
+      {emBreve && (
+        <span className="text-xs text-gray-300 font-normal">em breve</span>
+      )}
       {badgeCount > 0 && (
         <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
           {badgeCount}
@@ -140,7 +154,12 @@ function ItemGroup({ entrada, view, navegar, alertas }) {
       {aberto && (
         <div className="flex flex-col gap-0.5 mt-0.5">
           {entrada.itens.map((item) => (
-            <SubItem key={item.view} item={item} view={view} navegar={navegar} />
+            <SubItem
+              key={item.view}
+              item={item}
+              view={view}
+              navegar={navegar}
+            />
           ))}
         </div>
       )}
@@ -156,9 +175,25 @@ function MenuConteudo({ view, navegar, alertas }) {
           return <SectionLabel key={entrada.label + i} label={entrada.label} />;
         }
         if (entrada.type === "group") {
-          return <ItemGroup key={entrada.label} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />;
+          return (
+            <ItemGroup
+              key={entrada.label}
+              entrada={entrada}
+              view={view}
+              navegar={navegar}
+              alertas={alertas}
+            />
+          );
         }
-        return <ItemSingle key={entrada.view} entrada={entrada} view={view} navegar={navegar} alertas={alertas} />;
+        return (
+          <ItemSingle
+            key={entrada.view}
+            entrada={entrada}
+            view={view}
+            navegar={navegar}
+            alertas={alertas}
+          />
+        );
       })}
     </div>
   );
@@ -201,7 +236,10 @@ function Sidebar({ view, setView, alertas }) {
 
       {/* Mobile header */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between">
-        <button onClick={() => setMenuAberto(!menuAberto)} className="flex items-center gap-2">
+        <button
+          onClick={() => setMenuAberto(!menuAberto)}
+          className="flex items-center gap-2"
+        >
           <span className="text-xl">🏪</span>
           <h1 className="text-base font-semibold text-gray-700">StorePro</h1>
         </button>
@@ -216,11 +254,19 @@ function Sidebar({ view, setView, alertas }) {
       {/* Mobile menu drawer */}
       {menuAberto && (
         <>
-          <div className="md:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setMenuAberto(false)} />
+          <div
+            className="md:hidden fixed inset-0 bg-black/30 z-40"
+            onClick={() => setMenuAberto(false)}
+          />
           <div className="md:hidden fixed top-0 left-0 h-full w-72 bg-white z-50 flex flex-col py-6 px-4 shadow-xl">
             <div className="flex items-center justify-between mb-6">
               <Logo />
-              <button onClick={() => setMenuAberto(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+              <button
+                onClick={() => setMenuAberto(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ✕
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto min-h-0">
               <MenuConteudo view={view} navegar={navegar} alertas={alertas} />

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { atualizarEvento } from "../../services/googleCalendar";
-import ClienteSelector from "../ui/ClienteSelector";
+import ClienteSelector from "./ClienteSelector";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

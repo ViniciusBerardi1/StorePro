@@ -5,8 +5,6 @@ import ProdutoList from "./components/produto/ProdutoList";
 import ProdutoForm from "./components/produto/ProdutoForm";
 import Dashboard from "./components/views/Dashboard";
 import Sobre from "./components/views/Sobre";
-import Historico from "./components/views/Historico";
-import Desejos from "./components/views/Desejos";
 import EmBreve from "./components/views/EmBreve";
 import Agenda from "./components/views/Agenda";
 import Servicos from "./components/views/Servicos";

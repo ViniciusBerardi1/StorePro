@@ -13,7 +13,7 @@ import {
 import { db } from "../../services/supabaseDb";
 import { GCAL_CORES } from "./Barbeiros";
 import Comanda from "./Comanda";
-import ClienteSelector from "../ui/ClienteSelector";
+import ClienteSelector from "./ClienteSelector";
 import TimePicker from "react-time-picker";
 import "react-time-picker/dist/TimePicker.css";
 
