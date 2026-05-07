@@ -3,20 +3,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 
 export const GCAL_CORES = {
-  "1":  { label: "Lavanda",    hex: "#7986CB" },
-  "2":  { label: "Sálvia",     hex: "#33B679" },
-  "3":  { label: "Uva",        hex: "#8E24AA" },
-  "4":  { label: "Flamingo",   hex: "#E67C73" },
-  "5":  { label: "Banana",     hex: "#F6BF26" },
-  "6":  { label: "Tangerina",  hex: "#F4511E" },
-  "7":  { label: "Pavão",      hex: "#039BE5" },
-  "8":  { label: "Grafite",    hex: "#616161" },
-  "9":  { label: "Mirtilo",    hex: "#3F51B5" },
-  "10": { label: "Manjericão", hex: "#0B8043" },
-  "11": { label: "Tomate",     hex: "#D50000" },
+  "1":  { label: "Lavanda",   hex: "#7986CB" },
+  "2":  { label: "Esmeralda", hex: "#33B679" },
+  "3":  { label: "Violeta",   hex: "#8E24AA" },
+  "4":  { label: "Coral",     hex: "#E67C73" },
+  "5":  { label: "Âmbar",     hex: "#F6BF26" },
+  "6":  { label: "Terracota", hex: "#F4511E" },
+  "7":  { label: "Ciano",     hex: "#039BE5" },
+  "8":  { label: "Grafite",   hex: "#616161" },
+  "9":  { label: "Safira",    hex: "#3F51B5" },
+  "10": { label: "Floresta",  hex: "#0B8043" },
+  "11": { label: "Carmim",    hex: "#D50000" },
 };
 
-function BarbeiroForm({ barbeiro, onSalvar, onFechar }) {
+function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
   const [form, setForm] = useState({
     nome: barbeiro?.nome ?? "",
     gcal_color_id: barbeiro?.gcal_color_id ?? "9",
@@ -27,6 +27,8 @@ function BarbeiroForm({ barbeiro, onSalvar, onFechar }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.nome.trim()) return setErro("Informe o nome do barbeiro.");
+    if (coresEmUso.includes(form.gcal_color_id))
+      return setErro("Esta cor já está em uso por outro barbeiro.");
     setErro(null);
     setSalvando(true);
     try {
@@ -37,6 +39,8 @@ function BarbeiroForm({ barbeiro, onSalvar, onFechar }) {
       setSalvando(false);
     }
   };
+
+  const corAtual = GCAL_CORES[form.gcal_color_id];
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center p-4">
@@ -71,31 +75,53 @@ function BarbeiroForm({ barbeiro, onSalvar, onFechar }) {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-2 block">
-              Cor na agenda
-            </label>
+            <label className="text-xs font-medium text-gray-500 mb-2 block">Cor na agenda</label>
             <div className="grid grid-cols-6 gap-2">
-              {Object.entries(GCAL_CORES).map(([id, { label, hex }]) => (
-                <button
-                  key={id}
-                  type="button"
-                  title={label}
-                  onClick={() => setForm((f) => ({ ...f, gcal_color_id: id }))}
-                  className={`w-9 h-9 rounded-full transition-all ${
-                    form.gcal_color_id === id
-                      ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
-                      : "hover:scale-105"
-                  }`}
-                  style={{ backgroundColor: hex }}
-                />
-              ))}
+              {Object.entries(GCAL_CORES).map(([id, { label, hex }]) => {
+                const emUso = coresEmUso.includes(id);
+                const selecionada = form.gcal_color_id === id;
+                return (
+                  <div key={id} className="relative flex items-center justify-center">
+                    <button
+                      type="button"
+                      title={emUso ? `${label} — em uso` : label}
+                      disabled={emUso}
+                      onClick={() => setForm((f) => ({ ...f, gcal_color_id: id }))}
+                      className={`w-9 h-9 rounded-full transition-all ${
+                        selecionada
+                          ? "ring-2 ring-offset-2 ring-gray-400 scale-110"
+                          : emUso
+                          ? "opacity-30 cursor-not-allowed"
+                          : "hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: hex }}
+                    />
+                    {emUso && (
+                      <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="text-white text-[10px] font-bold drop-shadow">✕</span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <p className="text-xs text-gray-400 mt-2">
-              Cor selecionada:{" "}
-              <span className="font-medium text-gray-600">
-                {GCAL_CORES[form.gcal_color_id]?.label}
-              </span>
-            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <span
+                className="inline-block w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: corAtual?.hex }}
+              />
+              <p className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{corAtual?.label}</span>
+                {coresEmUso.includes(form.gcal_color_id) && (
+                  <span className="ml-1.5 text-red-500">· em uso</span>
+                )}
+              </p>
+              {coresEmUso.length > 0 && (
+                <span className="ml-auto text-[10px] text-gray-400">
+                  {coresEmUso.length} de {Object.keys(GCAL_CORES).length} em uso
+                </span>
+              )}
+            </div>
           </div>
 
           {erro && (
@@ -288,6 +314,9 @@ export default function Barbeiros() {
         {showForm && (
           <BarbeiroForm
             barbeiro={editando}
+            coresEmUso={barbeiros
+              .filter((b) => b.id !== editando?.id)
+              .map((b) => b.gcal_color_id)}
             onSalvar={handleSalvar}
             onFechar={() => { setShowForm(false); setEditando(null); }}
           />
