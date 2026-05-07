@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import ClienteSelector from "./ClienteSelector";
 import { calcularBeneficios, cicloAtual } from "../../services/beneficiosCalc";
-import { finalizarComanda } from "../../services/comandasService";
+import { finalizarComanda, parsearErroComanda } from "../../services/comandasService";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -89,6 +89,9 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const [statusSalvo, setStatusSalvo] = useState("idle");
   const [eventos, setEventos] = useState([]);
   const isInitialRender = useRef(true);
+  // useRef: guard síncrono contra double-submit. useState é assíncrono
+  // e não previne dois cliques rápidos antes do re-render completar.
+  const finalizandoRef = useRef(false);
 
   useEffect(() => {
     db.getEventosComanda(comanda.id).then(setEventos).catch(() => {});
@@ -182,9 +185,18 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
       };
       try {
         setStatusSalvo("saving");
-        await db.updateComanda(comanda.id, payload);
-        onAutosave?.(comanda.id, payload);
-        setStatusSalvo("saved");
+        // updateComanda retorna { id, version, updated_at } se atualizado,
+        // ou null se a comanda já não estava aberta (fechada em outra sessão).
+        const result = await db.updateComanda(comanda.id, payload);
+        if (result) {
+          // Propaga a nova version para o componente pai manter estado sincronizado.
+          // Isso garante que finalizar_comanda() enviará a version correta ao banco.
+          onAutosave?.(comanda.id, { ...payload, version: result.version });
+          setStatusSalvo("saved");
+        } else {
+          // Comanda foi fechada/cancelada em outra sessão — para de autosalvar silenciosamente.
+          setStatusSalvo("idle");
+        }
       } catch (e) {
         console.error("Falha ao salvar rascunho da comanda:", e);
         setStatusSalvo("error");
@@ -197,8 +209,12 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
 
   const handleFinalizar = async () => {
     if (!formaPagamento) return setErro("Selecione a forma de pagamento.");
-    setErro(null);
+    // Guard síncrono: bloqueia o segundo clique antes do useState propagar.
+    // finalizandoRef.current = true é imediato; setFinalizando(true) é async.
+    if (finalizandoRef.current) return;
+    finalizandoRef.current = true;
     setFinalizando(true);
+    setErro(null);
     try {
       await onFinalizar({
         servicos:   servicos.filter((s) => servicosSel.has(s.id)).map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor) })),
@@ -215,9 +231,11 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
         beneficios_aplicados: beneficiosAplicados,
         _benefRegistros:      benefRegistros,
       });
+      // Sucesso: componente vai desmontar. Não precisa limpar o ref.
     } catch (e) {
-      setErro(e.message);
+      setErro(parsearErroComanda(e.message));
       setFinalizando(false);
+      finalizandoRef.current = false; // libera o guard só em caso de erro
     }
   };
 
@@ -726,29 +744,37 @@ export default function Comandas({ onAtendimentoFinalizado }) {
     }
   };
 
+  // Guard de nível global: um Set com IDs de comandas em processo de finalização.
+  // Previne que dois operadores diferentes no mesmo dispositivo (duas abas
+  // abertas no mesmo browser) disparem finalizações simultâneas para a mesma comanda.
+  const finalizandoIds = useRef(new Set());
+
   const handleFinalizar = async (comanda, editorData) => {
-    await finalizarComanda(comanda, editorData);
-    setComandas((prev) => prev.filter((c) => c.id !== comanda.id));
-    setTotalComandas((prev) => Math.max(0, prev - 1));
-    setExpandida(null);
-    onAtendimentoFinalizado?.();
+    // Guard por comanda_id: bloqueia requisição duplicada antes de chegar ao banco.
+    if (finalizandoIds.current.has(comanda.id)) return;
+    finalizandoIds.current.add(comanda.id);
+    try {
+      await finalizarComanda(comanda, editorData);
+      setComandas((prev) => prev.filter((c) => c.id !== comanda.id));
+      setTotalComandas((prev) => Math.max(0, prev - 1));
+      setExpandida(null);
+      onAtendimentoFinalizado?.();
+    } finally {
+      // Libera sempre — em sucesso E em erro — para permitir retry
+      finalizandoIds.current.delete(comanda.id);
+    }
   };
 
   const handleRemover = async (comanda, motivo = null) => {
-    console.log("[parent handleRemover] comanda:", comanda?.id, "motivo:", motivo);
     await db.deleteComanda(comanda.id, motivo);
-    console.log("[parent handleRemover] deleteComanda OK");
-    db.registrarEventoComanda(
-      comanda.id, "cancelada",
-      motivo ? `Cancelada: ${motivo}` : "Cancelada sem motivo informado",
-      { motivo: motivo ?? null }
-    ).catch(() => {});
+    // cancelar_comanda RPC já registra o evento de auditoria internamente.
     setComandas((prev) => prev.filter((c) => c.id !== comanda.id));
     setTotalComandas((prev) => Math.max(0, prev - 1));
     if (expandida === comanda.id) setExpandida(null);
   };
 
-  // Mantém o card colapsado em sincronia com os autosaves do editor
+  // Mantém o card em sincronia com autosaves — incluindo a version atualizada pelo banco.
+  // A version é usada por finalizar_comanda() para detectar conflitos entre operadores.
   const handleAutosave = useCallback((comandaId, payload) => {
     setComandas((prev) => prev.map((c) => (c.id === comandaId ? { ...c, ...payload } : c)));
   }, []);

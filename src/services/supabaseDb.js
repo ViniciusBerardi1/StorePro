@@ -479,12 +479,20 @@ async function criarComanda(comanda) {
   return data;
 }
 
+// Retorna { id, version, updated_at } se a comanda foi atualizada,
+// ou null se ela não estava mais 'aberta' (fechada/cancelada em outra sessão).
+// O trigger do banco seta updated_at e incrementa version automaticamente.
 async function updateComanda(id, updates) {
-  const { error } = await supabase
+  const { id: _id, updated_at: _ua, version: _v, ...payload } = updates;
+  const { data, error } = await supabase
     .from("comandas")
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", id);
+    .update(payload)
+    .eq("id", id)
+    .eq("status", "aberta")   // guard: não atualiza comanda já fechada/cancelada
+    .is("deleted_at", null)   // guard: não atualiza comanda deletada
+    .select("id, version, updated_at");
   if (error) throw error;
+  return data?.length ? data[0] : null; // null = comanda não estava aberta
 }
 
 async function deleteComanda(id, motivo = null) {

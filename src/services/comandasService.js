@@ -1,9 +1,24 @@
 import { supabase } from "./supabase";
 import { atualizarEvento } from "./googleCalendar";
 
+// Mapeia códigos de erro do banco para mensagens amigáveis ao usuário.
+// Erros P00xx são lançados explicitamente pelas funções PL/pgSQL.
+export function parsearErroComanda(message = "") {
+  if (message.includes("P0010") || message.includes("Conflito"))
+    return "Esta comanda foi modificada em outra aba ou dispositivo. Recarregue a página e tente novamente.";
+  if (message.includes("P0002") || message.includes("já está fechada"))
+    return "Esta comanda já foi fechada por outra sessão. Recarregue a página.";
+  if (message.includes("P0006") || message.includes("cancelada"))
+    return "Esta comanda foi cancelada. Recarregue a página.";
+  if (message.includes("P0003") || message.includes("forma_pagamento"))
+    return "Selecione uma forma de pagamento válida.";
+  if (message.includes("P0005") || message.includes("superior à soma"))
+    return "Erro de cálculo: valor total inconsistente. Recarregue e refaça os itens.";
+  return message;
+}
+
 // Finalização atômica via RPC server-side.
-// Toda a orquestração (estoque, comanda, atendimento, benefícios, auditoria)
-// acontece em uma única transação PostgreSQL. Rollback automático em qualquer falha.
+// A version é enviada para o banco detectar conflitos entre operadores.
 export async function finalizarComanda(comanda, editorData) {
   const {
     servicos: svcs,
@@ -23,8 +38,6 @@ export async function finalizarComanda(comanda, editorData) {
 
   const ev = comanda.evento_gcal;
 
-  // Payload enviado ao banco — o servidor ignora closed_at e updated_at
-  // do cliente e usa now() via trigger.
   const payload = {
     servicos:             svcs ?? [],
     itens_bar:            itens_bar ?? [],
@@ -39,30 +52,28 @@ export async function finalizarComanda(comanda, editorData) {
     beneficio_desconto:   beneficio_desconto ?? 0,
     beneficios_aplicados: beneficios_aplicados ?? [],
     beneficio_registros:  _benefRegistros ?? [],
-    data_hora: ev?.start?.dateTime
-      ? new Date(ev.start.dateTime).toISOString()
-      : new Date().toISOString(),
+    // Optimistic locking: version que o cliente conhece.
+    // Banco rejeita se outro operador já editou (version maior no DB).
+    version:    comanda.version ?? null,
+    data_hora:  ev?.start?.dateTime
+                  ? new Date(ev.start.dateTime).toISOString()
+                  : new Date().toISOString(),
     observacoes: ev?.description ?? "",
   };
 
-  // ── Operação atômica: tudo ou nada ────────────────────────
-  // Em retry de rede, a função detecta que a comanda já está fechada
-  // e retorna { ok: true, idempotent: true } sem re-executar nada.
   const { data, error } = await supabase.rpc("finalizar_comanda", {
     p_comanda_id: comanda.id,
     p_payload:    payload,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(parsearErroComanda(error.message));
 
-  // ── GCal: sistema externo — eventual consistency ───────────
-  // Executado fora da transação: falha aqui não reverte o banco.
-  // O evento fica sem "✅" mas a comanda está fechada corretamente.
+  // GCal: fora da transação — eventual consistency.
+  // Falha aqui não reverte o banco.
   if (comanda.gcal_event_id && ev) {
     const tituloFinal = ev.summary?.startsWith("✅")
       ? ev.summary
       : `✅ ${ev.summary ?? comanda.cliente_nome}`;
-
     atualizarEvento(comanda.gcal_event_id, {
       summary:     tituloFinal,
       start:       ev.start,

@@ -330,6 +330,7 @@ alter table assinaturas add column if not exists barbeiro_id integer references 
 alter table uso_beneficios add column if not exists estornado boolean not null default false;
 
 -- Comandas (colunas incrementais)
+alter table comandas add column if not exists version              integer not null default 1;
 alter table comandas add column if not exists cliente_nome         text;
 alter table comandas add column if not exists cliente_id           integer references clientes(id) on delete set null;
 alter table comandas add column if not exists barbeiro_id          integer references barbeiros(id) on delete set null;
