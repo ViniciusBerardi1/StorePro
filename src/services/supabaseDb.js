@@ -437,15 +437,18 @@ async function getComandaByGcalId(gcalEventId) {
   return data;
 }
 
-async function getComandasAbertas() {
-  const { data, error } = await supabase
+async function getComandasAbertas(page = 0, pageSize = 20) {
+  const from = page * pageSize;
+  const to   = from + pageSize - 1;
+  const { data, error, count } = await supabase
     .from("comandas")
-    .select("*")
+    .select("*", { count: "exact" })
     .eq("status", "aberta")
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(from, to);
   if (error) throw error;
-  return data ?? [];
+  return { data: data ?? [], total: count ?? 0 };
 }
 
 async function criarComanda(comanda) {
@@ -574,8 +577,19 @@ async function baixarEstoqueComanda(itens_bar = [], itens_loja = []) {
   for (const item of todos) {
     agregado[item.produto_id] = (agregado[item.produto_id] || 0) + (item.quantidade ?? 1);
   }
-  const ids = Object.keys(agregado).map(Number);
 
+  const items = Object.entries(agregado).map(([produto_id, quantidade]) => ({
+    produto_id: Number(produto_id),
+    quantidade,
+  }));
+
+  // Tenta o RPC atômico primeiro (stored procedure baixar_estoque_comanda)
+  const { error: rpcErr } = await supabase.rpc("baixar_estoque_comanda", { items });
+  if (!rpcErr) return;
+
+  // Fallback JS para bancos sem a stored procedure ainda deployada
+  console.warn("baixar_estoque_comanda RPC indisponível, usando fallback JS:", rpcErr.message);
+  const ids = items.map((i) => i.produto_id);
   const { data: produtos, error } = await supabase
     .from("produtos")
     .select("id, quantidade, nome, cor, foto, categoria_id")
@@ -663,26 +677,46 @@ async function upsertPlano(p) {
   return data;
 }
 
+let _assinaturasCache   = null;
+let _assinaturasCacheTs = 0;
+const ASSINATURAS_TTL   = 60_000; // 60s
+
+function invalidarCacheAssinaturas() {
+  _assinaturasCache   = null;
+  _assinaturasCacheTs = 0;
+}
+
 async function getAssinaturasAtivas() {
+  if (_assinaturasCache && Date.now() - _assinaturasCacheTs < ASSINATURAS_TTL) {
+    return _assinaturasCache;
+  }
+
   const { data, error } = await supabase
     .from("assinaturas")
     .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo, beneficios)")
     .eq("status", "ativa")
     .order("created_at", { ascending: false });
+
+  let result;
   if (error) {
-    // Fallback: migration not yet run, beneficios column may not exist
+    // Fallback: beneficios column may not exist yet
     const { data: data2, error: error2 } = await supabase
       .from("assinaturas")
       .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo)")
       .eq("status", "ativa")
       .order("created_at", { ascending: false });
     if (error2) throw new Error(error2.message);
-    return (data2 ?? []).map((a) => ({
+    result = (data2 ?? []).map((a) => ({
       ...a,
       planos: a.planos ? { ...a.planos, beneficios: [] } : null,
     }));
+  } else {
+    result = data ?? [];
   }
-  return data ?? [];
+
+  _assinaturasCache   = result;
+  _assinaturasCacheTs = Date.now();
+  return result;
 }
 
 async function getAssinaturasByCliente(clienteId) {
@@ -697,22 +731,23 @@ async function getAssinaturasByCliente(clienteId) {
 
 async function upsertAssinatura(a) {
   const { id, created_at, updated_at, planos: _p, ...payload } = a;
+  let data, error;
   if (id) {
-    const { data, error } = await supabase
+    ({ data, error } = await supabase
       .from("assinaturas")
       .update({ ...payload, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return data;
+      .single());
+  } else {
+    ({ data, error } = await supabase
+      .from("assinaturas")
+      .insert(payload)
+      .select()
+      .single());
   }
-  const { data, error } = await supabase
-    .from("assinaturas")
-    .insert(payload)
-    .select()
-    .single();
   if (error) throw new Error(error.message);
+  invalidarCacheAssinaturas();
   return data;
 }
 
@@ -837,6 +872,7 @@ export const db = {
   getPlanos,
   upsertPlano,
   getAssinaturasAtivas,
+  invalidarCacheAssinaturas,
   getAssinaturasByCliente,
   upsertAssinatura,
   getHorariosEspeciais,

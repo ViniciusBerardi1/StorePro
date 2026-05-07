@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
-import { atualizarEvento } from "../../services/googleCalendar";
 import ClienteSelector from "./ClienteSelector";
 import { calcularBeneficios, cicloAtual } from "../../services/beneficiosCalc";
+import { finalizarComanda } from "../../services/comandasService";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -620,6 +620,9 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   const [barbeiros, setBarbeiros]         = useState([]);
   const [assinaturasMap, setAssinaturasMap] = useState({});
   const [carregando, setCarregando]       = useState(true);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [totalComandas, setTotalComandas] = useState(0);
+  const paginaAtual = useRef(0);
   const [expandida, setExpandida]         = useState(null);
   const [criandoNova, setCriandoNova]     = useState(false);
   const [clienteSel, setClienteSel]       = useState(null);
@@ -631,9 +634,10 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro(null);
+    paginaAtual.current = 0;
     try {
-      const [cmds, svcs, bar, loja, cls, barbs, assinaturas] = await Promise.all([
-        db.getComandasAbertas(),
+      const [{ data: cmds, total }, svcs, bar, loja, cls, barbs, assinaturas] = await Promise.all([
+        db.getComandasAbertas(0),
         db.getServicos(),
         db.getProdutosByTipo("bar"),
         db.getProdutosByTipo("loja"),
@@ -642,6 +646,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         db.getAssinaturasAtivas().catch(() => []),
       ]);
       setComandas(cmds);
+      setTotalComandas(total);
       setServicos(svcs.filter((s) => s.ativo));
       setProdutosBar(bar);
       setProdutosLoja(loja);
@@ -657,6 +662,17 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       setCarregando(false);
     }
   }, []);
+
+  const carregarMais = async () => {
+    setCarregandoMais(true);
+    try {
+      const nextPage = paginaAtual.current + 1;
+      const { data: mais } = await db.getComandasAbertas(nextPage);
+      paginaAtual.current = nextPage;
+      setComandas((prev) => [...prev, ...mais]);
+    } catch { /* silently fail */ }
+    setCarregandoMais(false);
+  };
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -685,6 +701,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         { fonte: "avulsa", cliente_id: cmd.cliente_id ?? null, barbeiro_id: cmd.barbeiro_id ?? null }
       ).catch(() => {});
       setComandas((prev) => [cmd, ...prev]);
+      setTotalComandas((prev) => prev + 1);
       setClienteSel(null);
       setBarbeiroCriando(null);
       setCriandoNova(false);
@@ -698,98 +715,9 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   };
 
   const handleFinalizar = async (comanda, editorData) => {
-    const {
-      servicos: svcs, itens_bar, itens_loja,
-      valor_servicos, valor_bar, valor_loja, valor_total,
-      forma_pagamento, desconto, barbeiro_id,
-      beneficio_desconto, beneficios_aplicados, _benefRegistros,
-    } = editorData;
-
-    await db.baixarEstoqueComanda(itens_bar, itens_loja);
-
-    await db.updateComanda(comanda.id, {
-      servicos: svcs,
-      itens_bar,
-      itens_loja,
-      valor_servicos,
-      valor_bar,
-      valor_loja,
-      valor_total,
-      forma_pagamento,
-      desconto: desconto ?? null,
-      beneficio_desconto:   beneficio_desconto   ?? 0,
-      beneficios_aplicados: beneficios_aplicados ?? [],
-      ...(barbeiro_id != null ? { barbeiro_id } : {}),
-      status: "fechada",
-      closed_at: new Date().toISOString(),
-    });
-
-    if (_benefRegistros?.length > 0) {
-      await db.registrarUsoBeneficios(
-        _benefRegistros.map((r) => ({ ...r, comanda_id: comanda.id }))
-      );
-    }
-
-    db.registrarEventoComanda(
-      comanda.id, "fechada",
-      `Fechada — ${fmtValor(valor_total)} via ${forma_pagamento}`,
-      {
-        valor_total,
-        valor_servicos,
-        valor_bar,
-        valor_loja,
-        forma_pagamento,
-        desconto_calculado: desconto?.valor_calculado ?? 0,
-        beneficio_desconto: beneficio_desconto ?? 0,
-        servicos_count: svcs.length,
-      }
-    ).catch(() => {});
-
-    const barbPayload = barbeiro_id != null ? { barbeiro_id } : {};
-
-    if (comanda.gcal_event_id) {
-      const ev = comanda.evento_gcal;
-      const tituloFinal = ev?.summary
-        ? (ev.summary.startsWith("✅") ? ev.summary : `✅ ${ev.summary}`)
-        : `✅ ${comanda.cliente_nome}`;
-
-      await Promise.allSettled([
-        db.addAtendimento({
-          gcal_event_id: comanda.gcal_event_id,
-          data_hora: ev?.start?.dateTime ? new Date(ev.start.dateTime).toISOString() : new Date().toISOString(),
-          cliente_nome: comanda.cliente_nome,
-          ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
-          ...barbPayload,
-          servicos: svcs,
-          valor_total,
-          forma_pagamento,
-          status: "concluido",
-          observacoes: ev?.description || "",
-        }),
-        ...(ev
-          ? [atualizarEvento(comanda.gcal_event_id, {
-              summary: tituloFinal,
-              start: ev.start,
-              end: ev.end,
-              description: ev.description,
-              colorId: "2",
-            })]
-          : []),
-      ]);
-    } else {
-      await db.addAtendimento({
-        data_hora: new Date().toISOString(),
-        cliente_nome: comanda.cliente_nome,
-        ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
-        ...barbPayload,
-        servicos: svcs,
-        valor_total,
-        forma_pagamento,
-        status: "concluido",
-      });
-    }
-
+    await finalizarComanda(comanda, editorData);
     setComandas((prev) => prev.filter((c) => c.id !== comanda.id));
+    setTotalComandas((prev) => Math.max(0, prev - 1));
     setExpandida(null);
     onAtendimentoFinalizado?.();
   };
@@ -802,6 +730,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       { motivo: motivo ?? null }
     ).catch(() => {});
     setComandas((prev) => prev.filter((c) => c.id !== comanda.id));
+    setTotalComandas((prev) => Math.max(0, prev - 1));
     if (expandida === comanda.id) setExpandida(null);
   };
 
@@ -818,7 +747,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
           <h2 className="text-xl font-semibold text-gray-800">Comandas</h2>
           {!carregando && (
             <p className="text-xs text-gray-400 mt-0.5">
-              {comandas.length === 0 ? "Nenhuma comanda aberta" : `${comandas.length} aberta${comandas.length !== 1 ? "s" : ""}`}
+              {totalComandas === 0 ? "Nenhuma comanda aberta" : `${totalComandas} aberta${totalComandas !== 1 ? "s" : ""}`}
             </p>
           )}
         </motion.div>
@@ -922,6 +851,15 @@ export default function Comandas({ onAtendimentoFinalizado }) {
               assinaturaData={cmd.cliente_id ? (assinaturasMap[cmd.cliente_id] ?? null) : null}
             />
           ))}
+          {comandas.length < totalComandas && (
+            <button
+              onClick={carregarMais}
+              disabled={carregandoMais}
+              className="text-sm text-indigo-500 hover:text-indigo-600 disabled:opacity-50 py-2 text-center"
+            >
+              {carregandoMais ? "Carregando..." : `Ver mais (${totalComandas - comandas.length} restantes)`}
+            </button>
+          )}
         </div>
       )}
     </div>
