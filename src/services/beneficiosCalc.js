@@ -3,6 +3,11 @@ export function cicloAtual() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// Compara IDs tolerando string vs number (select HTML sempre retorna string)
+function sameId(a, b) {
+  return a != null && b != null && String(a) === String(b);
+}
+
 export function calcularBeneficios({
   plano,
   assinatura,
@@ -32,7 +37,7 @@ export function calcularBeneficios({
     if (usado >= limite) continue;
 
     if (b.tipo === "servico_gratis") {
-      const srv = servicosSelecionados.find((s) => s.id === b.servico_id);
+      const srv = servicosSelecionados.find((s) => sameId(s.id, b.servico_id));
       if (!srv) continue;
       const desconto = Math.round(Number(srv.valor || 0) * 100) / 100;
       if (desconto <= 0) continue;
@@ -54,7 +59,7 @@ export function calcularBeneficios({
         valor_desconto: desconto,
       });
     } else if (b.tipo === "desconto_servico") {
-      const srv = servicosSelecionados.find((s) => s.id === b.servico_id);
+      const srv = servicosSelecionados.find((s) => sameId(s.id, b.servico_id));
       if (!srv) continue;
       const base = Number(srv.valor || 0);
       const desconto = Math.round(base * (Number(b.percentual || 0) / 100) * 100) / 100;
@@ -99,11 +104,11 @@ export function calcularBeneficios({
       });
     } else if (b.tipo === "desconto_produto") {
       const matchLoja = itensLoja.find(
-        (i) => (b.produto_id && (i.id === b.produto_id || i.produto_id === b.produto_id)) ||
+        (i) => (b.produto_id && (sameId(i.id, b.produto_id) || sameId(i.produto_id, b.produto_id))) ||
                (b.produto_nome && i.nome?.toLowerCase() === b.produto_nome?.toLowerCase())
       );
       const matchBar = itensBar.find(
-        (i) => (b.produto_id && (i.id === b.produto_id || i.produto_id === b.produto_id)) ||
+        (i) => (b.produto_id && (sameId(i.id, b.produto_id) || sameId(i.produto_id, b.produto_id))) ||
                (b.produto_nome && i.nome?.toLowerCase() === b.produto_nome?.toLowerCase())
       );
       const item = matchLoja ?? matchBar;

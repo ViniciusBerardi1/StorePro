@@ -103,6 +103,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   }, [assinaturaData, servicos, servicosSel, produtosLoja, qtdLoja, produtosBar, qtdBar, usoBeneficios]);
 
   // Mapa servico_id → benefício disponível (para badges nos cards)
+  // Chave normalizada como String para evitar mismatch number vs string
   const beneficioDispPorServico = useMemo(() => {
     const usoMap = {};
     for (const uso of usoBeneficios) usoMap[uso.beneficio_id] = (usoMap[uso.beneficio_id] || 0) + uso.quantidade;
@@ -111,7 +112,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
       if (!b.servico_id) continue;
       const usado = usoMap[b.id] || 0;
       const limite = b.limite_mes != null ? Number(b.limite_mes) : Infinity;
-      if (usado < limite) map[b.servico_id] = b;
+      if (usado < limite) map[String(b.servico_id)] = b;
     }
     return map;
   }, [assinaturaData, usoBeneficios]);
@@ -279,7 +280,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
             ? <p className="col-span-2 text-sm text-gray-400 text-center py-6">Nenhum serviço cadastrado.</p>
             : servicos.map((s) => {
               const sel   = servicosSel.has(s.id);
-              const benef = beneficioDispPorServico[s.id];
+              const benef = beneficioDispPorServico[String(s.id)];
               const badgeLabel = benef
                 ? benef.tipo === "servico_gratis" ? "GRÁTIS" : `−${benef.percentual}%`
                 : null;
