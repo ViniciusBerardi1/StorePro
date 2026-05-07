@@ -785,8 +785,12 @@ async function getUsoBeneficios(assinaturaId, ciclo) {
 
 async function registrarUsoBeneficios(registros) {
   if (!registros || registros.length === 0) return;
-  const { error } = await supabase.from("uso_beneficios").insert(registros);
-  if (error) console.warn("registrarUsoBeneficios:", error.message); // non-fatal
+  // ignoreDuplicates: conflito no unique index (mesmo benefício na mesma comanda)
+  // é silenciado — idempotente em retries
+  const { error } = await supabase
+    .from("uso_beneficios")
+    .insert(registros, { ignoreDuplicates: true });
+  if (error) console.warn("registrarUsoBeneficios:", error.message);
 }
 
 // ─── Horários especiais ───────────────────────────────────────────

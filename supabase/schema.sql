@@ -166,6 +166,12 @@ create table if not exists uso_beneficios (
 create index if not exists idx_uso_beneficios_lookup
   on uso_beneficios(assinatura_id, ciclo);
 
+-- Impede que o mesmo benefício seja aplicado duas vezes na mesma comanda
+-- (ex: retry de rede em finalizarComanda). Partial index exclui estornos.
+create unique index if not exists idx_uso_beneficios_comanda_unico
+  on uso_beneficios(comanda_id, beneficio_id)
+  where comanda_id is not null and not estornado;
+
 -- ─── Comandas ────────────────────────────────────────────────
 create table if not exists comandas (
   id                   serial primary key,
@@ -285,6 +291,11 @@ create policy "anon_insert" on webhook_logs    for insert to anon with check (tr
 -- ALTER TABLE para bancos EXISTENTES (idempotentes, podem
 -- ser re-executados sem erro em bancos novos).
 -- ============================================================
+
+-- Uso de benefícios — unique index anti-duplicata por comanda
+create unique index if not exists idx_uso_beneficios_comanda_unico
+  on uso_beneficios(comanda_id, beneficio_id)
+  where comanda_id is not null and not estornado;
 
 -- Produtos
 alter table produtos add column if not exists tipo text default 'loja'
