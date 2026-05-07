@@ -12,6 +12,14 @@ function fmtHora(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
+function fmtTempo(iso) {
+  if (!iso) return "";
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return "agora";
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
 function resumoItens(cmd) {
   const partes = [];
   (cmd.servicos ?? []).forEach((s) => partes.push(s.nome));
@@ -75,9 +83,16 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const [desconto, setDesconto] = useState(() => comanda.desconto ?? { tipo: "percent", valor: "", alvo: "total" });
   const [finalizando, setFinalizando] = useState(false);
   const [removendo, setRemovendo]     = useState(false);
+  const [cancelando, setCancelando]   = useState(false);
+  const [motivoCancel, setMotivoCancel] = useState("");
   const [erro, setErro] = useState(null);
   const [statusSalvo, setStatusSalvo] = useState("idle");
+  const [eventos, setEventos] = useState([]);
   const isInitialRender = useRef(true);
+
+  useEffect(() => {
+    db.getEventosComanda(comanda.id).then(setEventos).catch(() => {});
+  }, [comanda.id]);
 
   // ─── Uso de benefícios do ciclo atual ───────────────────────────
   const [usoBeneficios, setUsoBeneficios] = useState([]);
@@ -207,9 +222,8 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   };
 
   const handleRemover = async () => {
-    if (!window.confirm("Cancelar esta comanda?")) return;
     setRemovendo(true);
-    try { await onRemover(); } catch { setRemovendo(false); }
+    try { await onRemover(motivoCancel || null); } catch { setRemovendo(false); }
   };
 
   return (
@@ -458,20 +472,65 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
         <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</div>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={handleRemover}
-          disabled={removendo}
-          className="px-4 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-50 transition-colors disabled:opacity-50"
-        >{removendo ? "..." : "Cancelar comanda"}</button>
-        <button
-          onClick={handleFinalizar}
-          disabled={finalizando || !hasItems}
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
-        >
-          {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar — ${fmtValor(total)}` : "✅ Fechar Comanda"}
-        </button>
-      </div>
+      {/* Cancelamento com motivo */}
+      {cancelando ? (
+        <div className="flex flex-col gap-2 bg-red-50 border border-red-100 rounded-xl p-3">
+          <p className="text-xs font-semibold text-red-700">Confirmar cancelamento</p>
+          <input
+            type="text"
+            value={motivoCancel}
+            onChange={(e) => setMotivoCancel(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleRemover()}
+            placeholder="Motivo (opcional — ex: cliente desmarcou)"
+            className="border border-red-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-200 bg-white"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setCancelando(false); setMotivoCancel(""); }}
+              className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors"
+            >Voltar</button>
+            <button
+              onClick={handleRemover}
+              disabled={removendo}
+              className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
+            >{removendo ? "Cancelando..." : "Confirmar cancelamento"}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCancelando(true)}
+            disabled={removendo}
+            className="px-4 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-50 transition-colors disabled:opacity-50"
+          >Cancelar comanda</button>
+          <button
+            onClick={handleFinalizar}
+            disabled={finalizando || !hasItems}
+            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
+          >
+            {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar — ${fmtValor(total)}` : "✅ Fechar Comanda"}
+          </button>
+        </div>
+      )}
+
+      {/* Timeline de eventos */}
+      {eventos.length > 0 && (
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Histórico</p>
+          <div className="flex flex-col gap-1.5">
+            {eventos.map((ev) => (
+              <div key={ev.id} className="flex items-start gap-2 text-xs">
+                <span className="shrink-0 mt-0.5 text-sm">
+                  {ev.tipo === "criada" ? "🆕" : ev.tipo === "fechada" ? "✅" : ev.tipo === "cancelada" ? "❌" : "📝"}
+                </span>
+                <span className="flex-1 text-gray-600">{ev.descricao}</span>
+                <span className="shrink-0 text-gray-400 tabular-nums">{fmtTempo(ev.created_at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -620,6 +679,11 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         valor_total: 0,
       };
       const cmd = await db.criarComanda(payload);
+      db.registrarEventoComanda(
+        cmd.id, "criada",
+        `Comanda criada para ${cmd.cliente_nome}`,
+        { fonte: "avulsa", cliente_id: cmd.cliente_id ?? null, barbeiro_id: cmd.barbeiro_id ?? null }
+      ).catch(() => {});
       setComandas((prev) => [cmd, ...prev]);
       setClienteSel(null);
       setBarbeiroCriando(null);
@@ -657,6 +721,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       beneficios_aplicados: beneficios_aplicados ?? [],
       ...(barbeiro_id != null ? { barbeiro_id } : {}),
       status: "fechada",
+      closed_at: new Date().toISOString(),
     });
 
     if (_benefRegistros?.length > 0) {
@@ -664,6 +729,21 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         _benefRegistros.map((r) => ({ ...r, comanda_id: comanda.id }))
       );
     }
+
+    db.registrarEventoComanda(
+      comanda.id, "fechada",
+      `Fechada — ${fmtValor(valor_total)} via ${forma_pagamento}`,
+      {
+        valor_total,
+        valor_servicos,
+        valor_bar,
+        valor_loja,
+        forma_pagamento,
+        desconto_calculado: desconto?.valor_calculado ?? 0,
+        beneficio_desconto: beneficio_desconto ?? 0,
+        servicos_count: svcs.length,
+      }
+    ).catch(() => {});
 
     const barbPayload = barbeiro_id != null ? { barbeiro_id } : {};
 
@@ -714,8 +794,13 @@ export default function Comandas({ onAtendimentoFinalizado }) {
     onAtendimentoFinalizado?.();
   };
 
-  const handleRemover = async (comanda) => {
-    await db.deleteComanda(comanda.id);
+  const handleRemover = async (comanda, motivo = null) => {
+    await db.deleteComanda(comanda.id, motivo);
+    db.registrarEventoComanda(
+      comanda.id, "cancelada",
+      motivo ? `Cancelada: ${motivo}` : "Cancelada sem motivo informado",
+      { motivo: motivo ?? null }
+    ).catch(() => {});
     setComandas((prev) => prev.filter((c) => c.id !== comanda.id));
     if (expandida === comanda.id) setExpandida(null);
   };
@@ -832,7 +917,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
               produtosBar={produtosBar}
               produtosLoja={produtosLoja}
               onFinalizar={(data) => handleFinalizar(cmd, data)}
-              onRemover={() => handleRemover(cmd)}
+              onRemover={(motivo) => handleRemover(cmd, motivo)}
               onAutosave={handleAutosave}
               assinaturaData={cmd.cliente_id ? (assinaturasMap[cmd.cliente_id] ?? null) : null}
             />

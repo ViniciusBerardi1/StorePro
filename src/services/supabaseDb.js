@@ -442,6 +442,7 @@ async function getComandasAbertas() {
     .from("comandas")
     .select("*")
     .eq("status", "aberta")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -476,13 +477,48 @@ async function criarComanda(comanda) {
 }
 
 async function updateComanda(id, updates) {
-  const { error } = await supabase.from("comandas").update(updates).eq("id", id);
+  const { error } = await supabase
+    .from("comandas")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) throw error;
 }
 
-async function deleteComanda(id) {
-  const { error } = await supabase.from("comandas").delete().eq("id", id);
+async function deleteComanda(id, motivo = null) {
+  // Estornar uso de benefícios vinculados a esta comanda
+  await supabase
+    .from("uso_beneficios")
+    .update({ estornado: true })
+    .eq("comanda_id", id)
+    .catch(() => {});
+
+  const { error } = await supabase
+    .from("comandas")
+    .update({
+      status: "cancelada",
+      deleted_at: new Date().toISOString(),
+      deleted_reason: motivo || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
   if (error) throw error;
+}
+
+async function registrarEventoComanda(comandaId, tipo, descricao, payload = {}) {
+  const { error } = await supabase
+    .from("comanda_eventos")
+    .insert({ comanda_id: comandaId, tipo, descricao, payload });
+  if (error) console.warn("registrarEventoComanda:", error.message);
+}
+
+async function getEventosComanda(comandaId) {
+  const { data, error } = await supabase
+    .from("comanda_eventos")
+    .select("*")
+    .eq("comanda_id", comandaId)
+    .order("created_at", { ascending: true });
+  if (error) return [];
+  return data ?? [];
 }
 
 async function saveComanda(comanda) {
@@ -707,7 +743,8 @@ async function getUsoBeneficios(assinaturaId, ciclo) {
     .from("uso_beneficios")
     .select("*")
     .eq("assinatura_id", assinaturaId)
-    .eq("ciclo", ciclo);
+    .eq("ciclo", ciclo)
+    .eq("estornado", false);
   if (error) return []; // table may not exist yet (migration pending)
   return data ?? [];
 }
@@ -808,6 +845,8 @@ export const db = {
   getAssinaturaAtivaByCliente,
   getUsoBeneficios,
   registrarUsoBeneficios,
+  registrarEventoComanda,
+  getEventosComanda,
   limparDadosOperacionais,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],

@@ -381,7 +381,7 @@ function AppPrincipal() {
       const cliente_id = clienteMatch?.id ?? null;
 
       const valorServicos = servicosPreSel.reduce((sum, s) => sum + Number(s.valor), 0);
-      await db.criarComanda({
+      const cmd = await db.criarComanda({
         gcal_event_id: evento.id,
         cliente_nome: clienteNome,
         ...(cliente_id ? { cliente_id } : {}),
@@ -402,6 +402,13 @@ function AppPrincipal() {
           colorId: evento.colorId,
         },
       });
+      if (cmd?.id) {
+        db.registrarEventoComanda(
+          cmd.id, "criada",
+          `Comanda criada via Agenda para ${clienteNome}`,
+          { fonte: "agenda", gcal_event_id: evento.id, cliente_id: cliente_id ?? null, barbeiro_id: barbeiro_id ?? null }
+        ).catch(() => {});
+      }
     } catch (e) {
       console.error("Erro ao criar comanda:", e);
     }
