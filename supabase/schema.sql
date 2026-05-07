@@ -234,22 +234,52 @@ create table if not exists horarios_especiais (
 );
 
 -- ─── Row Level Security ───────────────────────────────────────
--- Desabilitado para desenvolvimento. Habilite antes de ir para produção.
-alter table categorias        disable row level security;
-alter table produtos          disable row level security;
-alter table clientes          disable row level security;
-alter table servicos          disable row level security;
-alter table barbeiros         disable row level security;
-alter table configuracoes     disable row level security;
-alter table atendimentos      disable row level security;
-alter table historico         disable row level security;
-alter table planos            disable row level security;
-alter table assinaturas       disable row level security;
-alter table uso_beneficios    disable row level security;
-alter table comandas          disable row level security;
-alter table comanda_eventos   disable row level security;
-alter table webhook_logs      disable row level security;
-alter table horarios_especiais disable row level security;
+-- App single-tenant sem Supabase Auth: toda operação usa a anon key.
+-- As políticas permitem CRUD completo ao role 'anon' para tabelas
+-- operacionais, e apenas SELECT+INSERT para tabelas de auditoria
+-- (historico, comanda_eventos, webhook_logs — imutáveis por design).
+-- A service_role key nunca aparece no frontend; RLS é contornado só
+-- internamente via Edge Functions quando necessário.
+
+-- ── Tabelas operacionais (CRUD completo para anon) ─────────────
+alter table categorias         enable row level security;
+alter table produtos           enable row level security;
+alter table clientes           enable row level security;
+alter table servicos           enable row level security;
+alter table barbeiros          enable row level security;
+alter table configuracoes      enable row level security;
+alter table atendimentos       enable row level security;
+alter table planos             enable row level security;
+alter table assinaturas        enable row level security;
+alter table uso_beneficios     enable row level security;
+alter table comandas           enable row level security;
+alter table horarios_especiais enable row level security;
+
+create policy "anon_all" on categorias         for all to anon using (true) with check (true);
+create policy "anon_all" on produtos           for all to anon using (true) with check (true);
+create policy "anon_all" on clientes           for all to anon using (true) with check (true);
+create policy "anon_all" on servicos           for all to anon using (true) with check (true);
+create policy "anon_all" on barbeiros          for all to anon using (true) with check (true);
+create policy "anon_all" on configuracoes      for all to anon using (true) with check (true);
+create policy "anon_all" on atendimentos       for all to anon using (true) with check (true);
+create policy "anon_all" on planos             for all to anon using (true) with check (true);
+create policy "anon_all" on assinaturas        for all to anon using (true) with check (true);
+create policy "anon_all" on uso_beneficios     for all to anon using (true) with check (true);
+create policy "anon_all" on comandas           for all to anon using (true) with check (true);
+create policy "anon_all" on horarios_especiais for all to anon using (true) with check (true);
+
+-- ── Tabelas de auditoria (apenas SELECT + INSERT para anon) ────
+-- Registros nunca são atualizados nem deletados pelo frontend.
+alter table historico       enable row level security;
+alter table comanda_eventos enable row level security;
+alter table webhook_logs    enable row level security;
+
+create policy "anon_select" on historico       for select to anon using (true);
+create policy "anon_insert" on historico       for insert to anon with check (true);
+create policy "anon_select" on comanda_eventos for select to anon using (true);
+create policy "anon_insert" on comanda_eventos for insert to anon with check (true);
+create policy "anon_select" on webhook_logs    for select to anon using (true);
+create policy "anon_insert" on webhook_logs    for insert to anon with check (true);
 
 -- ============================================================
 -- ALTER TABLE para bancos EXISTENTES (idempotentes, podem
@@ -371,3 +401,95 @@ begin
   end loop;
 end;
 $$;
+
+-- ─── RLS para bancos EXISTENTES (idempotente) ───────────────────
+-- Habilita RLS e cria políticas para o role anon.
+-- "drop policy if exists" garante idempotência ao re-executar.
+
+-- Tabelas operacionais
+alter table categorias         enable row level security;
+alter table produtos           enable row level security;
+alter table clientes           enable row level security;
+alter table servicos           enable row level security;
+alter table barbeiros          enable row level security;
+alter table configuracoes      enable row level security;
+alter table atendimentos       enable row level security;
+alter table planos             enable row level security;
+alter table assinaturas        enable row level security;
+alter table uso_beneficios     enable row level security;
+alter table comandas           enable row level security;
+alter table horarios_especiais enable row level security;
+
+do $$ begin
+  -- helper: cria policy "anon_all" se ainda não existir
+  declare t text;
+  begin
+    foreach t in array array[
+      'categorias','produtos','clientes','servicos','barbeiros',
+      'configuracoes','atendimentos','planos','assinaturas',
+      'uso_beneficios','comandas','horarios_especiais'
+    ] loop
+      execute format(
+        'drop policy if exists anon_all on %I; '||
+        'create policy anon_all on %I for all to anon using (true) with check (true)',
+        t, t
+      );
+    end loop;
+  end;
+end $$;
+
+-- Tabelas de auditoria (somente SELECT + INSERT)
+alter table historico       enable row level security;
+alter table comanda_eventos enable row level security;
+alter table webhook_logs    enable row level security;
+
+do $$ begin
+  declare t text;
+  begin
+    foreach t in array array['historico','comanda_eventos','webhook_logs'] loop
+      execute format(
+        'drop policy if exists anon_select on %I; '||
+        'create policy anon_select on %I for select to anon using (true); '||
+        'drop policy if exists anon_insert on %I; '||
+        'create policy anon_insert on %I for insert to anon with check (true)',
+        t, t, t, t
+      );
+    end loop;
+  end;
+end $$;
+
+-- ─── Trigger item 13: validação de valor_total ao fechar comanda ─
+create or replace function validar_fechamento_comanda()
+returns trigger language plpgsql as $$
+declare v_soma numeric;
+begin
+  -- Só dispara ao transitar para 'fechada'
+  if NEW.status = 'fechada' and (OLD.status is distinct from 'fechada') then
+    if coalesce(NEW.valor_total, -1) < 0 then
+      raise exception 'valor_total não pode ser negativo';
+    end if;
+
+    v_soma := coalesce(NEW.valor_servicos, 0)
+            + coalesce(NEW.valor_bar, 0)
+            + coalesce(NEW.valor_loja, 0);
+
+    -- Total nunca pode superar a soma bruta (descontos só reduzem)
+    if NEW.valor_total > round(v_soma + 0.01, 2) then
+      raise exception
+        'valor_total (%) superior à soma dos componentes (%). Possível manipulação.',
+        NEW.valor_total, v_soma;
+    end if;
+
+    if NEW.forma_pagamento is null then
+      raise exception 'forma_pagamento obrigatória ao fechar comanda';
+    end if;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_validar_fechamento_comanda on comandas;
+create trigger trg_validar_fechamento_comanda
+  before update on comandas
+  for each row
+  execute function validar_fechamento_comanda();
