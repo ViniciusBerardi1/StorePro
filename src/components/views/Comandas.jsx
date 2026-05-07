@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { atualizarEvento } from "../../services/googleCalendar";
 import ClienteSelector from "./ClienteSelector";
+import { calcularBeneficios, cicloAtual } from "../../services/beneficiosCalc";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -75,9 +76,54 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const [finalizando, setFinalizando] = useState(false);
   const [removendo, setRemovendo]     = useState(false);
   const [erro, setErro] = useState(null);
-  const [statusSalvo, setStatusSalvo] = useState("idle"); // idle | saving | saved | error
+  const [statusSalvo, setStatusSalvo] = useState("idle");
   const isInitialRender = useRef(true);
 
+  // ─── Assinatura do cliente ───────────────────────────────────────
+  const [assinaturaAtiva, setAssinaturaAtiva] = useState(null);
+  const [usoBeneficios, setUsoBeneficios]     = useState([]);
+
+  useEffect(() => {
+    if (!comanda.cliente_id) return;
+    db.getAssinaturaAtivaByCliente(comanda.cliente_id)
+      .then(async (ass) => {
+        setAssinaturaAtiva(ass);
+        if (ass?.id) {
+          const uso = await db.getUsoBeneficios(ass.id, cicloAtual());
+          setUsoBeneficios(uso);
+        }
+      })
+      .catch(console.error);
+  }, [comanda.cliente_id]);
+
+  // ─── Cálculo de benefícios ──────────────────────────────────────
+  const { beneficioDesconto, beneficiosAplicados, benefRegistros } = useMemo(() => {
+    if (!assinaturaAtiva) return { beneficioDesconto: 0, beneficiosAplicados: [], benefRegistros: [] };
+    return calcularBeneficios({
+      plano: assinaturaAtiva.planos,
+      assinatura: assinaturaAtiva,
+      servicosSelecionados: servicos.filter((s) => servicosSel.has(s.id)),
+      itensLoja: produtosLoja.filter((p) => qtdLoja[p.id]).map((p) => ({ ...p, quantidade: qtdLoja[p.id] })),
+      itensBar:  produtosBar.filter((p) => qtdBar[p.id]).map((p) => ({ ...p, quantidade: qtdBar[p.id] })),
+      usoBeneficios,
+    });
+  }, [assinaturaAtiva, servicos, servicosSel, produtosLoja, qtdLoja, produtosBar, qtdBar, usoBeneficios]);
+
+  // Mapa servico_id → benefício disponível (para badges nos cards)
+  const beneficioDispPorServico = useMemo(() => {
+    const usoMap = {};
+    for (const uso of usoBeneficios) usoMap[uso.beneficio_id] = (usoMap[uso.beneficio_id] || 0) + uso.quantidade;
+    const map = {};
+    for (const b of assinaturaAtiva?.planos?.beneficios ?? []) {
+      if (!b.servico_id) continue;
+      const usado = usoMap[b.id] || 0;
+      const limite = b.limite_mes != null ? Number(b.limite_mes) : Infinity;
+      if (usado < limite) map[b.servico_id] = b;
+    }
+    return map;
+  }, [assinaturaAtiva, usoBeneficios]);
+
+  // ─── Totais ─────────────────────────────────────────────────────
   const toggleServico = (id) =>
     setServicosSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
@@ -93,7 +139,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const totalLoja = produtosLoja.filter((p) => qtdLoja[p.id]).reduce((a, p) => a + Number(p.preco_venda || 0) * qtdLoja[p.id], 0);
   const subtotal  = totalServicos + totalBar + totalLoja;
   const valorDesconto = calcDesconto(desconto, totalServicos, totalBar, totalLoja);
-  const total    = Math.max(0, subtotal - valorDesconto);
+  const total    = Math.max(0, subtotal - beneficioDesconto - valorDesconto);
   const hasItems = servicosSel.size > 0 || Object.keys(qtdBar).length > 0 || Object.keys(qtdLoja).length > 0;
 
   const lista  = tab === "bar" ? produtosBar : produtosLoja;
@@ -101,8 +147,6 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   const setter = tab === "bar" ? setQtdBar   : setQtdLoja;
 
   // ─── Autosave (debounce 600 ms) ─────────────────────────────────
-  // Persiste qualquer mudança de itens / desconto / pagamento na DB
-  // enquanto a comanda está aberta, sem precisar finalizar.
   useEffect(() => {
     if (isInitialRender.current) {
       isInitialRender.current = false;
@@ -124,6 +168,8 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
         valor_total:    total,
         forma_pagamento: formaPagamento,
         desconto: valorDesconto > 0 ? { ...desconto, valor_calculado: valorDesconto } : null,
+        beneficio_desconto: beneficioDesconto,
+        beneficios_aplicados: beneficiosAplicados,
       };
       try {
         setStatusSalvo("saving");
@@ -138,7 +184,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicosSel, qtdBar, qtdLoja, formaPagamento, desconto.tipo, desconto.valor, desconto.alvo]);
+  }, [servicosSel, qtdBar, qtdLoja, formaPagamento, desconto.tipo, desconto.valor, desconto.alvo, beneficioDesconto]);
 
   const handleFinalizar = async () => {
     if (!formaPagamento) return setErro("Selecione a forma de pagamento.");
@@ -156,6 +202,9 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
         forma_pagamento: formaPagamento,
         desconto: valorDesconto > 0 ? { ...desconto, valor_calculado: valorDesconto } : null,
         barbeiro_id: barbeiroId,
+        beneficio_desconto:   beneficioDesconto,
+        beneficios_aplicados: beneficiosAplicados,
+        _benefRegistros:      benefRegistros,
       });
     } catch (e) {
       setErro(e.message);
@@ -187,6 +236,22 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           </select>
         </div>
       )}
+
+      {/* Badge de assinante */}
+      {assinaturaAtiva && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+          <span className="text-sm">👑</span>
+          <span className="text-xs font-medium text-amber-700">
+            Assinante {assinaturaAtiva.planos?.nome}
+          </span>
+          {(assinaturaAtiva.planos?.beneficios ?? []).length > 0 && (
+            <span className="ml-auto text-[10px] text-amber-500">
+              {(assinaturaAtiva.planos.beneficios).length} benefício{(assinaturaAtiva.planos.beneficios).length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Tabs + indicador autosave */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex gap-2 flex-wrap">
@@ -220,22 +285,42 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           servicos.length === 0
             ? <p className="col-span-2 text-sm text-gray-400 text-center py-6">Nenhum serviço cadastrado.</p>
             : servicos.map((s) => {
-              const sel = servicosSel.has(s.id);
+              const sel   = servicosSel.has(s.id);
+              const benef = beneficioDispPorServico[s.id];
+              const badgeLabel = benef
+                ? benef.tipo === "servico_gratis" ? "GRÁTIS" : `−${benef.percentual}%`
+                : null;
               return (
                 <button
                   key={s.id}
                   onClick={() => toggleServico(s.id)}
                   className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all
-                    ${sel ? "bg-indigo-50 border-indigo-200" : "bg-white border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/40"}`}
+                    ${sel
+                      ? benef ? "bg-green-50 border-green-200" : "bg-indigo-50 border-indigo-200"
+                      : benef ? "bg-white border-green-100 hover:border-green-200 hover:bg-green-50/40"
+                              : "bg-white border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/40"}`}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center
-                      ${sel ? "bg-indigo-500 border-indigo-500" : "border-gray-300"}`}>
+                      ${sel
+                        ? benef ? "bg-green-500 border-green-500" : "bg-indigo-500 border-indigo-500"
+                        : "border-gray-300"}`}>
                       {sel && <span className="text-white text-[10px]">✓</span>}
                     </div>
-                    <span className={`text-sm font-medium ${sel ? "text-indigo-700" : "text-gray-700"}`}>{s.nome}</span>
+                    <span className={`text-sm font-medium truncate
+                      ${sel ? benef ? "text-green-700" : "text-indigo-700" : "text-gray-700"}`}>
+                      {s.nome}
+                    </span>
+                    {badgeLabel && (
+                      <span className="text-[10px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full shrink-0">
+                        {badgeLabel}
+                      </span>
+                    )}
                   </div>
-                  <span className={`text-sm font-semibold shrink-0 ${sel ? "text-indigo-600" : "text-gray-400"}`}>{fmtValor(s.valor)}</span>
+                  <span className={`text-sm font-semibold shrink-0 ml-2
+                    ${sel ? benef ? "text-green-600" : "text-indigo-600" : "text-gray-400"}`}>
+                    {fmtValor(s.valor)}
+                  </span>
                 </button>
               );
             })
@@ -293,10 +378,10 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
         )}
       </div>
 
-      {/* Desconto */}
+      {/* Desconto manual */}
       {hasItems && (
         <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex flex-col gap-2.5">
-          <p className="text-xs font-semibold text-orange-700">Desconto (opcional)</p>
+          <p className="text-xs font-semibold text-orange-700">Desconto manual (opcional)</p>
           <div className="flex gap-1.5 flex-wrap">
             {ALVOS_DESCONTO
               .filter((a) => a.id === "total" || (a.id === "servicos" && totalServicos > 0) || (a.id === "bar" && totalBar > 0) || (a.id === "loja" && totalLoja > 0))
@@ -335,16 +420,22 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           {totalServicos > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Serviços ({servicosSel.size})</span><span className="font-medium text-gray-700">{fmtValor(totalServicos)}</span></div>}
           {totalBar  > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Bar 🍺</span><span className="font-medium text-gray-700">{fmtValor(totalBar)}</span></div>}
           {totalLoja > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Loja 🛍️</span><span className="font-medium text-gray-700">{fmtValor(totalLoja)}</span></div>}
+          {(beneficioDesconto > 0 || valorDesconto > 0) && (
+            <div className="flex justify-between text-xs text-gray-400 border-t border-gray-200 pt-1.5 mt-0.5">
+              <span>Subtotal</span><span>{fmtValor(subtotal)}</span>
+            </div>
+          )}
+          {beneficioDesconto > 0 && (
+            <div className="flex justify-between text-xs font-medium text-green-600">
+              <span>👑 Benefícios do plano</span>
+              <span>−{fmtValor(beneficioDesconto)}</span>
+            </div>
+          )}
           {valorDesconto > 0 && (
-            <>
-              <div className="flex justify-between text-xs text-gray-400 border-t border-gray-200 pt-1.5 mt-0.5">
-                <span>Subtotal</span><span>{fmtValor(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-xs font-medium text-orange-500">
-                <span>Desconto ({labelDesconto(desconto)})</span>
-                <span>−{fmtValor(valorDesconto)}</span>
-              </div>
-            </>
+            <div className="flex justify-between text-xs font-medium text-orange-500">
+              <span>Desconto ({labelDesconto(desconto)})</span>
+              <span>−{fmtValor(valorDesconto)}</span>
+            </div>
           )}
           <div className="flex justify-between text-sm font-bold text-gray-800 border-t border-gray-200 pt-1.5 mt-0.5">
             <span>Total</span><span>{fmtValor(total)}</span>
@@ -384,7 +475,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           disabled={finalizando || !hasItems}
           className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
         >
-          {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar — ${fmtValor(total)}${valorDesconto > 0 ? ` (−${fmtValor(valorDesconto)})` : ""}` : "✅ Fechar Comanda"}
+          {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar — ${fmtValor(total)}` : "✅ Fechar Comanda"}
         </button>
       </div>
     </div>
@@ -535,7 +626,12 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   };
 
   const handleFinalizar = async (comanda, editorData) => {
-    const { servicos: svcs, itens_bar, itens_loja, valor_servicos, valor_bar, valor_loja, valor_total, forma_pagamento, desconto, barbeiro_id } = editorData;
+    const {
+      servicos: svcs, itens_bar, itens_loja,
+      valor_servicos, valor_bar, valor_loja, valor_total,
+      forma_pagamento, desconto, barbeiro_id,
+      beneficio_desconto, beneficios_aplicados, _benefRegistros,
+    } = editorData;
 
     await db.baixarEstoqueComanda(itens_bar, itens_loja);
 
@@ -549,9 +645,17 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       valor_total,
       forma_pagamento,
       desconto: desconto ?? null,
+      beneficio_desconto:   beneficio_desconto   ?? 0,
+      beneficios_aplicados: beneficios_aplicados ?? [],
       ...(barbeiro_id != null ? { barbeiro_id } : {}),
       status: "fechada",
     });
+
+    if (_benefRegistros?.length > 0) {
+      await db.registrarUsoBeneficios(
+        _benefRegistros.map((r) => ({ ...r, comanda_id: comanda.id }))
+      );
+    }
 
     const barbPayload = barbeiro_id != null ? { barbeiro_id } : {};
 

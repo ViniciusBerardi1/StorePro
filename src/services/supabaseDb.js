@@ -668,6 +668,34 @@ async function upsertAssinatura(a) {
   return data;
 }
 
+// ─── Benefícios de assinatura ────────────────────────────────────
+async function getAssinaturaAtivaByCliente(clienteId) {
+  const { data, error } = await supabase
+    .from("assinaturas")
+    .select("*, planos(id, nome, valor, intervalo, beneficios)")
+    .eq("cliente_id", clienteId)
+    .eq("status", "ativa")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ?? null;
+}
+
+async function getUsoBeneficios(assinaturaId, ciclo) {
+  const { data, error } = await supabase
+    .from("uso_beneficios")
+    .select("*")
+    .eq("assinatura_id", assinaturaId)
+    .eq("ciclo", ciclo);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function registrarUsoBeneficios(registros) {
+  if (!registros || registros.length === 0) return;
+  const { error } = await supabase.from("uso_beneficios").insert(registros);
+  if (error) throw new Error(error.message);
+}
+
 // ─── Horários especiais ───────────────────────────────────────────
 async function getHorariosEspeciais() {
   const { data, error } = await supabase.from("horarios_especiais").select("*").order("data");
@@ -755,6 +783,9 @@ export const db = {
   getHorariosEspeciais,
   upsertHorarioEspecial,
   deleteHorarioEspecial,
+  getAssinaturaAtivaByCliente,
+  getUsoBeneficios,
+  registrarUsoBeneficios,
   limparDadosOperacionais,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],

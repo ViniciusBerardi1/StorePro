@@ -156,9 +156,30 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
                 </span>
               )}
             </div>
+
+            {/* Benefícios do plano */}
+            {(ativa.planos?.beneficios ?? []).length > 0 && (
+              <div className="mt-2 pt-2 border-t border-amber-100">
+                <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-1.5">
+                  Benefícios incluídos
+                </p>
+                <div className="flex flex-col gap-1">
+                  {ativa.planos.beneficios.map((b) => (
+                    <div key={b.id} className="flex items-center gap-1.5 text-xs text-amber-700">
+                      <span className="text-green-500 shrink-0">✓</span>
+                      <span>{b.descricao || b.servico_nome || `${b.percentual}% de desconto`}</span>
+                      {b.limite_mes && (
+                        <span className="text-amber-400 ml-auto shrink-0">{b.limite_mes}×/mês</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={() => handleCancelar(ativa.id)}
-              className="text-xs text-red-400 hover:text-red-600 text-left px-1 transition-colors"
+              className="text-xs text-red-400 hover:text-red-600 text-left px-1 transition-colors mt-1"
             >
               Cancelar assinatura
             </button>
@@ -303,6 +324,117 @@ const INTERVALOS = [
   { value: "anual",       label: "Anual"       },
 ];
 
+const TIPOS_BENEFICIO = [
+  { id: "servico_gratis",   label: "Serviço grátis"           },
+  { id: "desconto_servico", label: "Desconto em serviço"      },
+  { id: "desconto_geral",   label: "Desconto geral (serviços)" },
+  { id: "desconto_produto", label: "Desconto em produto"      },
+];
+
+const LABEL_TIPO = {
+  servico_gratis:   "Grátis",
+  desconto_servico: "% Serviço",
+  desconto_geral:   "% Geral",
+  desconto_produto: "% Produto",
+};
+
+function BeneficioForm({ servicos, onAdicionar, onCancelar }) {
+  const [b, setB] = useState({
+    tipo: "servico_gratis",
+    servico_id: "",
+    percentual: "",
+    limite_mes: "1",
+    produto_nome: "",
+    descricao: "",
+  });
+
+  const set = (k) => (e) => setB((prev) => ({ ...prev, [k]: e.target.value }));
+
+  const handleAdd = () => {
+    if (!b.tipo) return;
+    if ((b.tipo === "servico_gratis" || b.tipo === "desconto_servico") && !b.servico_id) return;
+    if ((b.tipo === "desconto_servico" || b.tipo === "desconto_geral" || b.tipo === "desconto_produto") && !b.percentual) return;
+    const srv = servicos.find((s) => s.id === Number(b.servico_id));
+    onAdicionar({
+      id: crypto.randomUUID(),
+      tipo: b.tipo,
+      servico_id: srv ? srv.id : undefined,
+      servico_nome: srv ? srv.nome : undefined,
+      percentual: b.percentual ? Number(b.percentual) : undefined,
+      limite_mes: b.limite_mes ? Number(b.limite_mes) : 1,
+      produto_nome: b.produto_nome || undefined,
+      descricao: b.descricao || undefined,
+    });
+  };
+
+  return (
+    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex flex-col gap-2.5 mt-2">
+      <div>
+        <label className="text-[10px] font-semibold text-amber-700 mb-1 block">Tipo</label>
+        <select value={b.tipo} onChange={set("tipo")}
+          className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300">
+          {TIPOS_BENEFICIO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </div>
+
+      {(b.tipo === "servico_gratis" || b.tipo === "desconto_servico") && (
+        <div>
+          <label className="text-[10px] font-semibold text-amber-700 mb-1 block">Serviço *</label>
+          <select value={b.servico_id} onChange={set("servico_id")}
+            className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300">
+            <option value="">Selecione...</option>
+            {servicos.map((s) => <option key={s.id} value={s.id}>{s.nome} — {BRL(s.valor)}</option>)}
+          </select>
+        </div>
+      )}
+
+      {b.tipo === "desconto_produto" && (
+        <div>
+          <label className="text-[10px] font-semibold text-amber-700 mb-1 block">Nome do produto</label>
+          <input type="text" value={b.produto_nome} onChange={set("produto_nome")}
+            placeholder="Ex: Cerveja Artesanal"
+            className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300" />
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        {(b.tipo === "desconto_servico" || b.tipo === "desconto_geral" || b.tipo === "desconto_produto") && (
+          <div>
+            <label className="text-[10px] font-semibold text-amber-700 mb-1 block">Desconto % *</label>
+            <input type="number" min="1" max="100" value={b.percentual} onChange={set("percentual")}
+              placeholder="Ex: 50"
+              className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300" />
+          </div>
+        )}
+        <div>
+          <label className="text-[10px] font-semibold text-amber-700 mb-1 block">Limite/mês</label>
+          <input type="number" min="1" value={b.limite_mes} onChange={set("limite_mes")}
+            placeholder="1"
+            className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300" />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[10px] font-semibold text-amber-700 mb-1 block">Descrição (opcional)</label>
+        <input type="text" value={b.descricao} onChange={set("descricao")}
+          placeholder="Ex: 1 corte grátis por mês"
+          className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300" />
+      </div>
+
+      <div className="flex gap-2">
+        <button type="button" onClick={onCancelar}
+          className="flex-1 border border-amber-200 py-1.5 rounded-lg text-xs text-amber-600 hover:bg-amber-100 transition-colors">
+          Cancelar
+        </button>
+        <button type="button" onClick={handleAdd}
+          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-1.5 rounded-lg text-xs font-medium transition-colors">
+          Adicionar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PlanoForm({ plano, onSalvar, onFechar }) {
   const [form, setForm] = useState({
     nome:         plano?.nome         ?? "",
@@ -311,12 +443,27 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
     descricao:    plano?.descricao    ?? "",
     checkout_url: plano?.checkout_url ?? "",
     ativo:        plano?.ativo        ?? true,
+    beneficios:   plano?.beneficios   ?? [],
   });
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro]         = useState(null);
+  const [servicos, setServicos]         = useState([]);
+  const [showBenefForm, setShowBenefForm] = useState(false);
+  const [salvando, setSalvando]         = useState(false);
+  const [erro, setErro]                 = useState(null);
+
+  useEffect(() => {
+    db.getServicos().then((s) => setServicos(s.filter((sv) => sv.ativo))).catch(console.error);
+  }, []);
 
   const set = (k) => (e) =>
     setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+
+  const adicionarBeneficio = (b) => {
+    setForm((f) => ({ ...f, beneficios: [...f.beneficios, b] }));
+    setShowBenefForm(false);
+  };
+
+  const removerBeneficio = (id) =>
+    setForm((f) => ({ ...f, beneficios: f.beneficios.filter((b) => b.id !== id) }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -341,7 +488,7 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 40 }}
         transition={{ duration: 0.2 }}
-        className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl"
+        className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl max-h-[92vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-semibold text-gray-800">{plano ? "Editar plano" : "Novo plano"}</h3>
@@ -381,10 +528,53 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
             <label className="text-xs font-medium text-gray-500 mb-1 block">Descrição (opcional)</label>
             <textarea
               value={form.descricao} onChange={set("descricao")}
-              placeholder="Benefícios incluídos..."
+              placeholder="Resumo dos benefícios..."
               rows={2}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
             />
+          </div>
+
+          {/* Benefícios estruturados */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-500">Benefícios automáticos</label>
+              {!showBenefForm && (
+                <button type="button" onClick={() => setShowBenefForm(true)}
+                  className="text-[10px] font-medium text-amber-600 hover:text-amber-700 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors">
+                  + Adicionar
+                </button>
+              )}
+            </div>
+
+            {form.beneficios.length === 0 && !showBenefForm && (
+              <p className="text-[11px] text-gray-400 italic">Nenhum benefício configurado.</p>
+            )}
+
+            {form.beneficios.map((b) => (
+              <div key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg mb-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
+                    {LABEL_TIPO[b.tipo] ?? b.tipo}
+                  </span>
+                  <span className="text-xs text-gray-700 truncate">
+                    {b.descricao || b.servico_nome || b.produto_nome || `${b.percentual}%`}
+                  </span>
+                  {b.limite_mes && (
+                    <span className="text-[10px] text-gray-400 shrink-0">{b.limite_mes}×/mês</span>
+                  )}
+                </div>
+                <button type="button" onClick={() => removerBeneficio(b.id)}
+                  className="text-gray-300 hover:text-red-400 shrink-0 text-xs transition-colors">✕</button>
+              </div>
+            ))}
+
+            {showBenefForm && (
+              <BeneficioForm
+                servicos={servicos}
+                onAdicionar={adicionarBeneficio}
+                onCancelar={() => setShowBenefForm(false)}
+              />
+            )}
           </div>
 
           <div>
