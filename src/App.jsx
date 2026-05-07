@@ -417,28 +417,29 @@ function AppPrincipal() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
-      <Sidebar
-        view={view}
-        setView={navegar}
-        alertas={alertas}
-      />
+      <div className={`transition-all duration-300 ${showSenhaModal ? "blur-md pointer-events-none select-none" : ""}`}>
+        <Sidebar
+          view={view}
+          setView={navegar}
+          alertas={alertas}
+        />
 
-      <AnimatePresence>
-        {VIEWS_ESTOQUE.includes(view) && (
-          <motion.button
-            onClick={handleNovo}
-            initial={{ opacity: 0, scale: 0.8, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: -8 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed top-2 right-14 md:right-4 z-50 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-4 h-10 rounded-2xl transition-colors shadow-lg text-sm md:text-base flex items-center"
-          >
-            ✨ Novo produto
-          </motion.button>
-        )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {VIEWS_ESTOQUE.includes(view) && (
+            <motion.button
+              onClick={handleNovo}
+              initial={{ opacity: 0, scale: 0.8, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="fixed top-2 right-14 md:right-4 z-50 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-4 h-10 rounded-2xl transition-colors shadow-lg text-sm md:text-base flex items-center"
+            >
+              ✨ Novo produto
+            </motion.button>
+          )}
+        </AnimatePresence>
 
-      <main className="md:ml-64 pt-20 md:pt-8 px-4 md:px-8 pb-8">
+        <main className="md:ml-64 pt-20 md:pt-8 px-4 md:px-8 pb-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={view}
@@ -494,7 +495,8 @@ function AppPrincipal() {
             )}
           </motion.div>
         </AnimatePresence>
-      </main>
+        </main>
+      </div>
 
       <AnimatePresence>
         {showForm && (
