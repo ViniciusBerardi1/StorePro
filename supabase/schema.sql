@@ -503,7 +503,12 @@ begin
     -- Timestamps definidos pelo banco — nunca pelo relógio do cliente
     NEW.closed_at  := now();
     NEW.updated_at := now();
+  else
+    NEW.updated_at := now();
   end if;
+
+  -- Incrementa version em todo UPDATE bem-sucedido (optimistic locking)
+  NEW.version := coalesce(OLD.version, 0) + 1;
 
   return NEW;
 end;
@@ -516,10 +521,9 @@ create trigger trg_validar_fechamento_comanda
   execute function validar_fechamento_comanda();
 
 -- ─── RPC: finalizar_comanda() — operação atômica ────────────────
--- Executa os 8 passos da finalização em uma única transação PostgreSQL:
--- lock pessimista → idempotência → validações → estoque → atendimento
--- → fechar comanda → benefícios → auditoria
--- Documentação completa: supabase/migrations/20260507_001_finalizar_comanda.sql
+-- 9 passos em uma única transação PostgreSQL:
+-- lock pessimista → idempotência → optimistic locking → validações
+-- → estoque → atendimento → fechar comanda → benefícios → auditoria
 
 create or replace function finalizar_comanda(
   p_comanda_id  integer,
@@ -548,6 +552,7 @@ declare
   v_data_hora            timestamptz;
   v_observacoes          text;
   v_soma                 numeric;
+  v_client_version       integer;
 begin
   v_servicos             := coalesce(p_payload->'servicos',             '[]');
   v_itens_bar            := coalesce(p_payload->'itens_bar',           '[]');
@@ -564,7 +569,9 @@ begin
   v_beneficio_registros  := coalesce(p_payload->'beneficio_registros',  '[]');
   v_data_hora            := coalesce(nullif(p_payload->>'data_hora', '')::timestamptz, now());
   v_observacoes          := coalesce(p_payload->>'observacoes', '');
+  v_client_version       := nullif(p_payload->>'version', '')::integer;
 
+  -- Passo 1: lock pessimista — serializa concorrência na mesma comanda
   select * into v_comanda from comandas where id = p_comanda_id for update;
 
   if not found then
@@ -574,6 +581,7 @@ begin
     raise exception 'Comanda % está cancelada', p_comanda_id using errcode = 'P0006';
   end if;
 
+  -- Passo 2: idempotência — retry de rede retorna resultado original
   if v_comanda.status = 'fechada' then
     select id into v_atend_id from atendimentos where comanda_id = p_comanda_id limit 1;
     return jsonb_build_object(
@@ -583,6 +591,15 @@ begin
     );
   end if;
 
+  -- Passo 3: optimistic locking — detecta edição concorrente entre operadores
+  if v_client_version is not null and v_comanda.version != v_client_version then
+    raise exception
+      'Conflito: comanda % foi modificada por outra sessão (version banco=%, version cliente=%). Recarregue e tente novamente.',
+      p_comanda_id, v_comanda.version, v_client_version
+      using errcode = 'P0010';
+  end if;
+
+  -- Passo 4: validações server-side
   if v_forma_pagamento is null or v_forma_pagamento not in ('debito','credito','pix') then
     raise exception 'forma_pagamento inválida: "%"', coalesce(v_forma_pagamento,'null')
       using errcode = 'P0003';
@@ -596,6 +613,7 @@ begin
       v_valor_total, v_soma using errcode = 'P0005';
   end if;
 
+  -- Passo 5: baixar estoque (FOR UPDATE por produto, dentro da mesma TX)
   v_todos_itens := (
     select coalesce(jsonb_agg(jsonb_build_object(
       'produto_id', (item->>'produto_id')::integer,
@@ -609,6 +627,7 @@ begin
     perform baixar_estoque_comanda(v_todos_itens);
   end if;
 
+  -- Passo 6: registrar atendimento ANTES de fechar comanda (ON CONFLICT = idempotente)
   if v_comanda.gcal_event_id is not null then
     insert into atendimentos (
       comanda_id, gcal_event_id, data_hora, cliente_nome, cliente_id, barbeiro_id,
@@ -641,6 +660,7 @@ begin
     returning id into v_atend_id;
   end if;
 
+  -- Passo 7: fechar comanda (trigger valida + seta closed_at/updated_at + incrementa version)
   update comandas set
     status = 'fechada', atendimento_id = v_atend_id,
     servicos = v_servicos, itens_bar = v_itens_bar, itens_loja = v_itens_loja,
@@ -651,6 +671,7 @@ begin
     barbeiro_id = coalesce(v_barbeiro_id, barbeiro_id)
   where id = p_comanda_id;
 
+  -- Passo 8: uso de benefícios (ON CONFLICT DO NOTHING = idempotente)
   if jsonb_array_length(v_beneficio_registros) > 0 then
     insert into uso_beneficios (
       assinatura_id, cliente_id, plano_id, comanda_id,
@@ -667,6 +688,7 @@ begin
     on conflict do nothing;
   end if;
 
+  -- Passo 9: auditoria garantida (dentro da TX — nunca fire-and-forget)
   insert into comanda_eventos (comanda_id, tipo, descricao, payload)
   values (
     p_comanda_id, 'fechada',
@@ -675,8 +697,7 @@ begin
       'valor_total', v_valor_total, 'valor_servicos', v_valor_servicos,
       'valor_bar', v_valor_bar, 'valor_loja', v_valor_loja,
       'forma_pagamento', v_forma_pagamento, 'beneficio_desconto', v_beneficio_desconto,
-      'servicos_count', jsonb_array_length(v_servicos),
-      'atendimento_id', v_atend_id
+      'atendimento_id', v_atend_id, 'version_finalizado', v_comanda.version
     )
   );
 
