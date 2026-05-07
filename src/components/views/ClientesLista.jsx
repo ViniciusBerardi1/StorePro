@@ -141,8 +141,8 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
                 {ativa.data_renovacao && (
                   <p className="text-[10px] text-gray-500">Renova em {fmtData(ativa.data_renovacao)}</p>
                 )}
-                {ativa.barbeiros?.nome && (
-                  <p className="text-[10px] text-gray-400 mt-0.5">✂️ {ativa.barbeiros.nome}</p>
+                {ativa.barbeiro_id && barbeiros.find(b => b.id === ativa.barbeiro_id)?.nome && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">✂️ {barbeiros.find(b => b.id === ativa.barbeiro_id).nome}</p>
                 )}
                 {ativa.gateway && (
                   <p className="text-[10px] text-gray-300 mt-0.5 truncate">

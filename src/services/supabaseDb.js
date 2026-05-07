@@ -640,7 +640,7 @@ async function getAssinaturasAtivas() {
 async function getAssinaturasByCliente(clienteId) {
   const { data, error } = await supabase
     .from("assinaturas")
-    .select("*, planos(id, nome, valor, intervalo), barbeiros(id, nome)")
+    .select("*, planos(id, nome, valor, intervalo, beneficios)")
     .eq("cliente_id", clienteId)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
