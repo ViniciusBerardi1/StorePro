@@ -1,9 +1,9 @@
-import { db } from "./supabaseDb";
+import { supabase } from "./supabase";
 import { atualizarEvento } from "./googleCalendar";
 
-const fmt = (v) =>
-  Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
+// Finalização atômica via RPC server-side.
+// Toda a orquestração (estoque, comanda, atendimento, benefícios, auditoria)
+// acontece em uma única transação PostgreSQL. Rollback automático em qualquer falha.
 export async function finalizarComanda(comanda, editorData) {
   const {
     servicos: svcs,
@@ -21,95 +21,56 @@ export async function finalizarComanda(comanda, editorData) {
     _benefRegistros,
   } = editorData;
 
-  // 1. Baixar estoque (batch atômico via RPC, fallback JS)
-  await db.baixarEstoqueComanda(itens_bar, itens_loja);
+  const ev = comanda.evento_gcal;
 
-  // 2. Fechar comanda
-  await db.updateComanda(comanda.id, {
-    servicos: svcs,
-    itens_bar,
-    itens_loja,
-    valor_servicos,
-    valor_bar,
-    valor_loja,
-    valor_total,
-    forma_pagamento,
-    desconto: desconto ?? null,
-    beneficio_desconto:   beneficio_desconto   ?? 0,
+  // Payload enviado ao banco — o servidor ignora closed_at e updated_at
+  // do cliente e usa now() via trigger.
+  const payload = {
+    servicos:             svcs ?? [],
+    itens_bar:            itens_bar ?? [],
+    itens_loja:           itens_loja ?? [],
+    valor_servicos:       valor_servicos ?? 0,
+    valor_bar:            valor_bar ?? 0,
+    valor_loja:           valor_loja ?? 0,
+    valor_total:          valor_total ?? 0,
+    forma_pagamento:      forma_pagamento,
+    desconto:             desconto ?? null,
+    barbeiro_id:          barbeiro_id ?? null,
+    beneficio_desconto:   beneficio_desconto ?? 0,
     beneficios_aplicados: beneficios_aplicados ?? [],
-    ...(barbeiro_id != null ? { barbeiro_id } : {}),
-    status: "fechada",
-    closed_at: new Date().toISOString(),
+    beneficio_registros:  _benefRegistros ?? [],
+    data_hora: ev?.start?.dateTime
+      ? new Date(ev.start.dateTime).toISOString()
+      : new Date().toISOString(),
+    observacoes: ev?.description ?? "",
+  };
+
+  // ── Operação atômica: tudo ou nada ────────────────────────
+  // Em retry de rede, a função detecta que a comanda já está fechada
+  // e retorna { ok: true, idempotent: true } sem re-executar nada.
+  const { data, error } = await supabase.rpc("finalizar_comanda", {
+    p_comanda_id: comanda.id,
+    p_payload:    payload,
   });
 
-  // 3. Registrar uso de benefícios
-  if (_benefRegistros?.length > 0) {
-    await db.registrarUsoBeneficios(
-      _benefRegistros.map((r) => ({ ...r, comanda_id: comanda.id }))
-    );
+  if (error) throw new Error(error.message);
+
+  // ── GCal: sistema externo — eventual consistency ───────────
+  // Executado fora da transação: falha aqui não reverte o banco.
+  // O evento fica sem "✅" mas a comanda está fechada corretamente.
+  if (comanda.gcal_event_id && ev) {
+    const tituloFinal = ev.summary?.startsWith("✅")
+      ? ev.summary
+      : `✅ ${ev.summary ?? comanda.cliente_nome}`;
+
+    atualizarEvento(comanda.gcal_event_id, {
+      summary:     tituloFinal,
+      start:       ev.start,
+      end:         ev.end,
+      description: ev.description,
+      colorId:     "2",
+    }).catch((e) => console.warn("[GCal] falha ao atualizar evento (não crítico):", e));
   }
 
-  // 4. Evento de auditoria (não-bloqueante)
-  db.registrarEventoComanda(
-    comanda.id,
-    "fechada",
-    `Fechada — ${fmt(valor_total)} via ${forma_pagamento}`,
-    {
-      valor_total,
-      valor_servicos,
-      valor_bar,
-      valor_loja,
-      forma_pagamento,
-      desconto_calculado: desconto?.valor_calculado ?? 0,
-      beneficio_desconto: beneficio_desconto ?? 0,
-      servicos_count: svcs.length,
-    }
-  ).catch(() => {});
-
-  // 5. Registrar atendimento + atualizar GCal
-  const barbPayload = barbeiro_id != null ? { barbeiro_id } : {};
-
-  if (comanda.gcal_event_id) {
-    const ev = comanda.evento_gcal;
-    const tituloFinal = ev?.summary
-      ? ev.summary.startsWith("✅") ? ev.summary : `✅ ${ev.summary}`
-      : `✅ ${comanda.cliente_nome}`;
-
-    await Promise.allSettled([
-      db.addAtendimento({
-        gcal_event_id: comanda.gcal_event_id,
-        data_hora: ev?.start?.dateTime
-          ? new Date(ev.start.dateTime).toISOString()
-          : new Date().toISOString(),
-        cliente_nome: comanda.cliente_nome,
-        ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
-        ...barbPayload,
-        servicos: svcs,
-        valor_total,
-        forma_pagamento,
-        status: "concluido",
-        observacoes: ev?.description || "",
-      }),
-      ...(ev
-        ? [atualizarEvento(comanda.gcal_event_id, {
-            summary: tituloFinal,
-            start: ev.start,
-            end: ev.end,
-            description: ev.description,
-            colorId: "2",
-          })]
-        : []),
-    ]);
-  } else {
-    await db.addAtendimento({
-      data_hora: new Date().toISOString(),
-      cliente_nome: comanda.cliente_nome,
-      ...(comanda.cliente_id ? { cliente_id: comanda.cliente_id } : {}),
-      ...barbPayload,
-      servicos: svcs,
-      valor_total,
-      forma_pagamento,
-      status: "concluido",
-    });
-  }
+  return data;
 }

@@ -488,22 +488,13 @@ async function updateComanda(id, updates) {
 }
 
 async function deleteComanda(id, motivo = null) {
-  // Estornar uso de benefícios vinculados a esta comanda
-  await supabase
-    .from("uso_beneficios")
-    .update({ estornado: true })
-    .eq("comanda_id", id); // retorna { data, error }, não lança exceção
-
-  const { error } = await supabase
-    .from("comandas")
-    .update({
-      status: "cancelada",
-      deleted_at: new Date().toISOString(),
-      deleted_reason: motivo || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-  if (error) throw error;
+  // Cancelamento atômico via RPC: estorno de benefícios + cancelamento
+  // da comanda acontecem na mesma transação. Rollback automático se falhar.
+  const { error } = await supabase.rpc("cancelar_comanda", {
+    p_comanda_id: id,
+    p_motivo:     motivo ?? null,
+  });
+  if (error) throw new Error(error.message);
 }
 
 async function registrarEventoComanda(comandaId, tipo, descricao, payload = {}) {
