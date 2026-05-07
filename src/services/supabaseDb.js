@@ -633,7 +633,19 @@ async function getAssinaturasAtivas() {
     .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo, beneficios)")
     .eq("status", "ativa")
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Fallback: migration not yet run, beneficios column may not exist
+    const { data: data2, error: error2 } = await supabase
+      .from("assinaturas")
+      .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo)")
+      .eq("status", "ativa")
+      .order("created_at", { ascending: false });
+    if (error2) throw new Error(error2.message);
+    return (data2 ?? []).map((a) => ({
+      ...a,
+      planos: a.planos ? { ...a.planos, beneficios: [] } : null,
+    }));
+  }
   return data ?? [];
 }
 
@@ -676,7 +688,17 @@ async function getAssinaturaAtivaByCliente(clienteId) {
     .eq("cliente_id", clienteId)
     .eq("status", "ativa")
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) {
+    const { data: data2, error: error2 } = await supabase
+      .from("assinaturas")
+      .select("*, planos(id, nome, valor, intervalo)")
+      .eq("cliente_id", clienteId)
+      .eq("status", "ativa")
+      .maybeSingle();
+    if (error2) throw new Error(error2.message);
+    if (!data2) return null;
+    return { ...data2, planos: data2.planos ? { ...data2.planos, beneficios: [] } : null };
+  }
   return data ?? null;
 }
 
@@ -686,14 +708,14 @@ async function getUsoBeneficios(assinaturaId, ciclo) {
     .select("*")
     .eq("assinatura_id", assinaturaId)
     .eq("ciclo", ciclo);
-  if (error) throw new Error(error.message);
+  if (error) return []; // table may not exist yet (migration pending)
   return data ?? [];
 }
 
 async function registrarUsoBeneficios(registros) {
   if (!registros || registros.length === 0) return;
   const { error } = await supabase.from("uso_beneficios").insert(registros);
-  if (error) throw new Error(error.message);
+  if (error) console.warn("registrarUsoBeneficios:", error.message); // non-fatal
 }
 
 // ─── Horários especiais ───────────────────────────────────────────
