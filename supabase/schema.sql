@@ -420,43 +420,31 @@ alter table uso_beneficios     enable row level security;
 alter table comandas           enable row level security;
 alter table horarios_especiais enable row level security;
 
-do $$ begin
-  -- helper: cria policy "anon_all" se ainda não existir
-  declare t text;
-  begin
-    foreach t in array array[
-      'categorias','produtos','clientes','servicos','barbeiros',
-      'configuracoes','atendimentos','planos','assinaturas',
-      'uso_beneficios','comandas','horarios_especiais'
-    ] loop
-      execute format(
-        'drop policy if exists anon_all on %I; '||
-        'create policy anon_all on %I for all to anon using (true) with check (true)',
-        t, t
-      );
-    end loop;
-  end;
-end $$;
+-- Políticas CRUD completo para anon (statements explícitos — EXECUTE aceita 1 por vez)
+drop policy if exists anon_all on categorias;         create policy anon_all on categorias         for all to anon using (true) with check (true);
+drop policy if exists anon_all on produtos;           create policy anon_all on produtos           for all to anon using (true) with check (true);
+drop policy if exists anon_all on clientes;           create policy anon_all on clientes           for all to anon using (true) with check (true);
+drop policy if exists anon_all on servicos;           create policy anon_all on servicos           for all to anon using (true) with check (true);
+drop policy if exists anon_all on barbeiros;          create policy anon_all on barbeiros          for all to anon using (true) with check (true);
+drop policy if exists anon_all on configuracoes;      create policy anon_all on configuracoes      for all to anon using (true) with check (true);
+drop policy if exists anon_all on atendimentos;       create policy anon_all on atendimentos       for all to anon using (true) with check (true);
+drop policy if exists anon_all on planos;             create policy anon_all on planos             for all to anon using (true) with check (true);
+drop policy if exists anon_all on assinaturas;        create policy anon_all on assinaturas        for all to anon using (true) with check (true);
+drop policy if exists anon_all on uso_beneficios;     create policy anon_all on uso_beneficios     for all to anon using (true) with check (true);
+drop policy if exists anon_all on comandas;           create policy anon_all on comandas           for all to anon using (true) with check (true);
+drop policy if exists anon_all on horarios_especiais; create policy anon_all on horarios_especiais for all to anon using (true) with check (true);
 
 -- Tabelas de auditoria (somente SELECT + INSERT)
 alter table historico       enable row level security;
 alter table comanda_eventos enable row level security;
 alter table webhook_logs    enable row level security;
 
-do $$ begin
-  declare t text;
-  begin
-    foreach t in array array['historico','comanda_eventos','webhook_logs'] loop
-      execute format(
-        'drop policy if exists anon_select on %I; '||
-        'create policy anon_select on %I for select to anon using (true); '||
-        'drop policy if exists anon_insert on %I; '||
-        'create policy anon_insert on %I for insert to anon with check (true)',
-        t, t, t, t
-      );
-    end loop;
-  end;
-end $$;
+drop policy if exists anon_select on historico;       create policy anon_select on historico       for select to anon using (true);
+drop policy if exists anon_insert on historico;       create policy anon_insert on historico       for insert to anon with check (true);
+drop policy if exists anon_select on comanda_eventos; create policy anon_select on comanda_eventos for select to anon using (true);
+drop policy if exists anon_insert on comanda_eventos; create policy anon_insert on comanda_eventos for insert to anon with check (true);
+drop policy if exists anon_select on webhook_logs;    create policy anon_select on webhook_logs    for select to anon using (true);
+drop policy if exists anon_insert on webhook_logs;    create policy anon_insert on webhook_logs    for insert to anon with check (true);
 
 -- ─── Trigger item 13: validação de valor_total ao fechar comanda ─
 create or replace function validar_fechamento_comanda()
