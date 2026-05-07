@@ -542,7 +542,10 @@ function AppPrincipal() {
               setShowSenhaModal(false);
               setView(pendingView);
             }}
-            onFechar={() => setShowSenhaModal(false)}
+            onFechar={() => {
+              setShowSenhaModal(false);
+              if (view === "financeiro" || view === "relatorios") setView("agenda");
+            }}
           />
         )}
       </AnimatePresence>
