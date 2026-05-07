@@ -558,15 +558,14 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
   const barbeiro = barbeiros.find((b) => b.id === comanda.barbeiro_id);
 
   return (
-    <motion.div
-      layout
-      className={`bg-white border rounded-2xl overflow-hidden transition-shadow
+    <div
+      className={`bg-white border rounded-2xl transition-shadow
         ${aberta ? "border-indigo-200 shadow-md" : assinaturaData ? "border-amber-200" : "border-gray-200"}`}
     >
       {/* Header */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors rounded-2xl"
       >
         <span className="text-xl shrink-0">{assinaturaData ? "👑" : "🧾"}</span>
         <div className="flex-1 min-w-0">
@@ -599,11 +598,11 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
       <AnimatePresence>
         {aberta && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="px-5 pb-5 overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="px-5 pb-5"
           >
             <ComandaEditor
               comanda={comanda}
@@ -619,7 +618,7 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
