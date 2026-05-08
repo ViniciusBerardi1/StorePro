@@ -92,7 +92,7 @@ function PagamentoBar({ atendimentos }) {
 }
 
 // ─── Aba: Caixa ──────────────────────────────────────────────────
-function TabCaixa({ atendimentos, comandas, produtos, setView }) {
+function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
   const ok = atendimentos.filter((a) => a.status === "concluido");
   const fat = ok.reduce((s, a) => s + Number(a.valor_total || 0), 0);
   const ticket = ok.length > 0 ? fat / ok.length : 0;
@@ -113,6 +113,9 @@ function TabCaixa({ atendimentos, comandas, produtos, setView }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Status do caixa */}
+      <CaixaStatusBanner sessaoCaixa={sessaoCaixa} setView={setView} />
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard icon="💰" label="Faturamento" valor={BRL(fat)} sub={`${ok.length} concluídos`} />
@@ -200,6 +203,62 @@ function fmtDataHora(iso) {
   return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   });
+}
+
+function fmtHora(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function duracaoLabel(msInicio, msFim) {
+  const min = Math.floor((msFim - msInicio) / 60000);
+  if (min < 60) return `${min}min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+// ─── Banner: Status do Caixa ─────────────────────────────────────
+function CaixaStatusBanner({ sessaoCaixa, setView }) {
+  if (sessaoCaixa === undefined) {
+    return <div className="h-12 bg-gray-100 rounded-2xl animate-pulse" />;
+  }
+  if (!sessaoCaixa) {
+    return (
+      <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-gray-300" />
+          <span className="text-sm font-medium text-gray-500">Caixa fechado</span>
+        </div>
+        <button
+          onClick={() => setView("caixa")}
+          className="text-xs font-medium text-indigo-500 hover:text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          Abrir caixa →
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <div>
+          <span className="text-sm font-medium text-emerald-700">Caixa aberto</span>
+          <p className="text-[10px] text-emerald-500">
+            desde {fmtHora(sessaoCaixa.opened_at)}
+            {sessaoCaixa.aberto_por ? ` · ${sessaoCaixa.aberto_por}` : ""}
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={() => setView("caixa")}
+        className="text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg transition-colors"
+      >
+        Ir para caixa →
+      </button>
+    </div>
+  );
 }
 
 function DetalheComanda({ cmd, custoPorId }) {
@@ -413,6 +472,144 @@ function TabExtrato({ atendimentos, comandas, produtos }) {
   );
 }
 
+// ─── Aba: Histórico de Caixa ─────────────────────────────────────
+function TabHistoricoCaixa({ sessoesHistorico, setView }) {
+  if (!sessoesHistorico) {
+    return (
+      <div className="flex flex-col gap-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white border border-gray-200 rounded-2xl h-20 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+  if (sessoesHistorico.length === 0) {
+    return (
+      <Card>
+        <p className="text-sm text-gray-400 text-center py-8">
+          Nenhuma sessão de caixa encontrada.
+          <br />
+          <button
+            onClick={() => setView("caixa")}
+            className="text-indigo-500 hover:text-indigo-600 font-medium mt-2 inline-block"
+          >
+            Abrir o caixa →
+          </button>
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {sessoesHistorico.map((s) => {
+        const aberta = s.status === "aberta";
+        const duracao =
+          s.opened_at && s.closed_at
+            ? duracaoLabel(
+                new Date(s.opened_at).getTime(),
+                new Date(s.closed_at).getTime()
+              )
+            : null;
+
+        const esperado =
+          Number(s.valor_abertura || 0) +
+          Number(s.total_dinheiro || 0) +
+          Number(s.total_suprimentos || 0) -
+          Number(s.total_sangrias || 0);
+        const diferenca =
+          s.valor_fechamento != null ? Number(s.valor_fechamento) - esperado : null;
+
+        const totalMovimentado =
+          Number(s.total_dinheiro || 0) +
+          Number(s.total_pix || 0) +
+          Number(s.total_debito || 0) +
+          Number(s.total_credito || 0);
+
+        return (
+          <Card key={s.id}>
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full ${aberta ? "bg-emerald-400" : "bg-gray-300"}`} />
+                  <span className="text-sm font-semibold text-gray-800">
+                    {aberta ? "Caixa aberto" : `Sessão #${s.id}`}
+                  </span>
+                  {aberta && (
+                    <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                      EM ABERTO
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {fmtDataHora(s.opened_at)}
+                  {duracao ? ` · ${duracao}` : ""}
+                  {s.aberto_por ? ` · ${s.aberto_por}` : ""}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-base font-bold text-gray-800">{BRL(totalMovimentado)}</p>
+                <p className="text-xs text-gray-400">
+                  {s.qtd_comandas || 0} comanda{(s.qtd_comandas || 0) !== 1 ? "s" : ""}
+                </p>
+              </div>
+            </div>
+
+            {totalMovimentado > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                {[
+                  { label: "Dinheiro", valor: s.total_dinheiro, cor: "bg-amber-50 border-amber-100 text-amber-700" },
+                  { label: "Pix",      valor: s.total_pix,      cor: "bg-emerald-50 border-emerald-100 text-emerald-700" },
+                  { label: "Débito",   valor: s.total_debito,   cor: "bg-indigo-50 border-indigo-100 text-indigo-700" },
+                  { label: "Crédito",  valor: s.total_credito,  cor: "bg-violet-50 border-violet-100 text-violet-700" },
+                ]
+                  .filter((f) => Number(f.valor || 0) > 0)
+                  .map((f) => (
+                    <div key={f.label} className={`flex flex-col px-3 py-2 rounded-xl border ${f.cor}`}>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide opacity-60">{f.label}</span>
+                      <span className="text-sm font-bold">{BRL(f.valor)}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            <div className="flex gap-4 flex-wrap text-xs text-gray-400">
+              {Number(s.valor_abertura || 0) > 0 && (
+                <span>Abertura: <strong className="text-gray-600">{BRL(s.valor_abertura)}</strong></span>
+              )}
+              {Number(s.total_suprimentos || 0) > 0 && (
+                <span className="text-emerald-600">+{BRL(s.total_suprimentos)} suprimentos</span>
+              )}
+              {Number(s.total_sangrias || 0) > 0 && (
+                <span className="text-orange-500">−{BRL(s.total_sangrias)} sangrias</span>
+              )}
+            </div>
+
+            {!aberta && diferenca !== null && (
+              <div
+                className={`mt-3 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium border ${
+                  Math.abs(diferenca) < 0.01
+                    ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                    : diferenca < 0
+                    ? "bg-red-50 border-red-100 text-red-600"
+                    : "bg-yellow-50 border-yellow-100 text-yellow-700"
+                }`}
+              >
+                <span>Diferença no fechamento</span>
+                <span>
+                  {diferenca > 0.01 ? "+" : ""}{BRL(diferenca)}
+                  {" "}
+                  {Math.abs(diferenca) < 0.01 ? "✓ caixa bateu" : diferenca < 0 ? "↓ falta" : "↑ sobra"}
+                </span>
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Financeiro principal ────────────────────────────────────────
 const PERIODOS = [
   { id: "hoje",   label: "Hoje"    },
@@ -421,8 +618,9 @@ const PERIODOS = [
 ];
 
 const TABS = [
-  { id: "caixa",   icon: "💰", label: "Caixa"   },
-  { id: "extrato", icon: "📋", label: "Extrato"  },
+  { id: "caixa",           icon: "💰", label: "Caixa"    },
+  { id: "extrato",         icon: "📋", label: "Extrato"  },
+  { id: "historico_caixa", icon: "🗂️", label: "Histórico" },
 ];
 
 export default function Dashboard({ produtos, setView }) {
@@ -430,11 +628,33 @@ export default function Dashboard({ produtos, setView }) {
   const [tab, setTab]         = useState("caixa");
   const [loading, setLoading] = useState(true);
   const [erro, setErro]       = useState(null);
-  const [atendimentos, setAtendimentos] = useState([]);
-  const [comandas, setComandas]         = useState([]);
-  const [refreshKey, setRefreshKey]     = useState(0);
+  const [atendimentos, setAtendimentos]     = useState([]);
+  const [comandas, setComandas]             = useState([]);
+  const [sessaoCaixa, setSessaoCaixa]       = useState(undefined);
+  const [sessoesHistorico, setSessoesHistorico] = useState(null);
+  const [refreshKey, setRefreshKey]         = useState(0);
 
   const carregar = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSessaoCaixa(undefined);
+    setSessoesHistorico(null);
+    Promise.all([
+      db.getSessaoCaixaAberta(),
+      db.getSessoesCaixa(15),
+    ]).then(([sessao, historico]) => {
+      if (cancelled) return;
+      setSessaoCaixa(sessao ?? null);
+      setSessoesHistorico(historico ?? []);
+    }).catch(() => {
+      if (!cancelled) {
+        setSessaoCaixa(null);
+        setSessoesHistorico([]);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [refreshKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -502,7 +722,16 @@ export default function Dashboard({ produtos, setView }) {
       </div>
 
       {/* Conteúdo */}
-      {loading ? (
+      {tab === "historico_caixa" ? (
+        <motion.div
+          key="historico_caixa"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18 }}
+        >
+          <TabHistoricoCaixa sessoesHistorico={sessoesHistorico} setView={setView} />
+        </motion.div>
+      ) : loading ? (
         <div className="flex flex-col gap-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="bg-white border border-gray-200 rounded-2xl h-24 animate-pulse" />
@@ -523,6 +752,7 @@ export default function Dashboard({ produtos, setView }) {
               comandas={comandas}
               produtos={produtos}
               setView={setView}
+              sessaoCaixa={sessaoCaixa}
             />
           )}
           {tab === "extrato" && (
