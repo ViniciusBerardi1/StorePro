@@ -260,19 +260,27 @@ begin
   end;
 
 
-  -- T04: P0004 — valor_total negativo → tudo revertido
+  -- T04: P0004 / assert_failure — valor_total negativo → tudo revertido
+  -- ATENÇÃO: P0004 = assert_failure (código reservado do PostgreSQL).
+  -- WHEN OTHERS nunca captura assert_failure; é preciso WHEN assert_failure.
+  -- Consequência no schema: finalizar_comanda() também não consegue re-envolver
+  -- esta exceção em seu próprio WHEN OTHERS — ela escapa direto para o chamador.
   v_payload_bad := v_payload || jsonb_build_object('valor_total', -1, 'version', 1);
   begin
     perform finalizar_comanda(v_cmd_c, v_payload_bad);
-    perform _qa_assert(false, 'T04: deveria ter falhado com P0004');
-  exception when others then
+    perform _qa_assert(false, 'T04: deveria ter falhado com P0004/assert_failure');
+  exception when assert_failure then
     perform _qa_assert(
-      sqlerrm like '%P0004%',
-      'T04: erro contém P0004 para valor_total negativo'
+      sqlstate = 'P0004',
+      'T04: sqlstate = P0004 (assert_failure) para valor_total negativo'
+    );
+    perform _qa_assert(
+      sqlerrm like '%valor_total%',
+      'T04: mensagem menciona valor_total'
     );
     perform _qa_assert(
       (select status from comandas where id = v_cmd_c) = 'aberta',
-      'T04: comanda permanece aberta após P0004'
+      'T04: comanda permanece aberta após P0004/assert_failure'
     );
   end;
 
@@ -899,10 +907,11 @@ begin
   );
 
 
-  -- V03: nenhum atendimento órfão criado pelos testes
+  -- V03: o atendimento desvinculado em T30 é detectado como órfão
+  -- (T30 faz SET comanda_id = NULL intencionalmente para testar a view)
   perform _qa_assert(
-    (v_integridade->>'atendimentos_orfaos')::bigint = 0,
-    'V03: zero atendimentos órfãos (sem comanda fechada associada)'
+    (v_integridade->>'atendimentos_orfaos')::bigint >= 1,
+    'V03: verificar_integridade_completa detectou atendimento órfão do T30'
   );
 
 
