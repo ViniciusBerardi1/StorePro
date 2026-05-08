@@ -25,3 +25,7 @@ dist-ssr
 
 # Seed local (não commitar)
 src/seed.js
+
+# Dev tooling
+.claude/
+supabase/migrations/
