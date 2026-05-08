@@ -1264,35 +1264,45 @@ export default async function handler(req, res) {
   const fim    = `${dataFim}T23:59:59-03:00`;
   const periodo = `${fmtDate(dataInicio)} a ${fmtDate(dataFim)}`;
 
-  let client;
+  const pool = getPool();
   try {
-    client = await getPool().connect();
-
+    // Queries em tabelas base (sempre existem)
     const [
       { rows },
       { rows: planos },
       { rows: kpiRows },
-      { rows: diario },
       { rows: topServicos },
       { rows: cmvRows },
       { rows: formasPag },
       { rows: caixaSessoes },
-      { rows: reconRows },
-      { rows: beneficiosRows },
     ] = await Promise.all([
-      client.query(SQL_COMANDAS,    [ini, fim]),
-      client.query(SQL_PLANOS,      [dataInicio, dataFim]),
-      client.query(SQL_KPIS,        [ini, fim]),
-      client.query(SQL_DIARIO,      [dataInicio, dataFim]),
-      client.query(SQL_TOP_SERVICOS,[ini, fim]),
-      client.query(SQL_CMV,         [ini, fim]),
-      client.query(SQL_FORMAS_PAG,  [ini, fim]),
-      client.query(SQL_CAIXA,       [dataInicio, dataFim]),
-      client.query(SQL_RECONC,      [dataInicio, dataFim]),
-      client.query(SQL_BENEFICIOS,  [dataInicio, dataFim]),
+      pool.query(SQL_COMANDAS,    [ini, fim]),
+      pool.query(SQL_PLANOS,      [dataInicio, dataFim]),
+      pool.query(SQL_KPIS,        [ini, fim]),
+      pool.query(SQL_TOP_SERVICOS,[ini, fim]),
+      pool.query(SQL_CMV,         [ini, fim]),
+      pool.query(SQL_FORMAS_PAG,  [ini, fim]),
+      pool.query(SQL_CAIXA,       [dataInicio, dataFim]),
     ]);
 
-    if (rows.length === 0 && planos.length === 0 && kpiRows[0]?.total_comandas === "0") {
+    // Queries em views (podem não existir se migrations pendentes)
+    let diario       = [];
+    let reconRows    = [];
+    let beneficiosRows = [];
+    try {
+      const [r1, r2, r3] = await Promise.all([
+        pool.query(SQL_DIARIO,    [dataInicio, dataFim]),
+        pool.query(SQL_RECONC,    [dataInicio, dataFim]),
+        pool.query(SQL_BENEFICIOS,[dataInicio, dataFim]),
+      ]);
+      diario         = r1.rows;
+      reconRows      = r2.rows;
+      beneficiosRows = r3.rows;
+    } catch (viewErr) {
+      console.warn("[exportar-financeiro] views não disponíveis:", viewErr.message);
+    }
+
+    if (rows.length === 0 && planos.length === 0 && Number(kpiRows[0]?.total_comandas) === 0) {
       return res.status(404).json({ erro: "Nenhum dado encontrado no período" });
     }
 
@@ -1321,8 +1331,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("[exportar-financeiro]", err);
-    res.status(500).json({ erro: "Erro interno ao gerar exportação" });
-  } finally {
-    client?.release();
+    res.status(500).json({ erro: "Erro interno ao gerar exportação", detalhe: err.message });
   }
 }
