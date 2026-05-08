@@ -32,15 +32,18 @@ describe("ProdutoForm — validações", () => {
     alertSpy.mockRestore();
   });
 
-  it("bloqueia salvar sem data de validade", () => {
+  it("bloqueia quando quantidade é negativa", () => {
     const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
     renderForm();
     fireEvent.change(screen.getByLabelText("Nome do produto *"), {
       target: { value: "Hidratante" },
     });
+    // Força quantidade negativa diretamente no input de número
+    const qtdInput = screen.getAllByRole("spinbutton")[0];
+    fireEvent.change(qtdInput, { target: { value: "-1" } });
     fireEvent.click(screen.getByText("Salvar"));
     expect(defaultProps.onSalvar).not.toHaveBeenCalled();
-    expect(alertSpy).toHaveBeenCalledWith("Informe a data de validade.");
+    expect(alertSpy).toHaveBeenCalledWith("Quantidade não pode ser negativa.");
     alertSpy.mockRestore();
   });
 
@@ -49,13 +52,10 @@ describe("ProdutoForm — validações", () => {
     fireEvent.change(screen.getByLabelText("Nome do produto *"), {
       target: { value: "Hidratante" },
     });
-    fireEvent.change(screen.getByLabelText("Data de validade *"), {
-      target: { value: "2027-12-31" },
-    });
     fireEvent.click(screen.getByText("Salvar"));
     expect(defaultProps.onSalvar).toHaveBeenCalledOnce();
     expect(defaultProps.onSalvar).toHaveBeenCalledWith(
-      expect.objectContaining({ nome: "Hidratante", data_validade: "2027-12-31" })
+      expect.objectContaining({ nome: "Hidratante" })
     );
   });
 
@@ -64,9 +64,6 @@ describe("ProdutoForm — validações", () => {
     renderForm();
     fireEvent.change(screen.getByLabelText("Nome do produto *"), {
       target: { value: "Shampoo" },
-    });
-    fireEvent.change(screen.getByLabelText("Data de validade *"), {
-      target: { value: "2027-12-31" },
     });
     fireEvent.click(screen.getByTestId("toggle-tamanho"));
     fireEvent.click(screen.getByText("Salvar"));

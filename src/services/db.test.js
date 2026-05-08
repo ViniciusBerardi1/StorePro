@@ -33,11 +33,11 @@ describe("db.getCategorias", () => {
     const cats = await db.getCategorias();
     expect(cats).toHaveLength(6);
     expect(cats.map((c) => c.nome)).toEqual([
-      "Skincare",
-      "Cabelo",
-      "Maquiagem",
-      "Corpo",
-      "Perfumaria",
+      "Eletrônicos",
+      "Roupas",
+      "Calçados",
+      "Alimentos",
+      "Higiene",
       "Outros",
     ]);
   });
@@ -83,9 +83,9 @@ describe("db.getProdutos", () => {
   });
 
   it("enriquece produto com categoria_nome", async () => {
-    await db.addProduto(produtoBase); // categoria_id: 1 = Skincare
+    await db.addProduto(produtoBase); // categoria_id: 1 = Eletrônicos
     const produtos = await db.getProdutos();
-    expect(produtos[0].categoria_nome).toBe("Skincare");
+    expect(produtos[0].categoria_nome).toBe("Eletrônicos");
   });
 
   it("retorna categoria_nome vazia para categoria inexistente", async () => {
@@ -94,14 +94,14 @@ describe("db.getProdutos", () => {
     expect(produtos[0].categoria_nome).toBe("");
   });
 
-  it("ordena por data_validade crescente", async () => {
-    await db.addProduto({ ...produtoBase, data_validade: "2028-01-01" });
-    await db.addProduto({ ...produtoBase, data_validade: "2026-01-01" });
-    await db.addProduto({ ...produtoBase, data_validade: "2027-01-01" });
+  it("ordena por nome (A→Z)", async () => {
+    await db.addProduto({ ...produtoBase, nome: "Shampoo" });
+    await db.addProduto({ ...produtoBase, nome: "Condicionador" });
+    await db.addProduto({ ...produtoBase, nome: "Hidratante" });
     const produtos = await db.getProdutos();
-    expect(produtos[0].data_validade).toBe("2026-01-01");
-    expect(produtos[1].data_validade).toBe("2027-01-01");
-    expect(produtos[2].data_validade).toBe("2028-01-01");
+    expect(produtos[0].nome).toBe("Condicionador");
+    expect(produtos[1].nome).toBe("Hidratante");
+    expect(produtos[2].nome).toBe("Shampoo");
   });
 
   it("coloca produtos sem data_validade no final", async () => {

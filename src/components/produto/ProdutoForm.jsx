@@ -75,10 +75,11 @@ export default function ProdutoForm({
 
           {/* Nome */}
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">
+            <label htmlFor="prod-nome" className="text-xs font-medium text-gray-500 mb-1 block">
               Nome do produto *
             </label>
             <input
+              id="prod-nome"
               type="text"
               value={form.nome}
               onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
@@ -276,6 +277,7 @@ export default function ProdutoForm({
             <div className="flex items-center gap-3 mb-2">
               <button
                 type="button"
+                data-testid="toggle-tamanho"
                 onClick={() =>
                   setForm((f) => ({ ...f, tem_tamanho: f.tem_tamanho ? 0 : 1, tamanho_quantidade: "", tamanho_unidade: "un" }))
                 }
