@@ -77,7 +77,7 @@ const itemIdle   = "text-gray-600 hover:bg-gray-100 hover:text-gray-900";
 function Logo() {
   return (
     <div className="px-1">
-      <img src="/storeprologo.png" alt="StorePro" className="h-8 w-auto" />
+      <img src="/storeprologo.png" alt="StorePro" className="h-12 w-auto" />
     </div>
   );
 }
@@ -266,7 +266,7 @@ function Sidebar({ view, setView, alertas }) {
           onClick={() => setMenuAberto(!menuAberto)}
           className="flex items-center"
         >
-          <img src="/storeprologo.png" alt="StorePro" className="h-7 w-auto" />
+          <img src="/storeprologo.png" alt="StorePro" className="h-9 w-auto" />
         </button>
         <button
           onClick={() => navegar("agenda")}
