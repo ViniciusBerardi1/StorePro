@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, memo, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Package, ClipboardList, FlaskConical, Clock, ArrowDownUp } from "lucide-react";
 import ProdutoDetalhe from "./ProdutoDetalhe";
@@ -214,6 +214,12 @@ function ProdutoList({
   const [ordem, setOrdem] = useState("desc");
   const [produtoAberto, setProdutoAberto] = useState(null);
 
+  const produtoIds = useMemo(() => new Set(produtos.map((p) => p.id)), [produtos]);
+  const historicoDoTipo = useMemo(
+    () => historicoEstoque.filter((h) => produtoIds.has(h.produto_id)),
+    [historicoEstoque, produtoIds]
+  );
+
   const filtrados = produtos
     .filter((p) => {
       const matchBusca = p.nome.toLowerCase().includes(busca.toLowerCase());
@@ -235,15 +241,15 @@ function ProdutoList({
       return ordem === "desc" ? -comparacao : comparacao;
     });
 
-  // Produtos que zerou e não tiveram entrada/reposto posterior
+  // Produtos (deste tipo) que zeraram e não tiveram entrada/reposto posterior
   const produtosZerados = new Set(
-    historicoEstoque
+    historicoDoTipo
       .filter((h) => (h.tipo || "zerado") === "zerado")
       .map((h) => h.produto_id)
-      .filter((id) => !historicoEstoque.some(
+      .filter((id) => !historicoDoTipo.some(
         (h2) => h2.produto_id === id &&
           (h2.tipo === "entrada" || h2.tipo === "reposto") &&
-          new Date(h2.data_zerado) > new Date(historicoEstoque.find((z) => z.produto_id === id && (z.tipo || "zerado") === "zerado")?.data_zerado ?? 0)
+          new Date(h2.data_zerado) > new Date(historicoDoTipo.find((z) => z.produto_id === id && (z.tipo || "zerado") === "zerado")?.data_zerado ?? 0)
       ))
   );
   const semEstoqueAberto = produtosZerados.size;
@@ -277,7 +283,7 @@ function ProdutoList({
       </div>
 
       {aba === "historico" ? (
-        <TabHistorico historico={historicoEstoque} />
+        <TabHistorico historico={historicoDoTipo} />
       ) : (
       <>
       <div className="flex flex-col gap-3 mb-5">
