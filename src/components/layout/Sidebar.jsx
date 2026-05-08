@@ -12,7 +12,6 @@ import {
   Package,
   Settings,
   Info,
-  Store,
   ChevronDown,
   ChevronRight,
   Home,
@@ -77,11 +76,8 @@ const itemIdle   = "text-gray-600 hover:bg-gray-100 hover:text-gray-900";
 // ── Components ────────────────────────────────────────────────────
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5 px-1">
-      <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
-        <Store size={14} strokeWidth={2.5} className="text-white" />
-      </div>
-      <span className="font-semibold text-gray-900 text-[15px] tracking-tight">StorePro</span>
+    <div className="px-1">
+      <img src="/storeprologo.png" alt="StorePro" className="h-8 w-auto" />
     </div>
   );
 }
@@ -268,12 +264,9 @@ function Sidebar({ view, setView, alertas }) {
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between">
         <button
           onClick={() => setMenuAberto(!menuAberto)}
-          className="flex items-center gap-2.5"
+          className="flex items-center"
         >
-          <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
-            <Store size={12} strokeWidth={2.5} className="text-white" />
-          </div>
-          <span className="text-[14px] font-semibold text-gray-800">StorePro</span>
+          <img src="/storeprologo.png" alt="StorePro" className="h-7 w-auto" />
         </button>
         <button
           onClick={() => navegar("agenda")}
