@@ -316,7 +316,7 @@ function TabResumo({ atendimentos, prevAtendimentos }) {
   const servicos = Object.values(mapaServico).sort((a, b) => b.count - a.count);
 
   // Forma de pagamento
-  const pgto = { pix: 0, debito: 0, credito: 0 };
+  const pgto = { pix: 0, debito: 0, credito: 0, dinheiro: 0 };
   for (const a of ok) {
     if (a.forma_pagamento in pgto) pgto[a.forma_pagamento] += Number(a.valor_total || 0);
   }
@@ -370,9 +370,10 @@ function TabResumo({ atendimentos, prevAtendimentos }) {
           ) : (
             <div className="flex flex-col gap-3">
               {[
-                { id: "pix", label: "Pix", cor: "bg-emerald-400" },
-                { id: "debito", label: "Débito", cor: "bg-indigo-400" },
-                { id: "credito", label: "Crédito", cor: "bg-violet-400" },
+                { id: "pix",      label: "Pix",      cor: "bg-emerald-400" },
+                { id: "debito",   label: "Débito",   cor: "bg-indigo-400"  },
+                { id: "credito",  label: "Crédito",  cor: "bg-violet-400"  },
+                { id: "dinheiro", label: "Dinheiro", cor: "bg-amber-400"   },
               ].map(({ id, label, cor }) => {
                 const total = Object.values(pgto).reduce((s, v) => s + v, 0);
                 const pct = total > 0 ? (pgto[id] / total) * 100 : 0;

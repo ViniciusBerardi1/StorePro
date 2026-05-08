@@ -12,6 +12,7 @@ import Barbeiros from "./components/views/Barbeiros";
 import Comandas from "./components/views/Comandas";
 import ClientesLista, { PlanosManager } from "./components/views/ClientesLista";
 import Relatorios from "./components/views/Relatorios";
+import Caixa from "./components/views/Caixa";
 import PaginaAssinatura from "./components/views/PaginaAssinatura";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
@@ -480,6 +481,8 @@ function AppPrincipal() {
                 produtos={produtos}
                 setView={navegar}
               />
+            ) : view === "caixa" ? (
+              <Caixa />
             ) : view === "comandas" ? (
               <Comandas onAtendimentoFinalizado={carregarDashboard} />
             ) : view === "clientes_lista" ? (

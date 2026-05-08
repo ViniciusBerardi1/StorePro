@@ -1345,7 +1345,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
                 day: "2-digit", month: "2-digit", year: "2-digit",
                 hour: "2-digit", minute: "2-digit",
               });
-              const pagBadge = { pix: "Pix", debito: "Débito", credito: "Crédito" }[a.forma_pagamento];
+              const pagBadge = { pix: "Pix", debito: "Débito", credito: "Crédito", dinheiro: "Dinheiro" }[a.forma_pagamento];
               return (
                 <div key={a.id} className="flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 rounded-xl">
                   <div className="min-w-0">

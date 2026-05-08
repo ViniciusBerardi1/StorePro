@@ -12,9 +12,10 @@ const TABS = [
 ];
 
 const PAGAMENTOS = [
-  { id: "pix",     label: "Pix" },
-  { id: "debito",  label: "Déb" },
-  { id: "credito", label: "Cré" },
+  { id: "pix",      label: "Pix" },
+  { id: "debito",   label: "Déb" },
+  { id: "credito",  label: "Cré" },
+  { id: "dinheiro", label: "Din" },
 ];
 
 export default function ComandaLateral({ evento, barbeiros = [], onFinalizar, onCancelar }) {

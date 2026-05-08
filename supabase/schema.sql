@@ -89,7 +89,7 @@ create table if not exists atendimentos (
   valor_total     numeric(10,2) default 0 check (valor_total >= 0),
   status          text default 'agendado'
                     check (status in ('agendado','em_andamento','concluido','cancelado')),
-  forma_pagamento text check (forma_pagamento in ('debito','credito','pix')),
+  forma_pagamento text check (forma_pagamento in ('debito','credito','pix','dinheiro')),
   observacoes     text,
   data_cadastro   timestamptz default now()
 );
@@ -173,6 +173,49 @@ create unique index if not exists idx_uso_beneficios_comanda_unico
   on uso_beneficios(comanda_id, beneficio_id)
   where comanda_id is not null and not estornado;
 
+-- ─── Sessões de caixa ────────────────────────────────────────
+-- Controla abertura/fechamento físico do caixa.
+-- Máximo uma sessão aberta por vez (idx_sessoes_caixa_uma_aberta).
+create table if not exists sessoes_caixa (
+  id               bigserial primary key,
+  status           text not null default 'aberta'
+                   check (status in ('aberta','fechada')),
+  valor_abertura   numeric(10,2) not null default 0,
+  valor_fechamento numeric(10,2),
+  valor_esperado   numeric(10,2),
+  diferenca        numeric(10,2),
+  aberto_por       text,
+  fechado_por      text,
+  opened_at        timestamptz not null default now(),
+  closed_at        timestamptz,
+  snapshot         jsonb,
+  created_at       timestamptz not null default now()
+);
+
+create unique index if not exists idx_sessoes_caixa_uma_aberta
+  on sessoes_caixa(status) where status = 'aberta';
+
+create index if not exists idx_sessoes_caixa_opened
+  on sessoes_caixa(opened_at desc);
+
+-- ─── Movimentos de caixa ─────────────────────────────────────
+-- Append-only. Registra abertura, entradas de comanda, sangrias e suprimentos.
+create table if not exists movimentos_caixa (
+  id              bigserial primary key,
+  sessao_id       bigint not null references sessoes_caixa(id),
+  tipo            text not null
+                  check (tipo in ('abertura','entrada_comanda','sangria','suprimento','ajuste')),
+  valor           numeric(10,2) not null,
+  motivo          text,
+  referencia_tipo text,
+  referencia_id   bigint,
+  criado_por      text,
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists idx_movimentos_caixa_sessao
+  on movimentos_caixa(sessao_id, created_at);
+
 -- ─── Comandas ────────────────────────────────────────────────
 create table if not exists comandas (
   id                   serial primary key,
@@ -192,7 +235,8 @@ create table if not exists comandas (
   desconto             jsonb,
   beneficio_desconto   numeric(10,2) default 0,
   beneficios_aplicados jsonb default '[]',
-  forma_pagamento      text check (forma_pagamento in ('debito','credito','pix')),
+  forma_pagamento      text check (forma_pagamento in ('debito','credito','pix','dinheiro')),
+  sessao_caixa_id      bigint references sessoes_caixa(id),
   status               text default 'aberta'
                        check (status in ('aberta','fechada','cancelada')),
   created_at           timestamptz default now(),
@@ -207,6 +251,9 @@ create index if not exists idx_comandas_status    on comandas(status, created_at
 create index if not exists idx_comandas_cliente   on comandas(cliente_id);
 create index if not exists idx_comandas_closed_at on comandas(closed_at desc)
   where closed_at is not null;
+
+create index if not exists idx_comandas_sessao_caixa on comandas(sessao_caixa_id)
+  where sessao_caixa_id is not null;
 
 -- FK circular: atendimentos.comanda_id → comandas.id
 alter table atendimentos
@@ -405,7 +452,7 @@ begin
   -- ── Bloco B: transição para 'fechada' ────────────────────────
   if NEW.status = 'fechada' then
     if NEW.forma_pagamento is null or
-       NEW.forma_pagamento not in ('debito', 'credito', 'pix') then
+       NEW.forma_pagamento not in ('debito', 'credito', 'pix', 'dinheiro') then
       raise exception 'forma_pagamento inválida ou ausente: "%"',
         coalesce(NEW.forma_pagamento, 'null')
         using errcode = 'P0003';
@@ -650,6 +697,7 @@ declare
   v_observacoes          text;
   v_soma                 numeric;
   v_client_version       integer;
+  v_sessao_id            bigint;
 begin
   v_servicos             := coalesce(p_payload->'servicos',             '[]');
   v_itens_bar            := coalesce(p_payload->'itens_bar',            '[]');
@@ -697,10 +745,26 @@ begin
   end if;
 
   -- Passo 4: validações server-side
-  if v_forma_pagamento is null or v_forma_pagamento not in ('debito','credito','pix') then
+  if v_forma_pagamento is null or
+     v_forma_pagamento not in ('debito','credito','pix','dinheiro') then
     raise exception 'forma_pagamento inválida: "%"', coalesce(v_forma_pagamento,'null')
       using errcode = 'P0003';
   end if;
+
+  -- Passo 4b: dinheiro exige sessão de caixa aberta
+  if v_forma_pagamento = 'dinheiro' then
+    select id into v_sessao_id
+    from   sessoes_caixa
+    where  status = 'aberta'
+    limit  1
+    for    update;
+    if not found then
+      raise exception
+        'Pagamento em dinheiro requer caixa aberto. Abra o caixa antes de finalizar a comanda.'
+        using errcode = 'P0040';
+    end if;
+  end if;
+
   if v_valor_total < 0 then
     raise exception 'valor_total não pode ser negativo: %', v_valor_total using errcode = 'P0004';
   end if;
@@ -777,8 +841,23 @@ begin
     desconto             = v_desconto,
     beneficio_desconto   = v_beneficio_desconto,
     beneficios_aplicados = v_beneficios_aplicados,
-    barbeiro_id          = coalesce(v_barbeiro_id, barbeiro_id)
+    barbeiro_id          = coalesce(v_barbeiro_id, barbeiro_id),
+    sessao_caixa_id      = v_sessao_id
   where id = p_comanda_id;
+
+  -- Passo 7b: registrar entrada automática no caixa (apenas dinheiro)
+  if v_forma_pagamento = 'dinheiro' then
+    insert into movimentos_caixa (
+      sessao_id, tipo, valor, motivo, referencia_tipo, referencia_id
+    ) values (
+      v_sessao_id,
+      'entrada_comanda',
+      v_valor_total,
+      format('Comanda #%s — %s', p_comanda_id, coalesce(v_comanda.cliente_nome, 'cliente')),
+      'comanda',
+      p_comanda_id
+    );
+  end if;
 
   -- Passo 8: uso de benefícios (ON CONFLICT DO NOTHING = idempotente)
   if jsonb_array_length(v_beneficio_registros) > 0 then
@@ -813,7 +892,8 @@ begin
       'forma_pagamento',    v_forma_pagamento,
       'beneficio_desconto', v_beneficio_desconto,
       'atendimento_id',     v_atend_id,
-      'version_finalizado', v_comanda.version
+      'version_finalizado', v_comanda.version,
+      'sessao_caixa_id',    v_sessao_id
     )
   );
 
@@ -877,6 +957,227 @@ end;
 $$;
 
 
+-- ─── RPC: abrir_caixa() ──────────────────────────────────────
+
+create or replace function abrir_caixa(
+  p_valor_abertura numeric default 0,
+  p_aberto_por     text    default null
+)
+returns jsonb
+language plpgsql
+as $$
+declare
+  v_sessao_id bigint;
+  v_existente bigint;
+begin
+  select id into v_existente from sessoes_caixa where status = 'aberta' limit 1;
+  if found then
+    raise exception
+      'Já existe uma sessão de caixa aberta (id: %). Feche-a antes de abrir outra.',
+      v_existente
+      using errcode = 'P0041';
+  end if;
+
+  insert into sessoes_caixa (valor_abertura, aberto_por)
+  values (coalesce(p_valor_abertura, 0), p_aberto_por)
+  returning id into v_sessao_id;
+
+  insert into movimentos_caixa (sessao_id, tipo, valor, motivo)
+  values (v_sessao_id, 'abertura', coalesce(p_valor_abertura, 0), 'Fundo inicial de caixa');
+
+  return jsonb_build_object(
+    'ok',             true,
+    'sessao_id',      v_sessao_id,
+    'valor_abertura', coalesce(p_valor_abertura, 0),
+    'opened_at',      now()
+  );
+exception
+  when others then
+    raise exception 'Erro ao abrir caixa: % (SQLSTATE %)', sqlerrm, sqlstate;
+end;
+$$;
+
+
+-- ─── RPC: fechar_caixa() ─────────────────────────────────────
+
+create or replace function fechar_caixa(
+  p_sessao_id        bigint,
+  p_valor_fechamento numeric  default 0,
+  p_fechado_por      text     default null
+)
+returns jsonb
+language plpgsql
+as $$
+declare
+  v_sessao          sessoes_caixa%rowtype;
+  v_esperado        numeric(10,2);
+  v_diferenca       numeric(10,2);
+  v_snapshot        jsonb;
+  v_tot_dinheiro    numeric(10,2);
+  v_tot_pix         numeric(10,2);
+  v_tot_debito      numeric(10,2);
+  v_tot_credito     numeric(10,2);
+  v_tot_sangrias    numeric(10,2);
+  v_tot_suprimentos numeric(10,2);
+  v_qtd_comandas    bigint;
+begin
+  select * into v_sessao from sessoes_caixa where id = p_sessao_id for update;
+  if not found then
+    raise exception 'Sessão de caixa % não encontrada', p_sessao_id using errcode = 'P0042';
+  end if;
+  if v_sessao.status = 'fechada' then
+    raise exception 'Sessão de caixa % já está fechada', p_sessao_id using errcode = 'P0043';
+  end if;
+
+  select coalesce(sum(
+    case
+      when tipo in ('abertura','entrada_comanda','suprimento') then  valor
+      when tipo = 'sangria'                                    then -valor
+      else 0
+    end
+  ), 0)
+  into v_esperado
+  from movimentos_caixa
+  where sessao_id = p_sessao_id;
+
+  v_diferenca := coalesce(p_valor_fechamento, 0) - v_esperado;
+
+  select coalesce(sum(valor), 0) into v_tot_dinheiro
+  from movimentos_caixa where sessao_id = p_sessao_id and tipo = 'entrada_comanda';
+
+  select coalesce(sum(valor), 0) into v_tot_sangrias
+  from movimentos_caixa where sessao_id = p_sessao_id and tipo = 'sangria';
+
+  select coalesce(sum(valor), 0) into v_tot_suprimentos
+  from movimentos_caixa where sessao_id = p_sessao_id and tipo = 'suprimento';
+
+  select
+    coalesce(sum(case when forma_pagamento = 'pix'     then valor_total else 0 end), 0),
+    coalesce(sum(case when forma_pagamento = 'debito'  then valor_total else 0 end), 0),
+    coalesce(sum(case when forma_pagamento = 'credito' then valor_total else 0 end), 0),
+    count(*)
+  into v_tot_pix, v_tot_debito, v_tot_credito, v_qtd_comandas
+  from comandas
+  where status = 'fechada'
+    and closed_at between v_sessao.opened_at and now();
+
+  v_snapshot := jsonb_build_object(
+    'valor_abertura',    v_sessao.valor_abertura,
+    'total_dinheiro',    v_tot_dinheiro,
+    'total_pix',         v_tot_pix,
+    'total_debito',      v_tot_debito,
+    'total_credito',     v_tot_credito,
+    'total_sangrias',    v_tot_sangrias,
+    'total_suprimentos', v_tot_suprimentos,
+    'qtd_comandas',      v_qtd_comandas
+  );
+
+  update sessoes_caixa set
+    status           = 'fechada',
+    valor_fechamento = coalesce(p_valor_fechamento, 0),
+    valor_esperado   = v_esperado,
+    diferenca        = v_diferenca,
+    snapshot         = v_snapshot,
+    closed_at        = now(),
+    fechado_por      = p_fechado_por
+  where id = p_sessao_id;
+
+  return jsonb_build_object(
+    'ok',               true,
+    'sessao_id',        p_sessao_id,
+    'valor_esperado',   v_esperado,
+    'valor_fechamento', coalesce(p_valor_fechamento, 0),
+    'diferenca',        v_diferenca,
+    'snapshot',         v_snapshot
+  );
+exception
+  when others then
+    raise exception 'Erro ao fechar caixa: % (SQLSTATE %)', sqlerrm, sqlstate;
+end;
+$$;
+
+
+-- ─── RPC: registrar_movimento_caixa() ────────────────────────
+
+create or replace function registrar_movimento_caixa(
+  p_sessao_id  bigint,
+  p_tipo       text,
+  p_valor      numeric,
+  p_motivo     text    default null,
+  p_criado_por text    default null
+)
+returns jsonb
+language plpgsql
+as $$
+declare
+  v_sessao  sessoes_caixa%rowtype;
+  v_mov_id  bigint;
+begin
+  if p_tipo not in ('sangria', 'suprimento', 'ajuste') then
+    raise exception
+      'tipo inválido para operação manual: "%". Use "sangria", "suprimento" ou "ajuste".',
+      p_tipo using errcode = 'P0044';
+  end if;
+  if coalesce(p_valor, 0) <= 0 then
+    raise exception 'valor deve ser positivo (recebido: %)', coalesce(p_valor, 0)
+      using errcode = 'P0045';
+  end if;
+
+  select * into v_sessao from sessoes_caixa where id = p_sessao_id for update;
+  if not found then
+    raise exception 'Sessão de caixa % não encontrada', p_sessao_id using errcode = 'P0042';
+  end if;
+  if v_sessao.status = 'fechada' then
+    raise exception
+      'Sessão de caixa % está fechada. Movimentos não permitidos.', p_sessao_id
+      using errcode = 'P0043';
+  end if;
+
+  insert into movimentos_caixa (sessao_id, tipo, valor, motivo, criado_por)
+  values (p_sessao_id, p_tipo, p_valor, p_motivo, p_criado_por)
+  returning id into v_mov_id;
+
+  return jsonb_build_object(
+    'ok', true, 'movimento_id', v_mov_id,
+    'sessao_id', p_sessao_id, 'tipo', p_tipo, 'valor', p_valor
+  );
+exception
+  when others then
+    raise exception 'Erro ao registrar movimento: % (SQLSTATE %)', sqlerrm, sqlstate;
+end;
+$$;
+
+
+-- ─── Trigger: proteger sessão fechada ────────────────────────
+
+create or replace function fn_proteger_sessao_fechada()
+returns trigger language plpgsql as $$
+begin
+  if OLD.status = 'fechada' then
+    raise exception
+      'Sessão de caixa % já está fechada e é imutável.', OLD.id
+      using errcode = 'P0043';
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_proteger_sessao_fechada on sessoes_caixa;
+create trigger trg_proteger_sessao_fechada
+  before update on sessoes_caixa
+  for each row execute function fn_proteger_sessao_fechada();
+
+drop trigger if exists trg_imutavel_movimentos_caixa on movimentos_caixa;
+create trigger trg_imutavel_movimentos_caixa
+  before update or delete on movimentos_caixa
+  for each row execute function fn_bloquear_mutacao_auditoria();
+
+drop trigger if exists trg_audit_sessoes_caixa on sessoes_caixa;
+create trigger trg_audit_sessoes_caixa
+  after insert or update on sessoes_caixa
+  for each row execute function fn_audit_log();
+
+
 -- ─── View: reconciliação financeira ──────────────────────────
 -- Detecta divergências entre comandas fechadas e atendimentos.
 -- Casos: SEM_ATENDIMENTO | VALOR_DIVERGENTE | SOMA_INVALIDA | OK
@@ -924,10 +1225,11 @@ select
   sum(c.valor_total)                                            as receita_bruta,
   sum(coalesce(c.beneficio_desconto, 0))                        as total_descontos,
   sum(c.valor_total - coalesce(c.beneficio_desconto, 0))        as receita_liquida,
-  sum(case when c.forma_pagamento = 'pix'     then c.valor_total else 0 end) as total_pix,
-  sum(case when c.forma_pagamento = 'debito'  then c.valor_total else 0 end) as total_debito,
-  sum(case when c.forma_pagamento = 'credito' then c.valor_total else 0 end) as total_credito,
-  sum(c.valor_servicos)                                         as total_servicos,
+  sum(case when c.forma_pagamento = 'pix'      then c.valor_total else 0 end) as total_pix,
+  sum(case when c.forma_pagamento = 'debito'   then c.valor_total else 0 end) as total_debito,
+  sum(case when c.forma_pagamento = 'credito'  then c.valor_total else 0 end) as total_credito,
+  sum(case when c.forma_pagamento = 'dinheiro' then c.valor_total else 0 end) as total_dinheiro,
+  sum(c.valor_servicos)                                          as total_servicos,
   sum(c.valor_bar)                                              as total_bar,
   sum(c.valor_loja)                                             as total_loja
 from  comandas c
@@ -1146,6 +1448,22 @@ create policy anon_select on comandas for select to anon using (true);
 create policy anon_insert on comandas for insert to anon with check (true);
 create policy anon_update on comandas for update to anon using (true) with check (true);
 
+-- ── Caixa: SELECT + INSERT + UPDATE (sem DELETE) ─────────────
+alter table sessoes_caixa    enable row level security;
+alter table movimentos_caixa enable row level security;
+
+drop policy if exists anon_select on sessoes_caixa;
+drop policy if exists anon_insert on sessoes_caixa;
+drop policy if exists anon_update on sessoes_caixa;
+create policy anon_select on sessoes_caixa for select to anon using (true);
+create policy anon_insert on sessoes_caixa for insert to anon with check (true);
+create policy anon_update on sessoes_caixa for update to anon using (true) with check (true);
+
+drop policy if exists anon_select on movimentos_caixa;
+drop policy if exists anon_insert on movimentos_caixa;
+create policy anon_select on movimentos_caixa for select to anon using (true);
+create policy anon_insert on movimentos_caixa for insert to anon with check (true);
+
 -- ── Tabelas de auditoria: apenas SELECT + INSERT ──────────────
 -- Append-only por design. Triggers bloqueiam UPDATE/DELETE.
 alter table historico       enable row level security;
@@ -1170,9 +1488,16 @@ drop policy if exists anon_insert on audit_log;       create policy anon_insert 
 grant execute on function baixar_estoque_comanda(jsonb)           to anon;
 grant execute on function finalizar_comanda(integer, jsonb)       to anon;
 grant execute on function cancelar_comanda(integer, text)         to anon;
-grant execute on function verificar_reconciliacao(date, date)     to anon;
-grant execute on function verificar_integridade_completa(date, date) to anon;
-grant select  on vw_reconciliacao_financeira                      to anon;
-grant select  on vw_resumo_financeiro_diario                      to anon;
-grant select  on vw_beneficios_auditoria                          to anon;
-grant select  on audit_log                                        to anon;
+grant execute on function verificar_reconciliacao(date, date)                          to anon;
+grant execute on function verificar_integridade_completa(date, date)                   to anon;
+grant execute on function abrir_caixa(numeric, text)                                   to anon;
+grant execute on function fechar_caixa(bigint, numeric, text)                          to anon;
+grant execute on function registrar_movimento_caixa(bigint, text, numeric, text, text) to anon;
+grant select  on vw_reconciliacao_financeira                                            to anon;
+grant select  on vw_resumo_financeiro_diario                                            to anon;
+grant select  on vw_beneficios_auditoria                                                to anon;
+grant select  on audit_log                                                              to anon;
+grant select, insert, update on sessoes_caixa                                           to anon;
+grant select, insert         on movimentos_caixa                                        to anon;
+grant usage, select on sequence sessoes_caixa_id_seq                                    to anon;
+grant usage, select on sequence movimentos_caixa_id_seq                                 to anon;

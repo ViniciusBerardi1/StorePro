@@ -815,6 +815,68 @@ async function deleteHorarioEspecial(id) {
   if (error) throw new Error(error.message);
 }
 
+// ─── Caixa ───────────────────────────────────────────────────────
+
+async function getSessaoCaixaAberta() {
+  const { data, error } = await supabase
+    .from("sessoes_caixa")
+    .select("*")
+    .eq("status", "aberta")
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function getSessoesCaixa(limit = 10) {
+  const { data, error } = await supabase
+    .from("sessoes_caixa")
+    .select("*")
+    .order("opened_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function getMovimentosCaixa(sessaoId) {
+  const { data, error } = await supabase
+    .from("movimentos_caixa")
+    .select("*")
+    .eq("sessao_id", sessaoId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function abrirCaixa(valorAbertura = 0, abertoPor = null) {
+  const { data, error } = await supabase.rpc("abrir_caixa", {
+    p_valor_abertura: valorAbertura,
+    p_aberto_por:     abertoPor,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function fecharCaixa(sessaoId, valorFechamento, fechadoPor = null) {
+  const { data, error } = await supabase.rpc("fechar_caixa", {
+    p_sessao_id:        sessaoId,
+    p_valor_fechamento: valorFechamento,
+    p_fechado_por:      fechadoPor,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function registrarMovimentoCaixa(sessaoId, tipo, valor, motivo = null) {
+  const { data, error } = await supabase.rpc("registrar_movimento_caixa", {
+    p_sessao_id: sessaoId,
+    p_tipo:      tipo,
+    p_valor:     valor,
+    p_motivo:    motivo,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 // ─── Limpeza de dados operacionais (uso em testes) ───────────────
 async function limparDadosOperacionais() {
   // Ordem respeita dependências: primeiro tabelas filhas, depois pais
@@ -886,6 +948,12 @@ export const db = {
   registrarEventoComanda,
   getEventosComanda,
   limparDadosOperacionais,
+  getSessaoCaixaAberta,
+  getSessoesCaixa,
+  getMovimentosCaixa,
+  abrirCaixa,
+  fecharCaixa,
+  registrarMovimentoCaixa,
   // compatibilidade com código legado que usa desejos
   getDesejos: async () => [],
   addDesejo: async () => {},

@@ -12,6 +12,8 @@ export function parsearErroComanda(message = "") {
     return "Esta comanda foi cancelada. Recarregue a página.";
   if (message.includes("P0003") || message.includes("forma_pagamento"))
     return "Selecione uma forma de pagamento válida.";
+  if (message.includes("P0040") || message.includes("caixa aberto"))
+    return "Pagamento em dinheiro requer caixa aberto. Abra o caixa antes de finalizar.";
   if (message.includes("P0005") || message.includes("superior à soma"))
     return "Erro de cálculo: valor total inconsistente. Recarregue e refaça os itens.";
   return message;

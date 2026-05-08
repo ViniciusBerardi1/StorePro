@@ -55,9 +55,9 @@ function KpiCard({ icon, label, valor, sub }) {
 }
 
 function PagamentoBar({ atendimentos }) {
-  const formas = { pix: 0, debito: 0, credito: 0 };
-  const labels = { pix: "Pix 🔑", debito: "Débito 💳", credito: "Crédito 💳" };
-  const cores  = { pix: "bg-emerald-400", debito: "bg-indigo-400", credito: "bg-violet-400" };
+  const formas = { pix: 0, debito: 0, credito: 0, dinheiro: 0 };
+  const labels = { pix: "Pix 🔑", debito: "Débito 💳", credito: "Crédito 💳", dinheiro: "Dinheiro 💵" };
+  const cores  = { pix: "bg-emerald-400", debito: "bg-indigo-400", credito: "bg-violet-400", dinheiro: "bg-amber-400" };
 
   for (const a of atendimentos.filter((a) => a.status === "concluido")) {
     if (a.forma_pagamento in formas)
@@ -182,9 +182,10 @@ function TabCaixa({ atendimentos, comandas, produtos, setView }) {
 
 // ─── Aba: Extrato ────────────────────────────────────────────────
 const PGTO_BADGE = {
-  pix:     "bg-emerald-50 text-emerald-600",
-  debito:  "bg-indigo-50 text-indigo-600",
-  credito: "bg-violet-50 text-violet-600",
+  pix:      "bg-emerald-50 text-emerald-600",
+  debito:   "bg-indigo-50 text-indigo-600",
+  credito:  "bg-violet-50 text-violet-600",
+  dinheiro: "bg-amber-50 text-amber-600",
 };
 
 const STATUS_BADGE = {

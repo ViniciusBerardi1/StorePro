@@ -4,8 +4,9 @@ import { Home } from "lucide-react";
 const MENU = [
   // ── OPERAÇÃO ────────────────────────────────────────────────────
   { type: "section", label: "OPERAÇÃO" },
-  { type: "item", view: "agenda", label: "Agenda", icon: "📅" },
+  { type: "item", view: "agenda",   label: "Agenda",   icon: "📅" },
   { type: "item", view: "comandas", label: "Comandas", icon: "🧾" },
+  { type: "item", view: "caixa",    label: "Caixa",    icon: "💰" },
 
   // ── ATENDIMENTO ─────────────────────────────────────────────────
   { type: "section", label: "ATENDIMENTO" },
@@ -24,7 +25,7 @@ const MENU = [
 
   // ── GESTÃO ──────────────────────────────────────────────────────
   { type: "section", label: "GESTÃO" },
-  { type: "item", view: "financeiro", label: "Financeiro", icon: "💰" },
+  { type: "item", view: "financeiro", label: "Financeiro", icon: "📈" },
   { type: "item", view: "relatorios", label: "Relatórios", icon: "📊" },
   {
     type: "group",
@@ -44,6 +45,7 @@ const MENU = [
 const VIEWS_ATIVAS = [
   "agenda",
   "comandas",
+  "caixa",
   "servicos",
   "barbeiros",
   "clientes_lista",

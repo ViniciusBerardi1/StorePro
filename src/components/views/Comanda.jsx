@@ -13,9 +13,10 @@ const TABS = [
 ];
 
 const PAGAMENTOS = [
-  { id: "pix", label: "Pix", emoji: "🔑" },
-  { id: "debito", label: "Débito", emoji: "💳" },
-  { id: "credito", label: "Crédito", emoji: "💳" },
+  { id: "pix",      label: "Pix",      emoji: "🔑" },
+  { id: "debito",   label: "Débito",   emoji: "💳" },
+  { id: "credito",  label: "Crédito",  emoji: "💳" },
+  { id: "dinheiro", label: "Dinheiro", emoji: "💵" },
 ];
 
 const ALVOS_DESCONTO = [
