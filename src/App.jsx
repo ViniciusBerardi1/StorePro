@@ -460,7 +460,7 @@ function AppPrincipal() {
           )}
         </AnimatePresence>
 
-        <main className="md:ml-64 pt-20 md:pt-8 px-4 md:px-8 pb-8">
+        <main className="md:ml-60 pt-20 md:pt-8 px-4 md:px-8 pb-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={view}
