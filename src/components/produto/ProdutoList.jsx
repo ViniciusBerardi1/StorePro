@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Package, ClipboardList, FlaskConical, Clock, ArrowDownUp } from "lucide-react";
 import ProdutoDetalhe from "./ProdutoDetalhe";
 
 function EstoqueBadge({ quantidade, estoqueMinimo }) {
