@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import {
+  DollarSign, Scissors, CreditCard, Receipt, Package, ClipboardList,
+  AlertTriangle, Beer, ShoppingBag, RefreshCw, TrendingUp, BarChart2,
+  Calendar, Banknote, History,
+} from "lucide-react";
 
 const BRL = (v) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -39,14 +44,19 @@ function Card({ children, className = "" }) {
   );
 }
 
-function SectionTitle({ children }) {
-  return <h3 className="text-sm font-semibold text-gray-700 mb-3">{children}</h3>;
+function SectionTitle({ children, icon: Icon }) {
+  return (
+    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+      {Icon && <Icon size={15} strokeWidth={2} className="shrink-0" />}
+      {children}
+    </h3>
+  );
 }
 
-function KpiCard({ icon, label, valor, sub }) {
+function KpiCard({ icon: Icon, label, valor, sub }) {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-1">
-      <span className="text-xl">{icon}</span>
+      <span className="text-gray-400"><Icon size={18} strokeWidth={1.75} /></span>
       <div className="text-2xl font-bold text-gray-800 leading-tight">{valor}</div>
       <div className="text-xs font-medium text-gray-500">{label}</div>
       {sub && <span className="text-xs text-gray-400">{sub}</span>}
@@ -56,7 +66,7 @@ function KpiCard({ icon, label, valor, sub }) {
 
 function PagamentoBar({ atendimentos }) {
   const formas = { pix: 0, debito: 0, credito: 0, dinheiro: 0 };
-  const labels = { pix: "Pix 🔑", debito: "Débito 💳", credito: "Crédito 💳", dinheiro: "Dinheiro 💵" };
+  const labels = { pix: "Pix", debito: "Débito", credito: "Crédito", dinheiro: "Dinheiro" };
   const cores  = { pix: "bg-emerald-400", debito: "bg-indigo-400", credito: "bg-violet-400", dinheiro: "bg-amber-400" };
 
   for (const a of atendimentos.filter((a) => a.status === "concluido")) {
@@ -104,9 +114,9 @@ function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
   const totalComandas = comandas.reduce((s, c) => s + Number(c.valor_total || 0), 0);
 
   const origens = [
-    { label: "Serviços", valor: receitaSvcs || fat, icon: "✂️", cor: "bg-indigo-50 border-indigo-100", text: "text-indigo-700" },
-    { label: "Bar",      valor: receitaBar,          icon: "🍺", cor: "bg-amber-50 border-amber-100",  text: "text-amber-700"  },
-    { label: "Loja",     valor: receitaLoja,         icon: "🛍️", cor: "bg-emerald-50 border-emerald-100", text: "text-emerald-700" },
+    { label: "Serviços", valor: receitaSvcs || fat, Icon: Scissors,   cor: "bg-indigo-50 border-indigo-100",  text: "text-indigo-700"  },
+    { label: "Bar",      valor: receitaBar,          Icon: Beer,        cor: "bg-amber-50 border-amber-100",   text: "text-amber-700"   },
+    { label: "Loja",     valor: receitaLoja,         Icon: ShoppingBag, cor: "bg-emerald-50 border-emerald-100", text: "text-emerald-700" },
   ].filter((o) => o.valor > 0);
 
   const estoqueBaixo = (produtos ?? []).filter((p) => p.quantidade <= (p.estoque_minimo ?? 1));
@@ -118,23 +128,23 @@ function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="💰" label="Faturamento" valor={BRL(fat)} sub={`${ok.length} concluídos`} />
-        <KpiCard icon="✂️" label="Atendimentos" valor={ok.length} sub={cancelados > 0 ? `${cancelados} cancelados` : undefined} />
-        <KpiCard icon="💳" label="Ticket médio" valor={BRL(ticket)} sub="por atendimento" />
-        <KpiCard icon="🧾" label="Comandas fechadas" valor={comandas.length} sub={totalComandas > 0 ? BRL(totalComandas) : undefined} />
+        <KpiCard icon={DollarSign}  label="Faturamento"       valor={BRL(fat)}          sub={`${ok.length} concluídos`} />
+        <KpiCard icon={Scissors}    label="Atendimentos"      valor={ok.length}          sub={cancelados > 0 ? `${cancelados} cancelados` : undefined} />
+        <KpiCard icon={CreditCard}  label="Ticket médio"      valor={BRL(ticket)}        sub="por atendimento" />
+        <KpiCard icon={Receipt}     label="Comandas fechadas" valor={comandas.length}    sub={totalComandas > 0 ? BRL(totalComandas) : undefined} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Formas de pagamento */}
         <Card>
-          <SectionTitle>💳 Formas de pagamento</SectionTitle>
+          <SectionTitle icon={CreditCard}>Formas de pagamento</SectionTitle>
           <PagamentoBar atendimentos={atendimentos} />
         </Card>
 
         {/* Receita por origem */}
         {origens.length > 0 && (
           <Card>
-            <SectionTitle>📦 Receita por origem</SectionTitle>
+            <SectionTitle icon={TrendingUp}>Receita por origem</SectionTitle>
             <div className="flex flex-col gap-2">
               {origens.map((o) => {
                 const base = Math.max(fat, totalComandas, 1);
@@ -142,7 +152,7 @@ function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
                 return (
                   <div key={o.label} className={`flex items-center justify-between px-4 py-3 rounded-xl border ${o.cor}`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-base">{o.icon}</span>
+                      <o.Icon size={15} strokeWidth={2} className={o.text} />
                       <div>
                         <p className={`text-xs font-medium ${o.text}`}>{o.label}</p>
                         <p className="text-[10px] text-gray-400">{pct.toFixed(1)}% do total</p>
@@ -161,7 +171,7 @@ function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
       {estoqueBaixo.length > 0 && (
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <SectionTitle>⚠️ Estoque baixo</SectionTitle>
+            <SectionTitle icon={AlertTriangle}>Estoque baixo</SectionTitle>
             <button
               onClick={() => setView("estoque_baixo")}
               className="text-xs text-indigo-500 hover:text-indigo-600 font-medium"
@@ -276,7 +286,7 @@ function DetalheComanda({ cmd, custoPorId }) {
     <div className="px-4 pb-4 flex flex-col gap-3 border-t border-gray-100">
       {temServicos && (
         <div>
-          <p className="text-xs font-semibold text-gray-400 mt-3 mb-2 uppercase tracking-wide">✂️ Serviços</p>
+          <p className="text-xs font-semibold text-gray-400 mt-3 mb-2 uppercase tracking-wide flex items-center gap-1"><Scissors size={11} strokeWidth={2} />Serviços</p>
           <div className="flex flex-col gap-1">
             {cmd.servicos.map((s, i) => (
               <div key={i} className="flex justify-between text-xs px-3 py-2 bg-indigo-50 rounded-xl">
@@ -290,7 +300,7 @@ function DetalheComanda({ cmd, custoPorId }) {
 
       {temBar && (
         <div>
-          <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">🍺 Bar</p>
+          <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide flex items-center gap-1"><Beer size={11} strokeWidth={2} />Bar</p>
           <div className="flex flex-col gap-1">
             {cmd.itens_bar.map((item, i) => {
               const custo = custoPorId[item.produto_id];
@@ -313,7 +323,7 @@ function DetalheComanda({ cmd, custoPorId }) {
 
       {temLoja && (
         <div>
-          <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">🛍️ Loja</p>
+          <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide flex items-center gap-1"><ShoppingBag size={11} strokeWidth={2} />Loja</p>
           <div className="flex flex-col gap-1">
             {cmd.itens_loja.map((item, i) => {
               const custo = custoPorId[item.produto_id];
@@ -343,12 +353,12 @@ function DetalheComanda({ cmd, custoPorId }) {
         )}
         {Number(cmd.valor_bar || 0) > 0 && (
           <div className="flex justify-between text-xs text-gray-500">
-            <span>Bar 🍺</span><span className="font-medium">{BRL(cmd.valor_bar)}</span>
+            <span className="flex items-center gap-1"><Beer size={11} strokeWidth={2} />Bar</span><span className="font-medium">{BRL(cmd.valor_bar)}</span>
           </div>
         )}
         {Number(cmd.valor_loja || 0) > 0 && (
           <div className="flex justify-between text-xs text-gray-500">
-            <span>Loja 🛍️</span><span className="font-medium">{BRL(cmd.valor_loja)}</span>
+            <span className="flex items-center gap-1"><ShoppingBag size={11} strokeWidth={2} />Loja</span><span className="font-medium">{BRL(cmd.valor_loja)}</span>
           </div>
         )}
         {cmd.desconto?.valor_calculado > 0 && (() => {
@@ -403,7 +413,7 @@ function TabExtrato({ atendimentos, comandas, produtos }) {
     <div className="flex flex-col gap-4">
       {/* Comandas */}
       <Card>
-        <SectionTitle>🧾 Comandas finalizadas ({comandas.length})</SectionTitle>
+        <SectionTitle icon={Receipt}>Comandas finalizadas ({comandas.length})</SectionTitle>
         {comandas.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">Nenhuma comanda finalizada no período.</p>
         ) : (
@@ -441,7 +451,7 @@ function TabExtrato({ atendimentos, comandas, produtos }) {
 
       {/* Atendimentos */}
       <Card>
-        <SectionTitle>📋 Atendimentos do período ({atendSorted.length})</SectionTitle>
+        <SectionTitle icon={ClipboardList}>Atendimentos do período ({atendSorted.length})</SectionTitle>
         {atendSorted.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">Nenhum atendimento no período.</p>
         ) : (
@@ -618,9 +628,9 @@ const PERIODOS = [
 ];
 
 const TABS = [
-  { id: "caixa",           icon: "💰", label: "Caixa"    },
-  { id: "extrato",         icon: "📋", label: "Extrato"  },
-  { id: "historico_caixa", icon: "🗂️", label: "Histórico" },
+  { id: "caixa",           Icon: Banknote,  label: "Caixa"    },
+  { id: "extrato",         Icon: ClipboardList, label: "Extrato"  },
+  { id: "historico_caixa", Icon: History,   label: "Histórico" },
 ];
 
 export default function Dashboard({ produtos, setView }) {
@@ -702,7 +712,7 @@ export default function Dashboard({ produtos, setView }) {
             onClick={carregar}
             className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
           >
-            🔄
+            <RefreshCw size={13} />
           </button>
         </div>
       </div>
@@ -716,7 +726,7 @@ export default function Dashboard({ produtos, setView }) {
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-colors
               ${tab === t.id ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
           >
-            {t.icon} {t.label}
+            {t.Icon && <t.Icon size={14} strokeWidth={2} className="shrink-0" />} {t.label}
           </button>
         ))}
       </div>
@@ -738,7 +748,7 @@ export default function Dashboard({ produtos, setView }) {
           ))}
         </div>
       ) : erro ? (
-        <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-2xl px-5 py-4">⚠️ {erro}</div>
+        <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-2xl px-5 py-4"><AlertTriangle size={14} className="inline shrink-0 mr-1.5 -mt-0.5" />{erro}</div>
       ) : (
         <motion.div
           key={`${tab}-${periodo}`}

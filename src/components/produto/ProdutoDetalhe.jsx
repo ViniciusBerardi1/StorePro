@@ -1,13 +1,14 @@
 import { memo } from "react";
+import { FlaskConical } from "lucide-react";
 import { motion } from "framer-motion";
 import { differenceInDays, parseISO, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const LOJAS = {
-  sephora: "🖤 Sephora",
-  belezanaweb: "💜 Beleza na Web",
-  epoca: "🩷 Época Cosméticos",
-  boticario: "🟠 O Boticário",
+  sephora: "Sephora",
+  belezanaweb: "Beleza na Web",
+  epoca: "Época Cosméticos",
+  boticario: "O Boticário",
 };
 
 function StatusBadge({ dataValidade }) {
@@ -70,8 +71,8 @@ function ProdutoDetalhe({ produto: p, onFechar, onEditar }) {
             className="w-full h-52 object-cover shrink-0"
           />
         ) : (
-          <div className="w-full h-36 bg-rose-50 flex items-center justify-center text-6xl shrink-0">
-            🧴
+          <div className="w-full h-36 bg-rose-50 flex items-center justify-center shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-white/70 flex items-center justify-center"><FlaskConical size={32} strokeWidth={1.5} className="text-rose-300" /></div>
           </div>
         )}
 

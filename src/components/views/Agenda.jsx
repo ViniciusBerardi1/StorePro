@@ -12,6 +12,8 @@ import {
 } from "../../services/googleCalendar";
 import { db } from "../../services/supabaseDb";
 import { GCAL_CORES } from "./Barbeiros";
+import { Receipt, AlertTriangle, Calendar, Clock, Zap, Moon, Lock,
+  RefreshCw, Inbox, CheckCircle2 } from "lucide-react";
 import Comanda from "./Comanda";
 import ClienteSelector from "./ClienteSelector";
 import TimePicker from "react-time-picker";
@@ -61,7 +63,7 @@ function ConfirmacaoComanda({ evento, onConfirmar, onCancelar }) {
         transition={{ duration: 0.15 }}
         className="bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl text-center"
       >
-        <div className="text-4xl mb-3">🧾</div>
+        <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-3"><Receipt size={24} strokeWidth={1.5} className="text-indigo-500" /></div>
         <h3 className="font-semibold text-gray-800 mb-1">Abrir comanda?</h3>
         <p className="text-sm text-gray-500 mb-5">
           para <span className="font-medium text-gray-700">{clienteNome}</span>
@@ -77,7 +79,7 @@ function ConfirmacaoComanda({ evento, onConfirmar, onCancelar }) {
             onClick={onConfirmar}
             className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
           >
-            ✅ Abrir
+            <CheckCircle2 size={14} strokeWidth={2} className="inline mr-1.5 -mt-0.5" />Abrir
           </button>
         </div>
       </motion.div>
@@ -200,7 +202,7 @@ function HorarioEspecialModal({ onFechar, onAtualizado }) {
             </div>
 
             {erro && (
-              <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</div>
+              <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-1"><AlertTriangle size={12} className="shrink-0" />{erro}</div>
             )}
 
             <div className="flex gap-2">
@@ -226,7 +228,7 @@ function HorarioEspecialModal({ onFechar, onAtualizado }) {
           <div className="py-8 text-center text-sm text-gray-400 animate-pulse">Carregando...</div>
         ) : lista.length === 0 && !form ? (
           <div className="py-8 text-center">
-            <div className="text-3xl mb-2">📅</div>
+            <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-2"><Calendar size={20} strokeWidth={1.5} className="text-gray-400" /></div>
             <p className="text-sm text-gray-400">Nenhum horário especial cadastrado.</p>
           </div>
         ) : (
@@ -552,7 +554,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
                       .reduce((sum, s) => sum + (s.duracao_minutos || 30), 0);
                     return (
                       <p className="text-[10px] text-indigo-500 mt-1.5">
-                        ⏱ Duração total: {totalMin >= 60 ? `${Math.floor(totalMin / 60)}h${totalMin % 60 > 0 ? `${totalMin % 60}min` : ""}` : `${totalMin}min`}
+                        <Clock size={11} strokeWidth={2} className="inline mr-1 -mt-0.5" />Duração total: {totalMin >= 60 ? `${Math.floor(totalMin / 60)}h${totalMin % 60 > 0 ? `${totalMin % 60}min` : ""}` : `${totalMin}min`}
                       </p>
                     );
                   })()}
@@ -590,7 +592,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-medium text-gray-500">Início</label>
                 {horarioSugerido && !evento && (
-                  <span className="text-[10px] text-indigo-400 font-medium">⚡ sugerido</span>
+                  <span className="text-[10px] text-indigo-400 font-medium flex items-center gap-0.5"><Zap size={9} strokeWidth={2} />sugerido</span>
                 )}
               </div>
               <TimePicker
@@ -654,7 +656,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
 
           {erroForm && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              ⚠️ {erroForm}
+              <AlertTriangle size={12} className="inline shrink-0 mr-1 -mt-0.5" />{erroForm}
             </div>
           )}
 
@@ -665,7 +667,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
               onClick={() => onIniciarAtendimento(evento)}
               className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
             >
-              {eConcluido ? "🧾 Ver Comanda" : "▶ Iniciar Atendimento"}
+              {eConcluido ? <><Receipt size={14} className="inline mr-1.5 -mt-0.5" />Ver Comanda</> : "▶ Iniciar Atendimento"}
             </button>
           )}
 
@@ -713,7 +715,7 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
               transition={{ duration: 0.15 }}
               className="bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl text-center"
             >
-              <div className="text-4xl mb-3">🌙</div>
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-3"><Moon size={24} strokeWidth={1.5} className="text-amber-500" /></div>
               <h3 className="font-semibold text-gray-800 mb-1">Fora do expediente</h3>
               <p className="text-sm text-gray-500 mb-5">
                 O horário selecionado está fora do expediente <span className="font-medium text-gray-700">09:00–20:00</span>. Deseja salvar mesmo assim?
@@ -749,7 +751,7 @@ function TelaConectar({ gisReady, sessionExpired }) {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-sm mx-auto mt-12 bg-white border border-gray-200 rounded-2xl p-8 text-center"
     >
-      <div className="text-5xl mb-4">📅</div>
+      <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-4"><Calendar size={28} strokeWidth={1.5} className="text-indigo-500" /></div>
       <h3 className="text-lg font-semibold text-gray-800 mb-2">
         {sessionExpired ? "Sessão encerrada" : "Conectar Google Calendar"}
       </h3>
@@ -978,13 +980,13 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
               onClick={() => setShowHorariosModal(true)}
               className="text-xs text-gray-400 hover:text-amber-500 transition-colors px-2 py-1 rounded-lg hover:bg-amber-50"
             >
-              🕐 Horários
+              <Clock size={13} strokeWidth={2} className="inline mr-1 -mt-0.5" />Horários
             </button>
             <button
               onClick={carregarEventos}
               className="text-xs text-gray-400 hover:text-indigo-500 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
             >
-              🔄 Sincronizar
+              <RefreshCw size={13} strokeWidth={2} className="inline mr-1 -mt-0.5" />Sincronizar
             </button>
             <button
               onClick={() => { googleSignOut(); setEventos([]); setSessionExpired(false); }}
@@ -1073,7 +1075,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
               return especial ? (
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-3 text-xs font-medium
                   ${especial.fechado ? "bg-red-50 text-red-600 border border-red-100" : "bg-amber-50 text-amber-700 border border-amber-100"}`}>
-                  <span>{especial.fechado ? "🔒" : "🕐"}</span>
+                  {especial.fechado ? <Lock size={12} className="shrink-0" /> : <Clock size={12} className="shrink-0" />}
                   <span>
                     {especial.fechado
                       ? `Fechado${especial.motivo ? ` — ${especial.motivo}` : ""}`
@@ -1132,7 +1134,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
               <div className="py-10 text-center text-sm text-gray-400 animate-pulse">Buscando eventos...</div>
             ) : eventosDoDia.length === 0 ? (
               <div className="py-10 text-center">
-                <div className="text-3xl mb-2">📭</div>
+                <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-2"><Inbox size={20} strokeWidth={1.5} className="text-gray-400" /></div>
                 <p className="text-sm text-gray-400">Nenhum evento neste dia.</p>
                 <button
                   onClick={() => { setEditando(null); setShowForm(true); }}
@@ -1224,7 +1226,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
                               <p className="text-xs text-gray-400 mt-0.5">{ehDiaTodo ? "Dia todo" : `${inicio} – ${fim}`}</p>
                               {ev.description && <p className="text-xs text-gray-500 mt-1 truncate">{ev.description}</p>}
                             </div>
-                            <span className="text-xs text-green-400 shrink-0 self-center">🧾</span>
+                            <Receipt size={13} className="text-green-400 shrink-0 self-center" />
                           </button>
                         );
                       })}
@@ -1236,7 +1238,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
 
             {erro && (
               <div className="mt-4 text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                ⚠️ {erro}
+                <AlertTriangle size={12} className="inline shrink-0 mr-1 -mt-0.5" />{erro}
               </div>
             )}
           </motion.div>

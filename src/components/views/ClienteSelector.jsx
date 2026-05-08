@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { db } from "../../services/supabaseDb";
+import { User } from "lucide-react";
 
 const normTel = (t) => (t || "").replace(/\D/g, "");
 
@@ -120,7 +121,7 @@ export default function ClienteSelector({ clientes = [], value, onChange }) {
   if (value) {
     return (
       <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl">
-        <span className="text-indigo-500 text-base">👤</span>
+        <User size={16} className="text-indigo-500 shrink-0" />
         <span className="flex-1 text-sm font-medium text-indigo-700 truncate">
           {value.nome}
           {value.telefone && (
@@ -160,7 +161,7 @@ export default function ClienteSelector({ clientes = [], value, onChange }) {
               }}
               className="flex items-center gap-3 w-full px-4 py-2.5 text-left hover:bg-indigo-50 transition-colors"
             >
-              <span className="text-sm shrink-0">👤</span>
+              <User size={15} className="text-gray-400 shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-700 truncate">{c.nome}</p>
                 {c.telefone && <p className="text-xs text-gray-400">{c.telefone}</p>}

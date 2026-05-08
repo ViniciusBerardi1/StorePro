@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
 import { db } from "../../services/supabaseDb";
+import { Scissors, Beer, ShoppingBag, QrCode, CreditCard, Banknote, AlertTriangle, Receipt, Crown, CheckCircle2, XCircle } from "lucide-react";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 const TABS = [
-  { id: "servicos", emoji: "✂️", label: "Srv" },
-  { id: "bar",     emoji: "🍺", label: "Bar" },
-  { id: "loja",    emoji: "🛍️", label: "Loja" },
+  { id: "servicos", Icon: Scissors,   label: "Srv"  },
+  { id: "bar",      Icon: Beer,        label: "Bar"  },
+  { id: "loja",     Icon: ShoppingBag, label: "Loja" },
 ];
 
 const PAGAMENTOS = [
@@ -108,7 +109,7 @@ export default function ComandaLateral({ evento, barbeiros = [], onFinalizar, on
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">🧾 Comanda aberta</span>
+          <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest flex items-center gap-1"><Receipt size={11} strokeWidth={2.5} /> Comanda aberta</span>
           <p className="text-xs font-semibold text-gray-700 truncate leading-tight">{clienteNome}</p>
         </div>
         <button
@@ -131,7 +132,7 @@ export default function ComandaLateral({ evento, barbeiros = [], onFinalizar, on
                 className={`flex-1 py-1 rounded-lg text-[11px] font-medium transition-colors
                   ${tab === t.id ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
               >
-                {t.emoji} {t.label}
+                <span className="inline-flex items-center gap-1"><t.Icon size={11} strokeWidth={2} />{t.label}</span>
               </button>
             ))}
           </div>
@@ -211,14 +212,14 @@ export default function ComandaLateral({ evento, barbeiros = [], onFinalizar, on
             ))}
           </div>
 
-          {erro && <p className="text-[11px] text-red-500">⚠️ {erro}</p>}
+          {erro && <p className="text-[11px] text-red-500 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" />{erro}</p>}
 
           <button
             onClick={handleFinalizar}
             disabled={finalizando || !hasItems}
             className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-60"
           >
-            {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar — ${fmtValor(total)}` : "✅ Fechar Comanda"}
+            {finalizando ? "Fechando..." : total > 0 ? `Fechar — ${fmtValor(total)}` : "Fechar Comanda"}
           </button>
         </>
       )}

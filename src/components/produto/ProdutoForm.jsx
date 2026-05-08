@@ -53,8 +53,8 @@ export default function ProdutoForm({
             <label className="text-xs font-medium text-gray-500 mb-2 block">Tipo de estoque</label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: "loja", label: "🛍️ Loja", desc: "Itens para venda" },
-                { id: "bar", label: "🍺 Bar", desc: "Consumo no local" },
+                { id: "loja", label: "Loja", desc: "Itens para venda" },
+                { id: "bar", label: "Bar", desc: "Consumo no local" },
               ].map((op) => (
                 <button
                   key={op.id}

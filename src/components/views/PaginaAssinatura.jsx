@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import { Crown, Clock } from "lucide-react";
 
 const INTERVALO_LABEL = {
   semanal:    "por semana",
@@ -45,8 +46,8 @@ export default function PaginaAssinatura() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500 text-white text-3xl mb-4 shadow-lg">
-            👑
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500 text-white mb-4 shadow-lg">
+            <Crown size={30} strokeWidth={1.75} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">{nomeApp}</h1>
           <p className="text-gray-500 mt-2 text-sm max-w-xs mx-auto">
@@ -65,7 +66,7 @@ export default function PaginaAssinatura() {
           <div className="py-12 text-center text-sm text-red-500">{erro}</div>
         ) : planos.length === 0 ? (
           <div className="py-20 text-center">
-            <div className="text-4xl mb-3">🔜</div>
+            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3"><Clock size={22} strokeWidth={1.5} className="text-gray-400" /></div>
             <p className="text-sm text-gray-400">Nenhum plano disponível no momento.</p>
           </div>
         ) : (

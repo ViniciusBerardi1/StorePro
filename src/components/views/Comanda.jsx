@@ -1,29 +1,33 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import {
+  Scissors, Beer, ShoppingBag, QrCode, CreditCard, Banknote,
+  Crown, Receipt, AlertTriangle, CheckCircle2, XCircle, Plus, Pencil,
+} from "lucide-react";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 const TABS = [
-  { id: "servicos", label: "Serviços", emoji: "✂️" },
-  { id: "bar", label: "Bar", emoji: "🍺" },
-  { id: "loja", label: "Loja", emoji: "🛍️" },
+  { id: "servicos", label: "Serviços", Icon: Scissors   },
+  { id: "bar",      label: "Bar",      Icon: Beer        },
+  { id: "loja",     label: "Loja",     Icon: ShoppingBag },
 ];
 
 const PAGAMENTOS = [
-  { id: "pix",      label: "Pix",      emoji: "🔑" },
-  { id: "debito",   label: "Débito",   emoji: "💳" },
-  { id: "credito",  label: "Crédito",  emoji: "💳" },
-  { id: "dinheiro", label: "Dinheiro", emoji: "💵" },
+  { id: "pix",      label: "Pix",      Icon: QrCode     },
+  { id: "debito",   label: "Débito",   Icon: CreditCard },
+  { id: "credito",  label: "Crédito",  Icon: CreditCard },
+  { id: "dinheiro", label: "Dinheiro", Icon: Banknote   },
 ];
 
 const ALVOS_DESCONTO = [
-  { id: "total",    label: "Total"       },
-  { id: "servicos", label: "Serviços ✂️" },
-  { id: "bar",      label: "Bar 🍺"      },
-  { id: "loja",     label: "Loja 🛍️"    },
+  { id: "total",    label: "Total"    },
+  { id: "servicos", label: "Serviços" },
+  { id: "bar",      label: "Bar"      },
+  { id: "loja",     label: "Loja"     },
 ];
 
 function calcDesconto(desc, totSvc, totBar, totLoja) {
@@ -251,7 +255,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
               >
                 {statusSalvo === "saving" && "Salvando..."}
                 {statusSalvo === "saved"  && "✓ Salvo"}
-                {statusSalvo === "error"  && "⚠️"}
+                {statusSalvo === "error"  && <AlertTriangle size={12} className="inline shrink-0" />}
               </span>
             )}
             {bloqueado && (
@@ -278,7 +282,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors
                     ${tab === t.id ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
                 >
-                  <span>{t.emoji}</span>
+                  <t.Icon size={14} strokeWidth={2} />
                   {t.label}
                 </button>
               ))}
@@ -451,13 +455,13 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
                   )}
                   {totalBar > 0 && (
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>Bar 🍺</span>
+                      <span className="flex items-center gap-1"><Beer size={11} strokeWidth={2} />Bar</span>
                       <span className="font-medium text-gray-700">{fmtValor(totalBar)}</span>
                     </div>
                   )}
                   {totalLoja > 0 && (
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>Loja 🛍️</span>
+                      <span className="flex items-center gap-1"><ShoppingBag size={11} strokeWidth={2} />Loja</span>
                       <span className="font-medium text-gray-700">{fmtValor(totalLoja)}</span>
                     </div>
                   )}
@@ -491,7 +495,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
                           : "bg-white border-gray-200 text-gray-400 hover:border-indigo-300 hover:bg-indigo-50 hover:text-gray-600"
                         }`}
                     >
-                      <span className="text-base">{p.emoji}</span>
+                      <p.Icon size={18} strokeWidth={formaPagamento === p.id ? 2.5 : 2} />
                       <span>{p.label}</span>
                     </button>
                   ))}
@@ -505,8 +509,8 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
               )}
 
               {erro && (
-                <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                  ⚠️ {erro}
+                <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-1.5">
+                  <AlertTriangle size={13} className="shrink-0" />{erro}
                 </div>
               )}
 
@@ -515,7 +519,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
                   onClick={() => setBloqueado(false)}
                   className="w-full border-2 border-indigo-300 text-indigo-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 transition-colors"
                 >
-                  ✏️ Editar comanda
+                  <Pencil size={14} strokeWidth={2} className="inline mr-1.5 -mt-0.5" />Editar comanda
                 </button>
               ) : (
                 <button
@@ -526,8 +530,8 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
                   {finalizando
                     ? "Fechando..."
                     : total > 0
-                      ? `✅ Fechar — ${fmtValor(total)}${valorDesconto > 0 ? ` (−${fmtValor(valorDesconto)})` : ""}`
-                      : "✅ Fechar Comanda"}
+                      ? `Fechar — ${fmtValor(total)}${valorDesconto > 0 ? ` (−${fmtValor(valorDesconto)})` : ""}`
+                      : "Fechar Comanda"}
                 </button>
               )}
             </div>

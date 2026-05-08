@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import { Banknote, QrCode, CreditCard } from "lucide-react";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -263,9 +264,9 @@ function SessaoItem({ sessao }) {
         )}
       </div>
       <div className="flex gap-3 text-[11px] text-gray-400">
-        <span>💵 {fmtValor(snap.total_dinheiro)}</span>
-        <span>🔑 {fmtValor(snap.total_pix)}</span>
-        <span>💳 {fmtValor((snap.total_debito ?? 0) + (snap.total_credito ?? 0))}</span>
+        <span className="flex items-center gap-1"><Banknote size={11} strokeWidth={2} />{fmtValor(snap.total_dinheiro)}</span>
+        <span className="flex items-center gap-1"><QrCode size={11} strokeWidth={2} />{fmtValor(snap.total_pix)}</span>
+        <span className="flex items-center gap-1"><CreditCard size={11} strokeWidth={2} />{fmtValor((snap.total_debito ?? 0) + (snap.total_credito ?? 0))}</span>
         <span>{snap.qtd_comandas ?? 0} cmd</span>
       </div>
     </div>

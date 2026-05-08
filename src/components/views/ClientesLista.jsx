@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import { Crown, Scissors, AlertTriangle, Settings, XCircle, CheckCircle2, Loader2,
+  Pencil, Trash2, Star, ClipboardList, Search, CreditCard, DollarSign, Calendar } from "lucide-react";
 
 // ─── Formatters ──────────────────────────────────────────────────
 const BRL      = (v) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -112,7 +114,7 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
     <div className="bg-white border border-gray-200 rounded-2xl p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-          <span>👑</span> Assinatura
+          <Crown size={15} className="text-amber-500 shrink-0" /> Assinatura
         </h3>
         {!showForm && (
           <button
@@ -142,7 +144,7 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
                   <p className="text-[10px] text-gray-500">Renova em {fmtData(ativa.data_renovacao)}</p>
                 )}
                 {ativa.barbeiro_id && barbeiros.find(b => b.id === ativa.barbeiro_id)?.nome && (
-                  <p className="text-[10px] text-gray-400 mt-0.5">✂️ {barbeiros.find(b => b.id === ativa.barbeiro_id).nome}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5"><Scissors size={10} strokeWidth={2} className="inline mr-1 -mt-0.5 text-gray-400" />{barbeiros.find(b => b.id === ativa.barbeiro_id).nome}</p>
                 )}
                 {ativa.gateway && (
                   <p className="text-[10px] text-gray-300 mt-0.5 truncate">
@@ -276,7 +278,7 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
           </div>
 
           {erro && (
-            <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</p>
+            <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-1"><AlertTriangle size={12} className="shrink-0" />{erro}</p>
           )}
 
           <div className="flex gap-2">
@@ -595,7 +597,7 @@ function PlanoForm({ plano, onSalvar, onFechar }) {
           </label>
 
           {erro && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</p>
+            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-1"><AlertTriangle size={12} className="shrink-0" />{erro}</p>
           )}
 
           <div className="flex gap-2 pt-1">
@@ -691,7 +693,7 @@ function GatewayConfig() {
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="text-base">⚙️</span>
+          <Settings size={16} strokeWidth={2} className="text-gray-500 shrink-0" />
           <span className="text-sm font-semibold text-gray-700">Gateway de Pagamento</span>
           {gateway && (
             <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">
@@ -808,7 +810,7 @@ function GatewayConfig() {
                   <div key={l.id} className={`flex items-start gap-3 px-3 py-2.5 rounded-xl text-xs
                     ${l.erro ? "bg-red-50 border border-red-100" : l.processado ? "bg-green-50 border border-green-100" : "bg-gray-50 border border-gray-100"}`}>
                     <span className="shrink-0 mt-0.5">
-                      {l.erro ? "❌" : l.processado ? "✅" : "⏳"}
+                      {l.erro ? <XCircle size={14} className="text-red-400 shrink-0" /> : l.processado ? <CheckCircle2 size={14} className="text-green-500 shrink-0" /> : <Loader2 size={14} className="text-gray-400 animate-spin shrink-0" />}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -938,14 +940,14 @@ export function PlanosManager() {
       </div>
 
       {erro && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">⚠️ {erro}</div>
+        <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-center gap-1.5"><AlertTriangle size={13} className="shrink-0" />{erro}</div>
       )}
 
       {loading ? (
         <div className="py-12 text-center text-sm text-gray-400 animate-pulse">Carregando...</div>
       ) : planos.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">
-          <div className="text-4xl mb-3">👑</div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-3"><Crown size={24} strokeWidth={1.5} className="text-amber-400" /></div>
           <p className="text-sm text-gray-500 mb-4">Nenhum plano cadastrado ainda.</p>
           <button
             onClick={() => { setEditando(null); setShowForm(true); }}
@@ -1000,7 +1002,7 @@ export function PlanosManager() {
               initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-xl text-center"
             >
-              <div className="text-3xl mb-3">⚠️</div>
+              <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-3"><AlertTriangle size={20} strokeWidth={1.5} className="text-red-400" /></div>
               <p className="text-sm text-gray-700 font-medium mb-1">Desativar plano?</p>
               <p className="text-xs text-gray-400 mb-5">
                 Assinaturas existentes não serão afetadas.
@@ -1143,7 +1145,7 @@ function ClienteForm({ cliente, clientes, onSalvar, onFechar }) {
 
           {erros.geral && (
             <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              ⚠️ {erros.geral}
+              <AlertTriangle size={12} className="inline shrink-0 mr-1 -mt-0.5" />{erros.geral}
             </p>
           )}
 
@@ -1211,10 +1213,10 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
   };
 
   const kpis = [
-    { icon: "✂️", valor: atendimentos.length, label: "Atendimentos" },
-    { icon: "💰", valor: BRL(totalGasto),     label: "Total gasto"  },
-    { icon: "💳", valor: BRL(ticketMedio),    label: "Ticket médio" },
-    { icon: "📅",
+    { Icon: Scissors,  valor: atendimentos.length, label: "Atendimentos" },
+    { Icon: DollarSign, valor: BRL(totalGasto),    label: "Total gasto"  },
+    { Icon: CreditCard, valor: BRL(ticketMedio),   label: "Ticket médio" },
+    { Icon: Calendar,
       valor: ultimaVisita ? fmtData(ultimaVisita) : "—",
       label: "Última visita",
       sub: frequencia ? `a cada ~${fmtFreq(frequencia)}` : null },
@@ -1232,11 +1234,11 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
           <button
             onClick={() => setEditando(true)}
             className="text-xs text-indigo-500 hover:bg-indigo-50 px-3 py-1.5 rounded-xl transition-colors font-medium border border-indigo-200"
-          >✏️ Editar</button>
+          ><Pencil size={13} strokeWidth={2} className="inline mr-1.5 -mt-0.5" />Editar</button>
           <button
             onClick={() => setConfirmDelete(true)}
             className="text-xs text-red-400 hover:bg-red-50 px-3 py-1.5 rounded-xl transition-colors font-medium border border-red-100"
-          >🗑️ Excluir</button>
+          ><Trash2 size={13} strokeWidth={2} className="inline mr-1.5 -mt-0.5" />Excluir</button>
         </div>
       </div>
 
@@ -1246,7 +1248,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
           <div className="relative shrink-0">
             <Avatar nome={cliente.nome} size="lg" />
             {isAssinante && (
-              <span className="absolute -top-1 -right-1 text-base leading-none">👑</span>
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center shadow"><Crown size={11} strokeWidth={2.5} className="text-white" /></span>
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -1285,7 +1287,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {kpis.map((k) => (
             <div key={k.label} className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-0.5">
-              <span className="text-xl">{k.icon}</span>
+              <k.Icon size={20} strokeWidth={1.5} className="text-gray-400 mb-0.5" />
               <span className="text-xl font-bold text-gray-800 leading-tight">{k.valor}</span>
               <span className="text-xs text-gray-500">{k.label}</span>
               {k.sub && <span className="text-[10px] text-gray-400">{k.sub}</span>}
@@ -1297,7 +1299,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
       {/* Serviços favoritos */}
       {topServicos.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">⭐ Serviços preferidos</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5"><Star size={14} strokeWidth={2} className="text-amber-400" />Serviços preferidos</h3>
           <div className="flex flex-col gap-2">
             {topServicos.map(([nome, count], i) => {
               const max = topServicos[0][1];
@@ -1328,7 +1330,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
       {/* Histórico */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700">📋 Histórico de atendimentos</h3>
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5"><ClipboardList size={14} strokeWidth={2} className="text-gray-400" />Histórico de atendimentos</h3>
           {atendimentos.length > 0 && (
             <span className="text-xs text-gray-400">{atendimentos.length} total</span>
           )}
@@ -1385,7 +1387,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
               className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl"
             >
               <div className="text-center mb-5">
-                <div className="text-3xl mb-2">⚠️</div>
+                <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-3"><AlertTriangle size={20} strokeWidth={1.5} className="text-red-400" /></div>
                 <h3 className="font-semibold text-gray-800">Excluir {cliente.nome}?</h3>
                 <p className="text-sm text-gray-500 mt-1">
                   Ação irreversível. O histórico de atendimentos não será afetado.
@@ -1423,7 +1425,7 @@ function ClienteCard({ cliente, isAssinante, onVer }) {
       <div className="relative shrink-0">
         <Avatar nome={cliente.nome} />
         {isAssinante && (
-          <span className="absolute -top-1 -right-1 text-xs leading-none">👑</span>
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center shadow"><Crown size={9} strokeWidth={2.5} className="text-white" /></span>
         )}
       </div>
       <div className="flex-1 min-w-0">
@@ -1553,7 +1555,7 @@ export default function ClientesLista({ initialAba = "todos" }) {
 
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
             value={busca}
@@ -1594,11 +1596,11 @@ export default function ClientesLista({ initialAba = "todos" }) {
         </div>
       ) : erro ? (
         <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-2xl px-5 py-4">
-          ⚠️ {erro}
+          <AlertTriangle size={14} className="inline shrink-0 mr-1.5 -mt-0.5" />{erro}
         </div>
       ) : filtrados.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-2xl px-5 py-12 text-center">
-          <div className="text-4xl mb-3">{busca ? "🔍" : "👥"}</div>
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">{busca ? <Search size={22} strokeWidth={1.5} className="text-gray-400" /> : <Users size={22} strokeWidth={1.5} className="text-gray-400" />}</div>
           <p className="text-sm font-medium text-gray-500">
             {busca
               ? "Nenhum cliente encontrado"

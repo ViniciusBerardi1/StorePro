@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import { Scissors, Trash2, AlertTriangle } from "lucide-react";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -119,7 +120,7 @@ function ServicoForm({ servico, onSalvar, onFechar }) {
 
           {erro && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              ⚠️ {erro}
+              <AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erro}
             </div>
           )}
 
@@ -238,7 +239,7 @@ export default function Servicos() {
 
       {erro && (
         <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-          ⚠️ {erro}
+          <AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erro}
         </div>
       )}
 
@@ -250,7 +251,9 @@ export default function Servicos() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white border border-gray-200 rounded-2xl p-10 text-center"
         >
-          <div className="text-4xl mb-3">✂️</div>
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+            <Scissors size={22} strokeWidth={1.5} className="text-gray-400" />
+          </div>
           <p className="text-sm text-gray-500 mb-4">Nenhum serviço cadastrado ainda.</p>
           <button
             onClick={() => { setEditando(null); setShowForm(true); }}
@@ -352,7 +355,9 @@ export default function Servicos() {
               exit={{ scale: 0.95 }}
               className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-xl text-center"
             >
-              <div className="text-3xl mb-3">🗑️</div>
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center mx-auto mb-3">
+                <Trash2 size={18} strokeWidth={2} className="text-red-400" />
+              </div>
               <p className="text-sm text-gray-700 font-medium mb-1">Excluir serviço?</p>
               <p className="text-xs text-gray-400 mb-5">Esta ação não pode ser desfeita.</p>
               <div className="flex gap-2">

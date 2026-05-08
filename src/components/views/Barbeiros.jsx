@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import { Users, AlertTriangle } from "lucide-react";
 
 export const GCAL_CORES = {
   "1":  { label: "Lavanda",   hex: "#7986CB" },
@@ -126,7 +127,7 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
 
           {erro && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              ⚠️ {erro}
+              <AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erro}
             </p>
           )}
 
@@ -208,7 +209,7 @@ export default function Barbeiros() {
 
       {erro && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-          ⚠️ {erro}
+          <AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erro}
         </div>
       )}
 
@@ -222,7 +223,9 @@ export default function Barbeiros() {
           animate={{ opacity: 1 }}
           className="bg-white border border-gray-200 rounded-2xl p-10 text-center"
         >
-          <div className="text-4xl mb-3">✂️</div>
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+            <Users size={22} strokeWidth={1.5} className="text-gray-400" />
+          </div>
           <p className="text-gray-500 text-sm mb-4">Nenhum barbeiro cadastrado ainda.</p>
           <button
             onClick={() => { setEditando(null); setShowForm(true); }}

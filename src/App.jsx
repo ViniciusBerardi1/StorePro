@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Store, Lock, AlertTriangle } from "lucide-react";
 import Sidebar from "./components/layout/Sidebar";
 import ProdutoList from "./components/produto/ProdutoList";
 import ProdutoForm from "./components/produto/ProdutoForm";
@@ -71,8 +72,8 @@ function LoginApp({ onEntrar }) {
         className="bg-white rounded-2xl w-full max-w-xs p-8 shadow-xl border border-gray-100"
       >
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-500 text-white text-2xl mb-4 shadow-md">
-            ✂️
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 text-white mb-4 shadow-md">
+            <Store size={28} strokeWidth={2} />
           </div>
           <h1 className="text-lg font-bold text-gray-900">StorePro</h1>
           <p className="text-xs text-gray-400 mt-1">Acesso restrito à equipe</p>
@@ -141,7 +142,9 @@ function SenhaModal({ onConfirmar, onFechar }) {
         className="bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl"
       >
         <div className="text-center mb-5">
-          <div className="text-3xl mb-2">🔒</div>
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 text-gray-500 mb-2">
+            <Lock size={18} strokeWidth={2} />
+          </div>
           <h3 className="font-semibold text-gray-800">Área de Gestão</h3>
           <p className="text-xs text-gray-400 mt-1">Financeiro e Relatórios · digite a senha para continuar</p>
         </div>
@@ -500,8 +503,8 @@ function AppPrincipal() {
               <ProdutoList
                 titulo={
                   view === "estoque_baixo" ? "Estoque Baixo" :
-                  view === "estoque_bar" ? "Bar 🍺" :
-                  view === "estoque_loja" ? "Loja 🛍️" :
+                  view === "estoque_bar" ? "Bar" :
+                  view === "estoque_loja" ? "Loja" :
                   "Estoque"
                 }
                 produtos={produtosFiltrados}

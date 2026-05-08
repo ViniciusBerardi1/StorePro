@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import {
+  Scissors, Beer, ShoppingBag, QrCode, CreditCard, Banknote,
+  Crown, Receipt, AlertTriangle, CheckCircle2, XCircle, RefreshCw, Pencil, Plus,
+} from "lucide-react";
 import ClienteSelector from "./ClienteSelector";
 import { calcularBeneficios, cicloAtual } from "../../services/beneficiosCalc";
 import { finalizarComanda, parsearErroComanda } from "../../services/comandasService";
@@ -29,22 +33,22 @@ function resumoItens(cmd) {
 }
 
 const TABS = [
-  { id: "servicos", emoji: "✂️", label: "Serviços" },
-  { id: "bar",     emoji: "🍺", label: "Bar" },
-  { id: "loja",    emoji: "🛍️", label: "Loja" },
+  { id: "servicos", Icon: Scissors,   label: "Serviços" },
+  { id: "bar",      Icon: Beer,        label: "Bar"      },
+  { id: "loja",     Icon: ShoppingBag, label: "Loja"     },
 ];
 const PAGAMENTOS = [
-  { id: "pix",      label: "Pix",      emoji: "🔑" },
-  { id: "debito",   label: "Débito",   emoji: "💳" },
-  { id: "credito",  label: "Crédito",  emoji: "💳" },
-  { id: "dinheiro", label: "Dinheiro", emoji: "💵" },
+  { id: "pix",      label: "Pix",      Icon: QrCode     },
+  { id: "debito",   label: "Débito",   Icon: CreditCard },
+  { id: "credito",  label: "Crédito",  Icon: CreditCard },
+  { id: "dinheiro", label: "Dinheiro", Icon: Banknote   },
 ];
 
 const ALVOS_DESCONTO = [
-  { id: "total",    label: "Total"       },
-  { id: "servicos", label: "Serviços ✂️" },
-  { id: "bar",      label: "Bar 🍺"      },
-  { id: "loja",     label: "Loja 🛍️"    },
+  { id: "total",    label: "Total"    },
+  { id: "servicos", label: "Serviços" },
+  { id: "bar",      label: "Bar"      },
+  { id: "loja",     label: "Loja"     },
 ];
 
 function calcDesconto(desc, totSvc, totBar, totLoja) {
@@ -259,7 +263,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
       {/* Barbeiro */}
       {barbeiros.length > 0 && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 shrink-0">✂️ Barbeiro:</span>
+          <span className="text-xs text-gray-500 shrink-0 inline-flex items-center gap-1"><Scissors size={12} strokeWidth={2} />Barbeiro:</span>
           <select
             value={barbeiroId ?? ""}
             onChange={(e) => setBarbeiroId(e.target.value ? Number(e.target.value) : null)}
@@ -276,7 +280,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
       {/* Badge de assinante */}
       {assinaturaData && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
-          <span className="text-sm">👑</span>
+          <Crown size={15} strokeWidth={2} className="text-amber-500 shrink-0" />
           <span className="text-xs font-medium text-amber-700">
             Assinante {assinaturaData.planos?.nome}
           </span>
@@ -297,7 +301,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-medium transition-colors
                 ${tab === t.id ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
-            >{t.emoji} {t.label}</button>
+            ><t.Icon size={14} strokeWidth={2} />{t.label}</button>
           ))}
         </div>
         {statusSalvo !== "idle" && (
@@ -310,7 +314,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           >
             {statusSalvo === "saving" && "Salvando..."}
             {statusSalvo === "saved"  && "✓ Salvo"}
-            {statusSalvo === "error"  && "⚠️ Falha ao salvar"}
+            {statusSalvo === "error"  && "Falha ao salvar"}
           </span>
         )}
       </div>
@@ -365,7 +369,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
         {tab !== "servicos" && (
           lista.length === 0
             ? <p className="col-span-2 text-sm text-gray-400 text-center py-6">
-                Nenhum produto. Adicione em Estoque → {tab === "bar" ? "Bar 🍺" : "Loja 🛍️"}.
+                Nenhum produto. Adicione em Estoque → {tab === "bar" ? "Bar" : "Loja"}.
               </p>
             : lista.map((p) => {
               const qtd  = qtds[p.id] || 0;
@@ -454,8 +458,8 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
       {hasItems && (
         <div className="bg-gray-50 rounded-xl px-4 py-3 flex flex-col gap-1">
           {totalServicos > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Serviços ({servicosSel.size})</span><span className="font-medium text-gray-700">{fmtValor(totalServicos)}</span></div>}
-          {totalBar  > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Bar 🍺</span><span className="font-medium text-gray-700">{fmtValor(totalBar)}</span></div>}
-          {totalLoja > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Loja 🛍️</span><span className="font-medium text-gray-700">{fmtValor(totalLoja)}</span></div>}
+          {totalBar  > 0 && <div className="flex justify-between text-xs text-gray-500"><span className="flex items-center gap-1"><Beer size={11} strokeWidth={2} />Bar</span><span className="font-medium text-gray-700">{fmtValor(totalBar)}</span></div>}
+          {totalLoja > 0 && <div className="flex justify-between text-xs text-gray-500"><span className="flex items-center gap-1"><ShoppingBag size={11} strokeWidth={2} />Loja</span><span className="font-medium text-gray-700">{fmtValor(totalLoja)}</span></div>}
           {(beneficioDesconto > 0 || valorDesconto > 0) && (
             <div className="flex justify-between text-xs text-gray-400 border-t border-gray-200 pt-1.5 mt-0.5">
               <span>Subtotal</span><span>{fmtValor(subtotal)}</span>
@@ -463,7 +467,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           )}
           {beneficioDesconto > 0 && (
             <div className="flex justify-between text-xs font-medium text-green-600">
-              <span>👑 Benefícios do plano</span>
+              <span className="flex items-center gap-1"><Crown size={12} strokeWidth={2} />Benefícios do plano</span>
               <span>−{fmtValor(beneficioDesconto)}</span>
             </div>
           )}
@@ -490,14 +494,14 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
                 ? "bg-indigo-500 border-indigo-500 text-white font-medium"
                 : "bg-white border-gray-200 text-gray-400 hover:border-indigo-300 hover:bg-indigo-50 hover:text-gray-600"}`}
           >
-            <span className="text-base">{p.emoji}</span>
+            <p.Icon size={18} strokeWidth={formaPagamento === p.id ? 2.5 : 2} />
             <span>{p.label}</span>
           </button>
         ))}
       </div>
 
       {erro && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erro}</div>
+        <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2"><AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erro}</div>
       )}
 
       {/* Cancelamento com motivo */}
@@ -514,7 +518,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
             autoFocus
           />
           {erro && (
-            <p className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-lg px-2 py-1">⚠️ {erro}</p>
+            <p className="text-xs text-red-700 bg-red-100 border border-red-200 rounded-lg px-2 py-1"><AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erro}</p>
           )}
           <div className="flex gap-2">
             <button
@@ -541,7 +545,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
             disabled={finalizando || !hasItems}
             className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
           >
-            {finalizando ? "Fechando..." : total > 0 ? `✅ Fechar — ${fmtValor(total)}` : "✅ Fechar Comanda"}
+            {finalizando ? "Fechando..." : total > 0 ? `Fechar — ${fmtValor(total)}` : "Fechar Comanda"}
           </button>
         </div>
       )}
@@ -553,8 +557,11 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
           <div className="flex flex-col gap-1.5">
             {eventos.map((ev) => (
               <div key={ev.id} className="flex items-start gap-2 text-xs">
-                <span className="shrink-0 mt-0.5 text-sm">
-                  {ev.tipo === "criada" ? "🆕" : ev.tipo === "fechada" ? "✅" : ev.tipo === "cancelada" ? "❌" : "📝"}
+                <span className="shrink-0 mt-0.5">
+                  {ev.tipo === "criada"    && <Plus       size={13} strokeWidth={2} className="text-indigo-400" />}
+                  {ev.tipo === "fechada"   && <CheckCircle2 size={13} strokeWidth={2} className="text-green-500"  />}
+                  {ev.tipo === "cancelada" && <XCircle    size={13} strokeWidth={2} className="text-red-400"    />}
+                  {!["criada","fechada","cancelada"].includes(ev.tipo) && <Pencil size={13} strokeWidth={2} className="text-gray-400" />}
                 </span>
                 <span className="flex-1 text-gray-600">{ev.descricao}</span>
                 <span className="shrink-0 text-gray-400 tabular-nums">{fmtTempo(ev.created_at)}</span>
@@ -586,7 +593,9 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors rounded-2xl"
       >
-        <span className="text-xl shrink-0">{assinaturaData ? "👑" : "🧾"}</span>
+        <span className="shrink-0 text-gray-400">
+          {assinaturaData ? <Crown size={18} strokeWidth={2} className="text-amber-500" /> : <Receipt size={18} strokeWidth={2} />}
+        </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-gray-800 truncate">{comanda.cliente_nome}</p>
@@ -597,7 +606,7 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
             )}
           </div>
           <p className="text-xs text-gray-400 mt-0.5 truncate">
-            {barbeiro && <span className="mr-2 text-indigo-400 font-medium">✂️ {barbeiro.nome}</span>}
+            {barbeiro && <span className="mr-2 text-indigo-400 font-medium inline-flex items-center gap-1"><Scissors size={11} strokeWidth={2} />{barbeiro.nome}</span>}
             {horario && <span className="mr-2">{horario}</span>}
             {resumo
               ? <span className="text-gray-500">{resumo}</span>
@@ -796,7 +805,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
           <button
             onClick={carregar}
             className="text-xs text-gray-400 hover:text-indigo-500 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
-          >🔄</button>
+          ><RefreshCw size={14} strokeWidth={2} /></button>
           <button
             onClick={() => { setCriandoNova(true); setClienteSel(null); }}
             className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
@@ -825,14 +834,14 @@ export default function Comandas({ onAtendimentoFinalizado }) {
                 onChange={(e) => setBarbeiroCriando(e.target.value ? Number(e.target.value) : null)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
               >
-                <option value="">✂️ Barbeiro (opcional)</option>
+                <option value="">Barbeiro (opcional)</option>
                 {barbeiros.map((b) => (
                   <option key={b.id} value={b.id}>{b.nome}</option>
                 ))}
               </select>
             )}
             {erroNova && (
-              <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">⚠️ {erroNova}</p>
+              <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2"><AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erroNova}</p>
             )}
             <div className="flex gap-2">
               <button
@@ -857,14 +866,16 @@ export default function Comandas({ onAtendimentoFinalizado }) {
           ))}
         </div>
       ) : erro ? (
-        <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-2xl px-5 py-4">⚠️ {erro}</div>
+        <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-2xl px-5 py-4"><AlertTriangle size={13} className="inline shrink-0 mr-1 -mt-0.5" />{erro}</div>
       ) : comandas.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="bg-white border border-gray-200 rounded-2xl px-5 py-12 text-center"
         >
-          <div className="text-4xl mb-3">🧾</div>
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+            <Receipt size={22} strokeWidth={1.5} className="text-gray-400" />
+          </div>
           <p className="text-sm font-medium text-gray-500">Nenhuma comanda aberta</p>
           <p className="text-xs text-gray-400 mt-1">
             Inicie um atendimento na Agenda ou crie uma comanda avulsa.

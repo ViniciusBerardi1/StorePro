@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import { Store, BarChart2, Smartphone, Receipt, Calendar, Users, Package,
+  Trash2, AlertTriangle, Loader2, CheckCircle2, Sparkles, Sparkle } from "lucide-react";
 
 const NOTAS = [
   {
@@ -8,17 +10,17 @@ const NOTAS = [
     data: "Abril 2026",
     novidades: [
       {
-        emoji: "🏪",
+        Icon: Store,
         titulo: "Lançamento do StorePro",
         descricao: "Versão inicial com controle de estoque, categorias, alertas de estoque baixo, histórico de movimentações e pedidos pendentes.",
       },
       {
-        emoji: "📊",
+        Icon: BarChart2,
         titulo: "Dashboard",
         descricao: "Painel com visão geral do estoque: total de produtos, valor em estoque, distribuição por categorias e alertas.",
       },
       {
-        emoji: "📱",
+        Icon: Smartphone,
         titulo: "PWA — funciona offline",
         descricao: "Instale o app no celular ou desktop e use sem internet. Todos os dados ficam salvos localmente no seu dispositivo.",
       },
@@ -27,10 +29,10 @@ const NOTAS = [
 ];
 
 const TABELAS_LIMPAS = [
-  { icon: "🧾", label: "Comandas" },
-  { icon: "📅", label: "Atendimentos" },
-  { icon: "👥", label: "Clientes" },
-  { icon: "📦", label: "Histórico de estoque" },
+  { Icon: Receipt,  label: "Comandas" },
+  { Icon: Calendar, label: "Atendimentos" },
+  { Icon: Users,    label: "Clientes" },
+  { Icon: Package,  label: "Histórico de estoque" },
 ];
 
 export default function Sobre() {
@@ -70,7 +72,7 @@ export default function Sobre() {
         className="bg-white border border-gray-200 rounded-2xl p-8 text-center"
       >
         <div onClick={handleSecretClick} className="cursor-default select-none">
-          <div className="text-5xl mb-4">🏪</div>
+          <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center mx-auto mb-4"><Store size={32} strokeWidth={1.5} className="text-indigo-600" /></div>
           <h1 className="text-2xl font-semibold text-gray-800 mb-1">StorePro</h1>
           <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
             versão {versao}
@@ -97,7 +99,7 @@ export default function Sobre() {
           className="mt-6 w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-colors text-sm font-medium text-gray-600"
         >
           <span className="flex items-center gap-2">
-            <span>🆕</span> O que há de novo?
+            <Sparkle size={14} strokeWidth={2} className="text-indigo-500" /> O que há de novo?
           </span>
           <span className="text-gray-400 text-xs">{notasAberto ? "▲ Fechar" : "▼ Ver"}</span>
         </button>
@@ -122,7 +124,7 @@ export default function Sobre() {
                   <div className="flex flex-col gap-2">
                     {nota.novidades.map((item, i) => (
                       <div key={i} className="flex gap-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
-                        <span className="text-xl shrink-0 mt-0.5">{item.emoji}</span>
+                        <item.Icon size={20} strokeWidth={1.5} className="text-gray-500 shrink-0 mt-0.5" />
                         <div>
                           <p className="text-sm font-semibold text-gray-700">{item.titulo}</p>
                           <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{item.descricao}</p>
@@ -149,7 +151,7 @@ export default function Sobre() {
               onClick={() => setLimpandoEtapa(1)}
               className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors text-sm font-medium text-red-600"
             >
-              <span className="flex items-center gap-2">🗑️ Limpar banco de dados</span>
+              <span className="flex items-center gap-2"><Trash2 size={15} strokeWidth={2} />Limpar banco de dados</span>
               <span className="text-xs text-red-400">dados de teste</span>
             </button>
           )}
@@ -162,11 +164,11 @@ export default function Sobre() {
                 exit={{ opacity: 0, y: -6 }}
                 className="bg-red-50 border border-red-200 rounded-xl p-4 text-left flex flex-col gap-3"
               >
-                <p className="text-sm font-semibold text-red-700">⚠️ Isso apagará permanentemente:</p>
+                <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5"><AlertTriangle size={14} strokeWidth={2} className="shrink-0" />Isso apagará permanentemente:</p>
                 <div className="flex flex-col gap-1.5">
                   {TABELAS_LIMPAS.map((t) => (
                     <div key={t.label} className="flex items-center gap-2 text-xs text-red-600">
-                      <span>{t.icon}</span><span>{t.label}</span>
+                      <t.Icon size={12} strokeWidth={2} className="shrink-0" /><span>{t.label}</span>
                     </div>
                   ))}
                 </div>
@@ -195,7 +197,7 @@ export default function Sobre() {
                 animate={{ opacity: 1 }}
                 className="bg-red-50 border border-red-200 rounded-xl px-4 py-5 text-center"
               >
-                <div className="text-2xl mb-2 animate-spin inline-block">⏳</div>
+                <Loader2 size={28} className="animate-spin text-red-500 mx-auto mb-2" />
                 <p className="text-sm text-red-600 font-medium">Limpando dados...</p>
               </motion.div>
             )}
@@ -206,7 +208,7 @@ export default function Sobre() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="bg-green-50 border border-green-200 rounded-xl px-4 py-5 text-center flex flex-col gap-2"
               >
-                <div className="text-2xl">✅</div>
+                <CheckCircle2 size={28} strokeWidth={1.5} className="text-green-500 mx-auto" />
                 <p className="text-sm text-green-700 font-semibold">Banco limpo com sucesso!</p>
                 <p className="text-xs text-green-500">Pronto para novos testes.</p>
                 <button
@@ -228,7 +230,7 @@ export default function Sobre() {
             transition={{ duration: 0.3 }}
             className="mt-4 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl p-6 text-center"
           >
-            <div className="text-3xl mb-3">🤖✨</div>
+            <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center mx-auto mb-3"><Sparkles size={24} strokeWidth={1.5} className="text-indigo-500" /></div>
             <p className="text-xs text-indigo-400 uppercase font-semibold tracking-wide mb-2">
               Easter Egg desbloqueado
             </p>
@@ -236,10 +238,10 @@ export default function Sobre() {
               Todo o código deste app foi desenvolvido com a ajuda do{" "}
               <span className="font-semibold text-indigo-500">Claude</span>, a
               IA da Anthropic. Cada componente, cada linha, cada bug corrigido —
-              uma parceria entre humano e inteligência artificial. 🧠💜
+              uma parceria entre humano e inteligência artificial.
             </p>
             <p className="text-xs text-gray-400 mt-3">
-              (clique 5x no ícone 🏪 para ver isso de novo)
+              (clique 5x no ícone da loja para ver isso de novo)
             </p>
           </motion.div>
         )}

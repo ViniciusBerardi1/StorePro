@@ -1,4 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import { TrendingDown, TrendingUp, XCircle, UserX, Clock, Package, Award,
+  Scissors, CheckCircle2, DollarSign, CreditCard, RefreshCw, Calendar,
+  Timer, Crown, Gem, Search, ClipboardList, AlertTriangle, Users, UserPlus,
+  BarChart2, Beer, ShoppingBag, AlarmClock, BedDouble, Repeat, User,
+  BarChart, Trophy, Download, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getRelatoriosPeriodo, getRelatoriosPeriodoAnterior, getUltimaVisitaClientes, getComissoesPorBarbeiro } from "../../services/relatoriosDb";
 
@@ -47,16 +52,21 @@ function Card({ children, className = "" }) {
   );
 }
 
-function SectionTitle({ children }) {
-  return <h3 className="text-sm font-semibold text-gray-700 mb-3">{children}</h3>;
+function SectionTitle({ children, icon: Icon }) {
+  return (
+    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+      {Icon && <Icon size={14} strokeWidth={2} className="shrink-0 text-gray-500" />}
+      {children}
+    </h3>
+  );
 }
 
-function KpiCard({ icon, label, valor, sub, delta }) {
+function KpiCard({ icon: Icon, label, valor, sub, delta }) {
   const positivo = delta > 0;
   const semDelta = delta === null || delta === undefined || isNaN(delta);
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-1">
-      <span className="text-xl">{icon}</span>
+      {Icon && <Icon size={20} strokeWidth={1.5} className="text-gray-400 mb-0.5" />}
       <div className="text-2xl font-bold text-gray-800 leading-tight">{valor}</div>
       <div className="text-xs font-medium text-gray-500">{label}</div>
       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -117,14 +127,14 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
     if (delta <= -10) {
       insights.push({
         tipo: "alerta",
-        icone: "📉",
+        Icon: TrendingDown,
         mensagem: `Faturamento caiu ${Math.abs(delta).toFixed(1)}% em relação ao período anterior`,
         detalhe: `${BRL(pFat)} → ${BRL(fat)}`,
       });
     } else if (delta >= 15) {
       insights.push({
         tipo: "positivo",
-        icone: "📈",
+        Icon: TrendingUp,
         mensagem: `Faturamento cresceu ${delta.toFixed(1)}% em relação ao período anterior`,
         detalhe: `${BRL(pFat)} → ${BRL(fat)}`,
       });
@@ -137,7 +147,7 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
   if (txCancel >= 20) {
     insights.push({
       tipo: "alerta",
-      icone: "❌",
+      Icon: XCircle,
       mensagem: `Taxa de cancelamento alta: ${txCancel.toFixed(1)}% dos atendimentos`,
       detalhe: `${cancelados} de ${atendimentos.length} cancelados`,
     });
@@ -152,7 +162,7 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
   if (emRisco.length > 0) {
     insights.push({
       tipo: "alerta",
-      icone: "👻",
+      Icon: UserX,
       mensagem: `${emRisco.length} clientes recorrentes sem visita há mais de 30 dias`,
       detalhe: emRisco.slice(0, 3).map((c) => c.nome).join(", ") + (emRisco.length > 3 ? "..." : ""),
     });
@@ -171,7 +181,7 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
   if (ociosos.length >= 3 && atendimentos.length > 0) {
     insights.push({
       tipo: "info",
-      icone: "😴",
+      Icon: Clock,
       mensagem: `${ociosos.length} horários com baixíssimo movimento no período`,
       detalhe: `Horários ociosos: ${ociosos.map((h) => `${h}h`).join(", ")}`,
     });
@@ -187,7 +197,7 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
   if (produtosVendidos.size === 0 && comandas.length > 5) {
     insights.push({
       tipo: "info",
-      icone: "📦",
+      Icon: Package,
       mensagem: "Nenhum produto consumido em comandas no período",
       detalhe: "Considere ativar venda de produtos nas comandas",
     });
@@ -207,7 +217,7 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
   if (topDow) {
     insights.push({
       tipo: "positivo",
-      icone: "🏆",
+      Icon: Award,
       mensagem: `Melhor dia da semana: ${dias[topDow[0]]}`,
       detalhe: `${topDow[1].count} atendimentos · ${BRL(topDow[1].fat)}`,
     });
@@ -228,7 +238,7 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
       if (barb) {
         insights.push({
           tipo: "positivo",
-          icone: "✂️",
+          Icon: Scissors,
           mensagem: `Barbeiro destaque: ${barb.nome}`,
           detalhe: `${BRL(topBarb[1])} gerado no período`,
         });
@@ -239,7 +249,7 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
   if (!insights.length) {
     insights.push({
       tipo: "info",
-      icone: "✅",
+      Icon: CheckCircle2,
       mensagem: "Tudo dentro da normalidade no período selecionado",
       detalhe: "Nenhum alerta identificado",
     });
@@ -277,7 +287,7 @@ function TabInsights({ insights }) {
           transition={{ delay: i * 0.06 }}
           className={`border rounded-2xl px-4 py-3.5 flex items-start gap-3 ${cores[ins.tipo]}`}
         >
-          <span className="text-xl shrink-0 mt-0.5">{ins.icone}</span>
+          <ins.Icon size={20} strokeWidth={1.5} className="shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className={`text-sm font-semibold ${textCores[ins.tipo]}`}>{ins.mensagem}</p>
             {ins.detalhe && (
@@ -332,15 +342,15 @@ function TabResumo({ atendimentos, prevAtendimentos }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="💰" label="Faturamento" valor={BRL(fat)} sub={`${ok.length} concluídos`} delta={delta(fat, pFat)} />
-        <KpiCard icon="✂️" label="Atendimentos" valor={atendimentos.length} sub={`${cancelados} cancelados`} delta={delta(atendimentos.length, prevAtendimentos.length)} />
-        <KpiCard icon="💳" label="Ticket médio" valor={BRL(ticket)} sub="por atendimento" delta={delta(ticket, pTicket)} />
-        <KpiCard icon="🔁" label="Período anterior" valor={BRL(pFat)} sub={`${pOk.length} atendimentos`} />
+        <KpiCard icon={DollarSign} label="Faturamento" valor={BRL(fat)} sub={`${ok.length} concluídos`} delta={delta(fat, pFat)} />
+        <KpiCard icon={Scissors} label="Atendimentos" valor={atendimentos.length} sub={`${cancelados} cancelados`} delta={delta(atendimentos.length, prevAtendimentos.length)} />
+        <KpiCard icon={CreditCard} label="Ticket médio" valor={BRL(ticket)} sub="por atendimento" delta={delta(ticket, pTicket)} />
+        <KpiCard icon={RefreshCw} label="Período anterior" valor={BRL(pFat)} sub={`${pOk.length} atendimentos`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <SectionTitle>📅 Faturamento por dia da semana</SectionTitle>
+          <SectionTitle icon={Calendar}>Faturamento por dia da semana</SectionTitle>
           <div className="flex items-end gap-1.5 h-24">
             {dias.map((d, i) => {
               const pct = (porDow[i] / maxDow) * 100;
@@ -364,7 +374,7 @@ function TabResumo({ atendimentos, prevAtendimentos }) {
         </Card>
 
         <Card>
-          <SectionTitle>💳 Formas de pagamento</SectionTitle>
+          <SectionTitle icon={CreditCard}>Formas de pagamento</SectionTitle>
           {Object.values(pgto).every((v) => v === 0) ? (
             <p className="text-xs text-gray-400">Sem dados de pagamento.</p>
           ) : (
@@ -401,7 +411,7 @@ function TabResumo({ atendimentos, prevAtendimentos }) {
 
       {servicos.length > 0 && (
         <Card>
-          <SectionTitle>✂️ Serviços mais realizados</SectionTitle>
+          <SectionTitle icon={Scissors}>Serviços mais realizados</SectionTitle>
           <RankingBars
             itens={servicos.map((s) => ({ nome: s.nome, valor: s.count, sub: BRL(s.receita) }))}
             formatValor={(v) => `${v}x`}
@@ -516,37 +526,37 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
     <div className="flex flex-col gap-4">
       {/* KPIs de equipe */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="✂️" label="Barbeiros ativos" valor={lista.length} sub="no período" />
-        <KpiCard icon="💰" label="Faturamento total" valor={BRL(totalFat)} sub="equipe completa" />
-        <KpiCard icon="⏱️" label="Horas totais" valor={fmtHoras(totalMin)} sub="tempo em atendimentos" />
-        <KpiCard icon="💳" label="Ticket médio geral" valor={BRL(ok.length > 0 ? totalFat / ok.length : 0)} sub="todos os barbeiros" />
+        <KpiCard icon={Scissors} label="Barbeiros ativos" valor={lista.length} sub="no período" />
+        <KpiCard icon={DollarSign} label="Faturamento total" valor={BRL(totalFat)} sub="equipe completa" />
+        <KpiCard icon={Timer} label="Horas totais" valor={fmtHoras(totalMin)} sub="tempo em atendimentos" />
+        <KpiCard icon={CreditCard} label="Ticket médio geral" valor={BRL(ok.length > 0 ? totalFat / ok.length : 0)} sub="todos os barbeiros" />
       </div>
       {totalPlanos > 0 && (
         <div className="grid grid-cols-2 gap-3">
-          <KpiCard icon="👑" label="Planos vendidos" valor={totalPlanos} sub="no período" />
-          <KpiCard icon="💎" label="Receita de planos" valor={BRL(totalReceitaPlanos)} sub="por barbeiros" />
+          <KpiCard icon={Crown} label="Planos vendidos" valor={totalPlanos} sub="no período" />
+          <KpiCard icon={Gem} label="Receita de planos" valor={BRL(totalReceitaPlanos)} sub="por barbeiros" />
         </div>
       )}
 
       {/* Rankings */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
-          <SectionTitle>💰 Faturamento</SectionTitle>
+          <SectionTitle icon={DollarSign}>Faturamento</SectionTitle>
           <RankingBars itens={lista.map((b) => ({ nome: b.nome, valor: b.faturamento, sub: `${b.atendimentos}x` }))} formatValor={BRL} cor="bg-indigo-400" />
         </Card>
         <Card>
-          <SectionTitle>💳 Ticket médio</SectionTitle>
+          <SectionTitle icon={CreditCard}>Ticket médio</SectionTitle>
           <RankingBars itens={lista.map((b) => ({ nome: b.nome, valor: b.ticket }))} formatValor={BRL} cor="bg-emerald-400" />
         </Card>
         <Card>
-          <SectionTitle>⏱️ Horas trabalhadas</SectionTitle>
+          <SectionTitle icon={Timer}>Horas trabalhadas</SectionTitle>
           <RankingBars itens={lista.map((b) => ({ nome: b.nome, valor: b.minutos, sub: fmtHoras(b.minutos) }))} formatValor={fmtHoras} cor="bg-amber-400" />
         </Card>
       </div>
 
       {/* Tabela completa — sem Fragment em tbody */}
       <Card>
-        <SectionTitle>📋 Performance por profissional</SectionTitle>
+        <SectionTitle icon={ClipboardList}>Performance por profissional</SectionTitle>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -617,11 +627,11 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
       {/* Painel de detalhes — fora da tabela, sem Fragment */}
       {barbDetalhe && (
         <Card>
-          <SectionTitle>🔍 Detalhes — {barbDetalhe.nome}</SectionTitle>
+          <SectionTitle icon={Search}>Detalhes — {barbDetalhe.nome}</SectionTitle>
           <div className="flex flex-col gap-3">
             {Object.keys(barbDetalhe.servicos).length > 0 && (
               <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">✂️ Serviços realizados</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5"><Scissors size={10} strokeWidth={2} className="inline mr-1 -mt-0.5" />Serviços realizados</p>
                 <div className="flex flex-wrap gap-1.5">
                   {Object.entries(barbDetalhe.servicos)
                     .sort((a, z) => z[1] - a[1])
@@ -635,7 +645,7 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
             )}
             {Object.keys(barbDetalhe.produtos).length > 0 && (
               <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">📦 Produtos vendidos</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5"><Package size={10} strokeWidth={2} className="inline mr-1 -mt-0.5" />Produtos vendidos</p>
                 <div className="flex flex-wrap gap-1.5">
                   {Object.entries(barbDetalhe.produtos)
                     .sort((a, z) => z[1].count - a[1].count)
@@ -670,7 +680,7 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
 
         return (
           <Card>
-            <SectionTitle>👑 Carteira de Planos — Comissões Recorrentes</SectionTitle>
+            <SectionTitle icon={Crown}>Carteira de Planos — Comissões Recorrentes</SectionTitle>
             <p className="text-[10px] text-gray-400 mb-4 -mt-2">
               Assinaturas ativas vinculadas a cada barbeiro. Desaparece automaticamente quando a assinatura é cancelada.
             </p>
@@ -686,7 +696,7 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
                 return (
                   <div key={grupo.nome}>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-semibold text-gray-700">✂️ {grupo.nome}</p>
+                      <p className="text-xs font-semibold text-gray-700 flex items-center gap-1"><Scissors size={11} strokeWidth={2} />{grupo.nome}</p>
                       <div className="flex gap-3 text-right">
                         <div>
                           <p className="text-[10px] text-gray-400">Recorrente/mês</p>
@@ -782,16 +792,16 @@ function TabRetencao({ atendimentos, clientesUltimaVisita }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="👥" label="Clientes únicos" valor={totalUnicos} sub="no período" />
-        <KpiCard icon="🆕" label="Novos clientes" valor={novos} sub="primeira visita" />
-        <KpiCard icon="🔁" label="Recorrentes" valor={recorrentes} sub="voltaram no período" />
-        <KpiCard icon="📊" label="Taxa de retenção" valor={`${txRetencao.toFixed(0)}%`} sub="recorrentes/total" />
+        <KpiCard icon={Users} label="Clientes únicos" valor={totalUnicos} sub="no período" />
+        <KpiCard icon={UserPlus} label="Novos clientes" valor={novos} sub="primeira visita" />
+        <KpiCard icon={RefreshCw} label="Recorrentes" valor={recorrentes} sub="voltaram no período" />
+        <KpiCard icon={BarChart2} label="Taxa de retenção" valor={`${txRetencao.toFixed(0)}%`} sub="recorrentes/total" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {emRisco.length > 0 && (
           <Card>
-            <SectionTitle>⚠️ Em risco (30–90 dias sem visita)</SectionTitle>
+            <SectionTitle icon={AlertTriangle}>Em risco (30–90 dias sem visita)</SectionTitle>
             <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
               {emRisco.slice(0, 15).map((c) => {
                 const dias = Math.round((agora - new Date(c.ultima_visita)) / 86400000);
@@ -811,7 +821,7 @@ function TabRetencao({ atendimentos, clientesUltimaVisita }) {
 
         {perdidos.length > 0 && (
           <Card>
-            <SectionTitle>👻 Perdidos (+90 dias sem visita)</SectionTitle>
+            <SectionTitle icon={UserX}>Perdidos (+90 dias sem visita)</SectionTitle>
             <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
               {perdidos.slice(0, 15).map((c) => {
                 const dias = Math.round((agora - new Date(c.ultima_visita)) / 86400000);
@@ -831,14 +841,14 @@ function TabRetencao({ atendimentos, clientesUltimaVisita }) {
 
         {emRisco.length === 0 && perdidos.length === 0 && (
           <Card className="col-span-2">
-            <p className="text-sm text-gray-400 text-center py-6">✅ Nenhum cliente em risco identificado</p>
+            <p className="text-sm text-gray-400 text-center py-6"><CheckCircle2 size={14} className="inline mr-1.5 -mt-0.5 text-green-500" />Nenhum cliente em risco identificado</p>
           </Card>
         )}
       </div>
 
       {ranking.length > 0 && (
         <Card>
-          <SectionTitle>🏆 Top clientes no período</SectionTitle>
+          <SectionTitle icon={Trophy}>Top clientes no período</SectionTitle>
           <RankingBars
             itens={ranking.map((c) => ({ nome: c.nome, valor: c.gasto, sub: `${c.visitas}x` }))}
             formatValor={BRL}
@@ -875,25 +885,25 @@ function TabServicos({ atendimentos }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="✂️" label="Serviços realizados" valor={totalServicos} sub={`${ok.length} atendimentos`} />
-        <KpiCard icon="💰" label="Receita de serviços" valor={BRL(receitaTotal)} sub="valor total" />
-        <KpiCard icon="🏆" label="Mais realizado" valor={topServico} sub={lista[0] ? `${lista[0].count}× · ${BRL(lista[0].receita)}` : undefined} />
-        <KpiCard icon="💳" label="Ticket médio/serviço" valor={BRL(totalServicos > 0 ? receitaTotal / totalServicos : 0)} sub="por serviço" />
+        <KpiCard icon={Scissors} label="Serviços realizados" valor={totalServicos} sub={`${ok.length} atendimentos`} />
+        <KpiCard icon={DollarSign} label="Receita de serviços" valor={BRL(receitaTotal)} sub="valor total" />
+        <KpiCard icon={Trophy} label="Mais realizado" valor={topServico} sub={lista[0] ? `${lista[0].count}× · ${BRL(lista[0].receita)}` : undefined} />
+        <KpiCard icon={CreditCard} label="Ticket médio/serviço" valor={BRL(totalServicos > 0 ? receitaTotal / totalServicos : 0)} sub="por serviço" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <SectionTitle>📊 Ranking por quantidade</SectionTitle>
+          <SectionTitle icon={BarChart2}>Ranking por quantidade</SectionTitle>
           <RankingBars itens={lista.map((s) => ({ nome: s.nome, valor: s.count, sub: BRL(s.receita) }))} formatValor={(v) => `${v}×`} cor="bg-indigo-400" />
         </Card>
         <Card>
-          <SectionTitle>💰 Ranking por receita</SectionTitle>
+          <SectionTitle icon={DollarSign}>Ranking por receita</SectionTitle>
           <RankingBars itens={[...lista].sort((a, b) => b.receita - a.receita).map((s) => ({ nome: s.nome, valor: s.receita, sub: `${s.count}×` }))} formatValor={BRL} cor="bg-violet-400" />
         </Card>
       </div>
 
       <Card>
-        <SectionTitle>📋 Tabela completa de serviços</SectionTitle>
+        <SectionTitle icon={ClipboardList}>Tabela completa de serviços</SectionTitle>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -966,22 +976,22 @@ function TabProdutos({ comandas }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="📦" label="Itens vendidos" valor={totalItens} sub={`${comandas.length} comandas`} />
-        <KpiCard icon="🍺" label="Receita bar" valor={BRL(receitaBar)} sub={`${listaBar.reduce((s, i) => s + i.count, 0)} itens`} />
-        <KpiCard icon="🛍️" label="Receita loja" valor={BRL(receitaLoja)} sub={`${listaLoja.reduce((s, i) => s + i.count, 0)} itens`} />
-        <KpiCard icon="💰" label="Total produtos" valor={BRL(receitaBar + receitaLoja)} sub="bar + loja" />
+        <KpiCard icon={Package} label="Itens vendidos" valor={totalItens} sub={`${comandas.length} comandas`} />
+        <KpiCard icon={Beer} label="Receita bar" valor={BRL(receitaBar)} sub={`${listaBar.reduce((s, i) => s + i.count, 0)} itens`} />
+        <KpiCard icon={ShoppingBag} label="Receita loja" valor={BRL(receitaLoja)} sub={`${listaLoja.reduce((s, i) => s + i.count, 0)} itens`} />
+        <KpiCard icon={DollarSign} label="Total produtos" valor={BRL(receitaBar + receitaLoja)} sub="bar + loja" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {listaBar.length > 0 && (
           <Card>
-            <SectionTitle>🍺 Produtos mais vendidos — Bar</SectionTitle>
+            <SectionTitle icon={Beer}>Produtos mais vendidos — Bar</SectionTitle>
             <RankingBars itens={listaBar.map((p) => ({ nome: p.nome, valor: p.count, sub: BRL(p.receita) }))} formatValor={(v) => `${v}×`} cor="bg-amber-400" />
           </Card>
         )}
         {listaLoja.length > 0 && (
           <Card>
-            <SectionTitle>🛍️ Produtos mais vendidos — Loja</SectionTitle>
+            <SectionTitle icon={ShoppingBag}>Produtos mais vendidos — Loja</SectionTitle>
             <RankingBars itens={listaLoja.map((p) => ({ nome: p.nome, valor: p.count, sub: BRL(p.receita) }))} formatValor={(v) => `${v}×`} cor="bg-emerald-400" />
           </Card>
         )}
@@ -1026,15 +1036,15 @@ function TabHorarios({ atendimentos }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="⏰" label="Horário de pico" valor={peakHora ? `${peakHora[0]}h` : "—"} sub={peakHora ? `${peakHora[1]} atendimentos` : undefined} />
-        <KpiCard icon="📅" label="Dia mais movimentado" valor={DIAS_SEMANA[peakDow]} sub={`${cntDow[peakDow]} atendimentos`} />
-        <KpiCard icon="✂️" label="Total no período" valor={atendimentos.length} sub="atendimentos" />
-        <KpiCard icon="💤" label="Horários ociosos" valor={HORAS.filter((h) => !cntHora[h]).length} sub="sem atendimento" />
+        <KpiCard icon={AlarmClock} label="Horário de pico" valor={peakHora ? `${peakHora[0]}h` : "—"} sub={peakHora ? `${peakHora[1]} atendimentos` : undefined} />
+        <KpiCard icon={Calendar} label="Dia mais movimentado" valor={DIAS_SEMANA[peakDow]} sub={`${cntDow[peakDow]} atendimentos`} />
+        <KpiCard icon={Scissors} label="Total no período" valor={atendimentos.length} sub="atendimentos" />
+        <KpiCard icon={BedDouble} label="Horários ociosos" valor={HORAS.filter((h) => !cntHora[h]).length} sub="sem atendimento" />
       </div>
 
       {/* Barras por hora */}
       <Card>
-        <SectionTitle>📊 Atendimentos por horário</SectionTitle>
+        <SectionTitle icon={BarChart2}>Atendimentos por horário</SectionTitle>
         <div className="flex items-end gap-1 h-32 mt-2">
           {HORAS.map((h) => {
             const cnt = cntHora[h] || 0;
@@ -1059,7 +1069,7 @@ function TabHorarios({ atendimentos }) {
 
       {/* Heatmap dia × hora */}
       <Card>
-        <SectionTitle>🗓️ Heatmap — dia da semana × horário</SectionTitle>
+        <SectionTitle icon={Calendar}>Heatmap — dia da semana × horário</SectionTitle>
         <div className="overflow-x-auto">
           <table className="text-[9px] border-collapse w-full">
             <thead>
@@ -1105,7 +1115,7 @@ function TabHorarios({ atendimentos }) {
 
       {/* Barras por dia da semana */}
       <Card>
-        <SectionTitle>📅 Atendimentos por dia da semana</SectionTitle>
+        <SectionTitle icon={Calendar}>Atendimentos por dia da semana</SectionTitle>
         <div className="flex items-end gap-2 h-28 mt-2">
           {DIAS_SEMANA.map((dia, dow) => {
             const cnt = cntDow[dow];
@@ -1161,15 +1171,15 @@ function TabClientes({ atendimentos, clientesUltimaVisita }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon="👥" label="Clientes únicos" valor={totalUnicos} sub="no período" />
-        <KpiCard icon="🔁" label="Recorrentes" valor={recorrentes} sub="com histórico anterior" />
-        <KpiCard icon="💰" label="Gasto médio" valor={BRL(gastoMedio)} sub="por cliente" />
-        <KpiCard icon="📊" label="Taxa de retorno" valor={`${totalUnicos > 0 ? ((recorrentes / totalUnicos) * 100).toFixed(0) : 0}%`} sub="clientes que voltaram" />
+        <KpiCard icon={Users} label="Clientes únicos" valor={totalUnicos} sub="no período" />
+        <KpiCard icon={RefreshCw} label="Recorrentes" valor={recorrentes} sub="com histórico anterior" />
+        <KpiCard icon={DollarSign} label="Gasto médio" valor={BRL(gastoMedio)} sub="por cliente" />
+        <KpiCard icon={BarChart2} label="Taxa de retorno" valor={`${totalUnicos > 0 ? ((recorrentes / totalUnicos) * 100).toFixed(0) : 0}%`} sub="clientes que voltaram" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <SectionTitle>🏆 Top clientes por gasto</SectionTitle>
+          <SectionTitle icon={Trophy}>Top clientes por gasto</SectionTitle>
           <RankingBars
             itens={ranking.slice(0, 10).map((c) => ({ nome: c.nome, valor: c.gasto, sub: `${c.visitas}x` }))}
             formatValor={BRL}
@@ -1177,7 +1187,7 @@ function TabClientes({ atendimentos, clientesUltimaVisita }) {
           />
         </Card>
         <Card>
-          <SectionTitle>🔁 Top clientes por visitas</SectionTitle>
+          <SectionTitle icon={Repeat}>Top clientes por visitas</SectionTitle>
           <RankingBars
             itens={[...ranking].sort((a, b) => b.visitas - a.visitas).slice(0, 10).map((c) => ({ nome: c.nome, valor: c.visitas, sub: BRL(c.gasto) }))}
             formatValor={(v) => `${v}×`}
@@ -1187,7 +1197,7 @@ function TabClientes({ atendimentos, clientesUltimaVisita }) {
       </div>
 
       <Card>
-        <SectionTitle>📋 Todos os clientes do período</SectionTitle>
+        <SectionTitle icon={ClipboardList}>Todos os clientes do período</SectionTitle>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -1306,14 +1316,14 @@ function DateRangePicker({ dataIni, dataFim, onChange }) {
 // ─── Tabs ─────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "insights",  icon: "🧠", label: "Insights"  },
-  { id: "resumo",    icon: "📊", label: "Resumo"    },
-  { id: "servicos",  icon: "✂️", label: "Serviços"  },
-  { id: "produtos",  icon: "📦", label: "Produtos"  },
-  { id: "horarios",  icon: "🕐", label: "Horários"  },
-  { id: "clientes",  icon: "👤", label: "Clientes"  },
-  { id: "barbeiros", icon: "💈", label: "Barbeiros" },
-  { id: "retencao",  icon: "👥", label: "Retenção"  },
+  { id: "insights",  Icon: BarChart, label: "Insights"  },
+  { id: "resumo",    Icon: BarChart2, label: "Resumo"    },
+  { id: "servicos",  Icon: Scissors, label: "Serviços"  },
+  { id: "produtos",  Icon: Package,  label: "Produtos"  },
+  { id: "horarios",  Icon: Clock,    label: "Horários"  },
+  { id: "clientes",  Icon: User,     label: "Clientes"  },
+  { id: "barbeiros", Icon: Scissors, label: "Barbeiros" },
+  { id: "retencao",  Icon: Users,    label: "Retenção"  },
 ];
 
 // ─── Relatórios principal ─────────────────────────────────────────
@@ -1412,7 +1422,7 @@ export default function Relatorios() {
             className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
             title="Exportar Excel do período selecionado"
           >
-            {baixando ? "⏳" : "⬇️"} {baixando ? "Gerando…" : "Excel"}
+            {baixando ? <Loader2 size={13} className="animate-spin shrink-0" /> : <Download size={13} className="shrink-0" />} {baixando ? "Gerando…" : "Excel"}
           </button>
           <button
             onClick={carregar}
@@ -1420,7 +1430,7 @@ export default function Relatorios() {
             className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
             title="Atualizar"
           >
-            🔄
+            <RefreshCw size={13} />
           </button>
         </div>
       </div>
@@ -1429,7 +1439,7 @@ export default function Relatorios() {
       <Card className="!p-3">
         <DateRangePicker dataIni={dataIni} dataFim={dataFim} onChange={handlePeriodo} />
         {erroDownload && (
-          <p className="mt-2 text-xs text-red-500 flex items-center gap-1">⚠️ {erroDownload}</p>
+          <p className="mt-2 text-xs text-red-500 flex items-center gap-1"><AlertTriangle size={12} className="shrink-0" />{erroDownload}</p>
         )}
       </Card>
 
@@ -1442,7 +1452,7 @@ export default function Relatorios() {
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors shrink-0 relative
               ${tab === t.id ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
           >
-            {t.icon} {t.label}
+            {t.Icon && <t.Icon size={14} strokeWidth={2} className="shrink-0" />} {t.label}
             {t.id === "insights" && alertasCount > 0 && !loading && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-0.5 ${tab === t.id ? "bg-white text-indigo-600" : "bg-red-100 text-red-600"}`}>
                 {alertasCount}
@@ -1461,7 +1471,7 @@ export default function Relatorios() {
         </div>
       ) : erro ? (
         <div className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-2xl px-5 py-4">
-          ⚠️ {erro}
+          <AlertTriangle size={14} className="inline shrink-0 mr-1.5 -mt-0.5" />{erro}
         </div>
       ) : (
         <motion.div

@@ -78,10 +78,10 @@ function diasPassados(iso) {
 }
 
 const TIPO_CONFIG = {
-  zerado:  { icon: "🔴", label: "Zerou",   bg: "bg-red-50",    border: "border-red-100",    text: "text-red-600"    },
-  saida:   { icon: "🟠", label: "Consumo", bg: "bg-orange-50", border: "border-orange-100", text: "text-orange-600" },
-  reposto: { icon: "🟢", label: "Reposto", bg: "bg-green-50",  border: "border-green-100",  text: "text-green-600"  },
-  entrada: { icon: "🔵", label: "Entrada", bg: "bg-blue-50",   border: "border-blue-100",   text: "text-blue-600"   },
+  zerado:  { dotCls: "bg-red-500",    label: "Zerou",   bg: "bg-red-50",    border: "border-red-100",    text: "text-red-600"    },
+  saida:   { dotCls: "bg-orange-500", label: "Consumo", bg: "bg-orange-50", border: "border-orange-100", text: "text-orange-600" },
+  reposto: { dotCls: "bg-green-500",  label: "Reposto", bg: "bg-green-50",  border: "border-green-100",  text: "text-green-600"  },
+  entrada: { dotCls: "bg-blue-500",   label: "Entrada", bg: "bg-blue-50",   border: "border-blue-100",   text: "text-blue-600"   },
 };
 
 function TabHistorico({ historico }) {
@@ -102,7 +102,7 @@ function TabHistorico({ historico }) {
   if (!historico.length) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-        <span className="text-4xl">📋</span>
+        <ClipboardList size={36} strokeWidth={1.5} className="text-gray-300" />
         <p className="text-gray-500 font-medium">Nenhum registro ainda</p>
         <p className="text-gray-400 text-sm">O histórico será preenchido a cada entrada ou saída de estoque.</p>
       </div>
@@ -123,8 +123,8 @@ function TabHistorico({ historico }) {
         <div className="flex gap-1 flex-wrap">
           {[
             { id: "todos",    label: "Todos" },
-            { id: "entradas", label: "🟢 Entradas" },
-            { id: "saidas",   label: "🔴 Saídas"   },
+            { id: "entradas", label: "Entradas", dotCls: "bg-green-500" },
+            { id: "saidas",   label: "Saídas",   dotCls: "bg-red-500"   },
           ].map((f) => (
             <button
               key={f.id}
@@ -155,13 +155,13 @@ function TabHistorico({ historico }) {
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${cfg.bg} ${cfg.border}`}
               >
                 {/* Ícone */}
-                <span className="text-lg shrink-0">{cfg.icon}</span>
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dotCls}`}></span>
 
                 {/* Foto */}
                 {h.foto ? (
                   <img src={h.foto} alt={h.produto_nome} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                 ) : (
-                  <div className="w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center text-sm shrink-0">🧴</div>
+                  <div className="w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center shrink-0"><FlaskConical size={14} strokeWidth={2} className="text-gray-400" /></div>
                 )}
 
                 {/* Info */}
@@ -256,8 +256,8 @@ function ProdutoList({
       {/* Abas Produtos / Histórico */}
       <div className="flex gap-1 mb-5">
         {[
-          { id: "produtos",   label: "Produtos",    icon: "🧴" },
-          { id: "historico",  label: "Histórico",   icon: "📋", badge: semEstoqueAberto > 0 ? semEstoqueAberto : null },
+          { id: "produtos",   label: "Produtos",    Icon: Package },
+          { id: "historico",  label: "Histórico",   Icon: ClipboardList, badge: semEstoqueAberto > 0 ? semEstoqueAberto : null },
         ].map((t) => (
           <button
             key={t.id}
@@ -265,7 +265,7 @@ function ProdutoList({
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors relative
               ${aba === t.id ? "bg-rose-500 text-white" : "text-gray-500 hover:bg-gray-100"}`}
           >
-            {t.icon} {t.label}
+            {t.Icon && <t.Icon size={13} strokeWidth={2} className="shrink-0" />} {t.label}
             {t.badge != null && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${aba === t.id ? "bg-white text-rose-600" : "bg-orange-100 text-orange-600"}`}>
                 {t.badge}
@@ -304,8 +304,8 @@ function ProdutoList({
 
         <div className="flex gap-2">
           {[
-            { id: "recentes", label: "🕐 Recentes" },
-            { id: "alfabetica", label: "🔤 A-Z" },
+            { id: "recentes",   label: "Recentes", Icon: Clock },
+            { id: "alfabetica", label: "A-Z",      Icon: ArrowDownUp },
           ].map((op) => (
             <button
               key={op.id}
@@ -320,7 +320,7 @@ function ProdutoList({
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors
                 ${ordenacao === op.id ? "bg-rose-50 border-rose-300 text-rose-600" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
             >
-              {op.label}
+              {op.Icon && <op.Icon size={11} strokeWidth={2} className="shrink-0" />}{op.label}
               {ordenacao === op.id && (
                 <span>{ordem === "desc" ? "↓" : "↑"}</span>
               )}
@@ -337,7 +337,7 @@ function ProdutoList({
             transition={{ duration: 0.3 }}
             className="flex flex-col items-center justify-center py-20 text-center gap-4"
           >
-            <span className="text-5xl">🧴</span>
+            <FlaskConical size={48} strokeWidth={1.25} className="text-gray-300" />
             <div>
               <p className="text-gray-700 font-medium text-base">Nenhum produto por aqui</p>
               <p className="text-gray-400 text-sm mt-1">Adicione seu primeiro produto para começar</p>
@@ -346,7 +346,7 @@ function ProdutoList({
               onClick={onNovo}
               className="mt-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold px-5 py-2.5 rounded-2xl transition-colors shadow-sm"
             >
-              ✨ Adicionar produto
+              Adicionar produto
             </button>
           </motion.div>
         ) : (
@@ -375,9 +375,7 @@ function ProdutoList({
                   className="w-12 h-12 md:w-16 md:h-16 rounded-lg object-cover shrink-0"
                 />
               ) : (
-                <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-gray-100 flex items-center justify-center text-xl shrink-0">
-                  🧴
-                </div>
+                <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"><FlaskConical size={20} strokeWidth={1.5} className="text-gray-300" /></div>
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">

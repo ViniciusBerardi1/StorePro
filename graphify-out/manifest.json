@@ -16,8 +16,8 @@
     "hash": "7c3675df1c880ff568cc750214217a93"
   },
   "D:\\loja-gestao-pwa\\src\\App.jsx": {
-    "mtime": 1778166179.3718877,
-    "hash": "eed63bb3fbb8b03fb1e292b82fa27d9b"
+    "mtime": 1778188389.7492304,
+    "hash": "11768aa66fb245a67d77fd7512dbd737"
   },
   "D:\\loja-gestao-pwa\\src\\main.jsx": {
     "mtime": 1777746382.5307906,
@@ -43,10 +43,6 @@
     "mtime": 1778086685.699744,
     "hash": "756437ae3aa600b31a47e5a3533f69cb"
   },
-  "D:\\loja-gestao-pwa\\src\\components\\ui\\ClienteSelector.jsx": {
-    "mtime": 1777746382.4790337,
-    "hash": "0cdf5ed7c0af902b8427276fe387fd2b"
-  },
   "D:\\loja-gestao-pwa\\src\\components\\ui\\ConfirmModal.jsx": {
     "mtime": 1777746382.48212,
     "hash": "7e20145f4e9f49db2b5dd29bcbcc9156"
@@ -56,16 +52,20 @@
     "hash": "734de97b3044200831cc54a39ab7ba8c"
   },
   "D:\\loja-gestao-pwa\\src\\components\\views\\Agenda.jsx": {
-    "mtime": 1778029608.8944616,
-    "hash": "cab6181dcb321fc1e882bb749b66aa54"
+    "mtime": 1778168794.547559,
+    "hash": "b6ea4a0efd39a88e452bffbbe99fda57"
   },
   "D:\\loja-gestao-pwa\\src\\components\\views\\Barbeiros.jsx": {
-    "mtime": 1777746382.4893143,
-    "hash": "444c4ae0a53ad815dff0b71f5998280f"
+    "mtime": 1778169479.7135365,
+    "hash": "12aba459a9781447c984670437b4553e"
+  },
+  "D:\\loja-gestao-pwa\\src\\components\\views\\ClienteSelector.jsx": {
+    "mtime": 1778166774.9573462,
+    "hash": "1c86a7bad8305554b7d45108dbfd8a44"
   },
   "D:\\loja-gestao-pwa\\src\\components\\views\\ClientesLista.jsx": {
-    "mtime": 1778088200.6478822,
-    "hash": "2afa67a28e55f121291c67f0baf2e553"
+    "mtime": 1778172674.3106527,
+    "hash": "b03d50cd39251f9eadbe099921685ca2"
   },
   "D:\\loja-gestao-pwa\\src\\components\\views\\Comanda.jsx": {
     "mtime": 1778039607.0746076,
@@ -76,8 +76,8 @@
     "hash": "a44cc63e587fed04a2d5eb1fe34f43d8"
   },
   "D:\\loja-gestao-pwa\\src\\components\\views\\Comandas.jsx": {
-    "mtime": 1778086685.7043476,
-    "hash": "df2c9665088e7458115b8af334d1f84b"
+    "mtime": 1778187593.1756463,
+    "hash": "bea8f153072ea015a5e1fef511a482ea"
   },
   "D:\\loja-gestao-pwa\\src\\components\\views\\Dashboard.jsx": {
     "mtime": 1778086685.708944,
@@ -107,6 +107,14 @@
     "mtime": 1777746382.5250373,
     "hash": "046b0e57d570cf2b81dbecc7c5442c27"
   },
+  "D:\\loja-gestao-pwa\\src\\services\\beneficiosCalc.js": {
+    "mtime": 1778174499.8970993,
+    "hash": "b92f87da7ddf1f50bee95f1f8fb2194f"
+  },
+  "D:\\loja-gestao-pwa\\src\\services\\comandasService.js": {
+    "mtime": 1778187540.1175542,
+    "hash": "9d8d39abab78f969a5ced133df953073"
+  },
   "D:\\loja-gestao-pwa\\src\\services\\db.js": {
     "mtime": 1777746382.5321403,
     "hash": "e3d886526a38a42b9947792893f99847"
@@ -128,20 +136,40 @@
     "hash": "c09d28106d817b68630cfa0fc6cd9cac"
   },
   "D:\\loja-gestao-pwa\\src\\services\\supabaseDb.js": {
-    "mtime": 1778088200.660667,
-    "hash": "ca02cca73920a3f3be5d0c5d343cf50e"
+    "mtime": 1778188351.3323386,
+    "hash": "b26b9883e34ab1e62add242e1932f847"
   },
   "D:\\loja-gestao-pwa\\src\\test\\setup.js": {
     "mtime": 1777746382.5469606,
     "hash": "d523e5b00ffe1cdb986f4100074e1cbb"
   },
   "D:\\loja-gestao-pwa\\supabase\\schema.sql": {
-    "mtime": 1778088200.6637573,
-    "hash": "de9aea2e2919ef1dea3a6eb99dfcc4a3"
+    "mtime": 1778188995.4517276,
+    "hash": "ba2e758e782b4107cbcc83758a4ecea9"
   },
   "D:\\loja-gestao-pwa\\supabase\\functions\\webhook-pagamento\\index.ts": {
     "mtime": 1778007348.078047,
     "hash": "70f1e4b8057e372dfb892b02b32c7753"
+  },
+  "D:\\loja-gestao-pwa\\supabase\\migrations\\20260507_000_baixar_estoque_comanda.sql": {
+    "mtime": 1778188540.3168888,
+    "hash": "ac845b1d23c3e0af3d57d9e005fa6365"
+  },
+  "D:\\loja-gestao-pwa\\supabase\\migrations\\20260507_001_finalizar_comanda.sql": {
+    "mtime": 1778186885.2424796,
+    "hash": "3e9262330882db3a1571ba98caf8970e"
+  },
+  "D:\\loja-gestao-pwa\\supabase\\migrations\\20260507_002_optimistic_lock.sql": {
+    "mtime": 1778187512.617867,
+    "hash": "1d84bf4981037757a56851aeba51d5bd"
+  },
+  "D:\\loja-gestao-pwa\\supabase\\migrations\\20260507_003_agenda_criar_comanda.sql": {
+    "mtime": 1778188368.4110494,
+    "hash": "dfe164619cc9feff0f2d68afe21696bf"
+  },
+  "D:\\loja-gestao-pwa\\supabase\\migrations\\20260507_004_integridade_financeira.sql": {
+    "mtime": 1778188989.2650096,
+    "hash": "d8e02e829ee5087f82b4dec009f1b7c2"
   },
   "D:\\loja-gestao-pwa\\CLAUDE.md": {
     "mtime": 1778165764.103463,
@@ -178,13 +206,5 @@
   "D:\\loja-gestao-pwa\\src\\assets\\hero.png": {
     "mtime": 1777746382.454342,
     "hash": "5cf2b0762834cdddc0dd3ec1397b5011"
-  },
-  "D:\\loja-gestao-pwa\\src\\assets\\react.svg": {
-    "mtime": 1777746382.4565537,
-    "hash": "f0402b67b6ce880f65666bb49e841696"
-  },
-  "D:\\loja-gestao-pwa\\src\\assets\\vite.svg": {
-    "mtime": 1777746382.4616,
-    "hash": "6d5180a782d64c8cf51ba01c2a2184d8"
   }
 }
