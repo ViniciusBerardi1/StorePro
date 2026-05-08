@@ -163,7 +163,7 @@ async function addCliente(c) {
 }
 
 async function updateCliente(c) {
-  const { id, ...payload } = c;
+  const { id, stats, ...payload } = c;
   const { error } = await supabase.from("clientes").update(payload).eq("id", id);
   if (error) throw error;
 }
