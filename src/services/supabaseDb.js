@@ -163,7 +163,8 @@ async function addCliente(c) {
 }
 
 async function updateCliente(c) {
-  const { error } = await supabase.from("clientes").update(c).eq("id", c.id);
+  const { id, ...payload } = c;
+  const { error } = await supabase.from("clientes").update(payload).eq("id", id);
   if (error) throw error;
 }
 
@@ -359,7 +360,8 @@ async function addAtendimento(a) {
 }
 
 async function updateAtendimento(a) {
-  const { error } = await supabase.from("atendimentos").update(a).eq("id", a.id);
+  const { id, ...payload } = a;
+  const { error } = await supabase.from("atendimentos").update(payload).eq("id", id);
   if (error) throw error;
 }
 
@@ -531,7 +533,8 @@ async function saveComanda(comanda) {
     .maybeSingle();
 
   if (existente?.id) {
-    const { error } = await supabase.from("comandas").update(comanda).eq("id", existente.id);
+    const { id: _id, ...comandaPayload } = comanda;
+    const { error } = await supabase.from("comandas").update(comandaPayload).eq("id", existente.id);
     if (error) throw error;
     return existente.id;
   }
