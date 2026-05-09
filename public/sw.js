@@ -1,6 +1,6 @@
-const CACHE_NAME = 'storepro-v2';
+const CACHE_NAME = 'storepro-v3';
 
-const APP_SHELL = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.svg'];
+const APP_SHELL = ['/', '/manifest.json', '/favicon-192.png', '/favicon-512.png', '/storeprologo.png', '/favicon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

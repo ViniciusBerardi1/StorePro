@@ -29,3 +29,4 @@ src/seed.js
 # Dev tooling
 .claude/
 supabase/migrations/
+graphify-out/

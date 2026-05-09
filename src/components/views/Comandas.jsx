@@ -245,7 +245,6 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   };
 
   const handleRemover = async () => {
-    console.log("[cancel] clicked — removendo:", removendo, "motivoCancel:", motivoCancel);
     if (removendo) return;
     setRemovendo(true);
     setErro(null);
