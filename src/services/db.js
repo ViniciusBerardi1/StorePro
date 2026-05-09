@@ -28,10 +28,6 @@ function openDB() {
         db.createObjectStore("historico", { keyPath: "id", autoIncrement: true });
       }
 
-      if (!db.objectStoreNames.contains("desejos")) {
-        db.createObjectStore("desejos", { keyPath: "id", autoIncrement: true });
-      }
-
       // --- v2 stores ---
 
       /*
@@ -157,43 +153,6 @@ export const db = {
       new Promise((resolve, reject) => {
         const tx = db.transaction("historico", "readwrite");
         const req = tx.objectStore("historico").clear();
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      }),
-    ),
-
-  // ─── Desejos ───────────────────────────────────────────────────
-  getDesejos: () =>
-    getAll("desejos").then((lista) =>
-      lista.sort((a, b) => new Date(b.data_adicionado) - new Date(a.data_adicionado))
-    ),
-
-  addDesejo: (d) =>
-    openDB().then((db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction("desejos", "readwrite");
-        const { id: _id, ...sem } = d;
-        const req = tx.objectStore("desejos").add({ ...sem, data_adicionado: new Date().toISOString() });
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      }),
-    ),
-
-  updateDesejo: (d) =>
-    openDB().then((db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction("desejos", "readwrite");
-        const req = tx.objectStore("desejos").put(d);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      }),
-    ),
-
-  deleteDesejo: (id) =>
-    openDB().then((db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction("desejos", "readwrite");
-        const req = tx.objectStore("desejos").delete(id);
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
       }),

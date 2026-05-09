@@ -218,8 +218,6 @@ function AppPrincipal() {
   const [showForm, setShowForm] = useState(false);
   const [toast, setToast] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
-  const [desejoOrigemId, setDesejoOrigemId] = useState(null);
-
   // ─── Auto-lock por inatividade (1 min) ──────────────────────────
   const viewRef          = useRef(view);
   const lastActivityRef  = useRef(Date.now());
@@ -292,13 +290,7 @@ function AppPrincipal() {
         setToast("Produto atualizado!");
       } else {
         await db.addProduto(produto);
-        if (desejoOrigemId) {
-          await db.deleteDesejo(desejoOrigemId);
-          setDesejoOrigemId(null);
-          setToast("Adicionado ao estoque e removido da lista de desejos!");
-        } else {
-          setToast("Produto adicionado!");
-        }
+        setToast("Produto adicionado!");
       }
       await carregar();
       setShowForm(false);
@@ -307,19 +299,7 @@ function AppPrincipal() {
       console.error("erro ao salvar:", err);
       setToast("Erro ao salvar. Tente novamente.");
     }
-  }, [carregar, desejoOrigemId]);
-
-  const handleAdicionarDesejo = useCallback((desejo) => {
-    setEditando({
-      id: null,
-      nome: desejo.nome,
-      categoria_id: desejo.categoria_id,
-      preco_pago: desejo.preco_estimado || "",
-    });
-    setDesejoOrigemId(desejo.id);
-    setView("produtos");
-    setShowForm(true);
-  }, []);
+  }, [carregar]);
 
   const handleEditar = useCallback((produto) => {
     setEditando(produto);

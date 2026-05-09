@@ -1,41 +1,8 @@
 import { memo } from "react";
 import { FlaskConical } from "lucide-react";
 import { motion } from "framer-motion";
-import { differenceInDays, parseISO, format } from "date-fns";
+import { parseISO, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const LOJAS = {
-  sephora: "Sephora",
-  belezanaweb: "Beleza na Web",
-  epoca: "Época Cosméticos",
-  boticario: "O Boticário",
-};
-
-function StatusBadge({ dataValidade }) {
-  if (!dataValidade) return null;
-  try {
-    const dias = differenceInDays(parseISO(dataValidade), new Date());
-    if (dias < 0)
-      return (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">
-          Vencido
-        </span>
-      );
-    if (dias <= 60)
-      return (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">
-          Vence em {dias}d
-        </span>
-      );
-    return (
-      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-        OK
-      </span>
-    );
-  } catch {
-    return null;
-  }
-}
 
 function Linha({ label, valor }) {
   if (!valor && valor !== 0) return null;
@@ -82,20 +49,16 @@ function ProdutoDetalhe({ produto: p, onFechar, onEditar }) {
               {p.nome}
               {p.tem_cor && p.cor ? ` — ${p.cor}` : ""}
             </h2>
-            {p.avaliacao > 0 && (
-              <span className="text-sm shrink-0">{"⭐".repeat(p.avaliacao)}</span>
-            )}
           </div>
           <p className="text-xs text-gray-400 mb-4">{p.categoria_nome}</p>
 
-          <div className="flex flex-wrap gap-2 mb-4">
-            <StatusBadge dataValidade={p.data_validade} />
-            {estoqueBaixo && (
+          {estoqueBaixo && (
+            <div className="mb-4">
               <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 font-medium">
                 Estoque baixo
               </span>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="bg-gray-50 rounded-xl px-4 py-1 mb-5">
             {p.tem_tamanho && p.tamanho_quantidade && (
@@ -103,17 +66,11 @@ function ProdutoDetalhe({ produto: p, onFechar, onEditar }) {
             )}
             <Linha label="Quantidade em estoque" valor={`${p.quantidade} un`} />
             <Linha label="Mínimo para repor" valor={`${estoqueMinimo} un`} />
-            {p.data_validade && (
-              <Linha
-                label="Validade"
-                valor={format(parseISO(p.data_validade), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              />
+            {p.preco_custo > 0 && (
+              <Linha label="Preço de custo" valor={`R$ ${Number(p.preco_custo).toFixed(2).replace(".", ",")}`} />
             )}
-            {p.preco_pago > 0 && (
-              <Linha label="Preço pago" valor={`R$ ${Number(p.preco_pago).toFixed(2).replace(".", ",")}`} />
-            )}
-            {p.loja_compra && (
-              <Linha label="Loja preferida" valor={LOJAS[p.loja_compra] || p.loja_compra} />
+            {p.preco_venda > 0 && (
+              <Linha label="Preço de venda" valor={`R$ ${Number(p.preco_venda).toFixed(2).replace(".", ",")}`} />
             )}
             {p.data_cadastro && (
               <Linha

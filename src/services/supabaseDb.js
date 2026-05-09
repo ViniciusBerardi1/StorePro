@@ -957,9 +957,4 @@ export const db = {
   abrirCaixa,
   fecharCaixa,
   registrarMovimentoCaixa,
-  // compatibilidade com código legado que usa desejos
-  getDesejos: async () => [],
-  addDesejo: async () => {},
-  updateDesejo: async () => {},
-  deleteDesejo: async () => {},
 };
