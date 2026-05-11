@@ -201,7 +201,7 @@ export default function App() {
 }
 
 function AppInterno() {
-  const { isAuthenticated, isAdmin, hasLoja, loading, signOut } = useAppAuth();
+  const { isAuthenticated, isAdmin, hasLoja, lojaAtivo, loading, signOut } = useAppAuth();
 
   if (loading) {
     return (
@@ -212,6 +212,30 @@ function AppInterno() {
   }
 
   if (!isAuthenticated) return <AppLogin />;
+
+  // Loja desativada — bloqueia acesso e força logout
+  if (isAuthenticated && hasLoja && !lojaAtivo) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-sm w-full text-center">
+          <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-500 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle size={22} />
+          </div>
+          <h2 className="text-lg font-bold text-gray-900 mb-2">Acesso suspenso</h2>
+          <p className="text-sm text-gray-400 mb-6">
+            Sua barbearia foi desativada. Entre em contato com o administrador.
+          </p>
+          <button
+            onClick={signOut}
+            className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            <LogOut size={15} />
+            Sair
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Usuário autenticado mas sem loja vinculada
   if (!hasLoja) {

@@ -11,7 +11,7 @@ export function useAppAuth() {
     try {
       const { data } = await supabase
         .from("profiles")
-        .select("id, role, loja_id")
+        .select("id, role, loja_id, lojas(ativo)")
         .eq("id", userId)
         .single();
       setProfile(data ?? null);
@@ -51,6 +51,7 @@ export function useAppAuth() {
     isAuthenticated: !!session,
     isAdmin:         profile?.role === "admin",
     hasLoja:         !!profile?.loja_id,
+    lojaAtivo:       profile?.lojas?.ativo ?? true,
     lojaId:          profile?.loja_id ?? null,
     signOut,
   };
