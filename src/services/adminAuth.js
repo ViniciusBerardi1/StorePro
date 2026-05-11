@@ -3,6 +3,7 @@
  * Only imported by admin components; never used in the barbershop app.
  */
 import { supabase } from "./supabase";
+import { adminSupabase } from "./adminSupabase";
 
 // ── Auth ────────────────────────────────────────────────────────
 
@@ -118,7 +119,6 @@ export async function getAllSubscriptions() {
 // ── Lojas ────────────────────────────────────────────────────────
 
 export async function createLojaComUsuario(nome, slug, senha) {
-  const { adminSupabase } = await import("./adminSupabase");
   const email = `${slug}@loja.storepro`;
 
   // 1. Cria a loja
