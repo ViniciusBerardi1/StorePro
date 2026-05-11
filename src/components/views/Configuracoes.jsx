@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Save, CheckCircle, AlertCircle, Lock } from "lucide-react";
-import db from "../../services/supabaseDb";
+import { db } from "../../services/supabaseDb";
 
 export default function Configuracoes() {
   const [senha,     setSenha]     = useState("");
