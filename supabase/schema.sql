@@ -1,11 +1,41 @@
 -- ============================================================
--- StorePro — Schema Supabase (fonte única de verdade)
--- Execute este arquivo para criar o banco do zero.
--- Para bancos existentes, rode as migrations em ordem:
---   supabase/migrations/20260507_00X_*.sql
+-- StorePro — Schema Supabase completo (fonte única de verdade)
+-- Execute este arquivo inteiro para criar o banco do zero.
+-- Incorpora: admin_system + multi_tenant + lojas_slug
 -- ============================================================
 
+
+-- ============================================================
+-- TABELAS
+-- ============================================================
+
+-- ─── Lojas ───────────────────────────────────────────────────
+create table if not exists lojas (
+  id         uuid        primary key default gen_random_uuid(),
+  nome       text        not null,
+  slug       text,
+  ativo      boolean     not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists lojas_slug_uq on lojas(slug);
+
+-- ─── Profiles ────────────────────────────────────────────────
+create table if not exists profiles (
+  id         uuid        primary key references auth.users(id) on delete cascade,
+  email      text,
+  full_name  text,
+  avatar_url text,
+  role       text        not null default 'user' check (role in ('user', 'admin')),
+  is_active  boolean     not null default true,
+  loja_id    uuid        references lojas(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- ─── Categorias ──────────────────────────────────────────────
+-- Global: compartilhada entre todas as lojas
 create table if not exists categorias (
   id         serial primary key,
   nome       text not null,
@@ -33,10 +63,12 @@ create table if not exists produtos (
   tamanho_unidade    text,
   foto               text,
   tipo               text default 'loja' check (tipo in ('bar', 'loja')),
+  loja_id            uuid references lojas(id) on delete cascade,
   data_cadastro      timestamptz default now()
 );
 
 create index if not exists produtos_categoria_idx on produtos(categoria_id);
+create index if not exists produtos_loja_idx      on produtos(loja_id);
 
 -- ─── Clientes ────────────────────────────────────────────────
 create table if not exists clientes (
@@ -45,19 +77,22 @@ create table if not exists clientes (
   telefone      text,
   email         text,
   observacoes   text,
+  loja_id       uuid references lojas(id) on delete cascade,
   data_cadastro timestamptz default now()
 );
 
 create index if not exists clientes_nome_idx on clientes(nome);
+create index if not exists clientes_loja_idx on clientes(loja_id);
 
 -- ─── Serviços ────────────────────────────────────────────────
 create table if not exists servicos (
-  id               bigserial primary key,
-  nome             text not null,
-  valor            numeric(10,2) not null default 0,
-  ativo            boolean not null default true,
-  duracao_minutos  integer default 30,
-  created_at       timestamptz default now()
+  id              bigserial primary key,
+  nome            text not null,
+  valor           numeric(10,2) not null default 0,
+  ativo           boolean not null default true,
+  duracao_minutos integer default 30,
+  loja_id         uuid references lojas(id) on delete cascade,
+  created_at      timestamptz default now()
 );
 
 -- ─── Barbeiros ───────────────────────────────────────────────
@@ -66,21 +101,27 @@ create table if not exists barbeiros (
   nome          text not null,
   gcal_color_id text not null default '9',
   ativo         boolean not null default true,
+  loja_id       uuid references lojas(id) on delete cascade,
   created_at    timestamptz default now()
 );
 
 -- ─── Configurações ───────────────────────────────────────────
--- Senhas: INSERT INTO configuracoes (chave, valor) VALUES ('financeiro_senha', 'xxx');
+-- id SERIAL PK + unique(chave, loja_id) para suportar uma config por loja
 create table if not exists configuracoes (
-  chave text primary key,
-  valor text not null
+  id      serial primary key,
+  chave   text not null,
+  valor   text not null,
+  loja_id uuid references lojas(id) on delete cascade
 );
+
+create unique index if not exists configuracoes_chave_loja_uq
+  on configuracoes(chave, loja_id);
 
 -- ─── Atendimentos ────────────────────────────────────────────
 create table if not exists atendimentos (
   id              serial primary key,
   gcal_event_id   text unique,
-  comanda_id      integer,   -- FK adicionada após comandas (ver abaixo)
+  comanda_id      integer,   -- FK adicionada após comandas
   data_hora       timestamptz not null,
   cliente_nome    text,
   cliente_id      integer references clientes(id) on delete set null,
@@ -91,12 +132,14 @@ create table if not exists atendimentos (
                     check (status in ('agendado','em_andamento','concluido','cancelado')),
   forma_pagamento text check (forma_pagamento in ('debito','credito','pix','dinheiro')),
   observacoes     text,
+  loja_id         uuid references lojas(id) on delete cascade,
   data_cadastro   timestamptz default now()
 );
 
 create index if not exists atendimentos_data_idx    on atendimentos(data_hora);
 create index if not exists atendimentos_status_idx  on atendimentos(status);
 create index if not exists atendimentos_cliente_idx on atendimentos(cliente_id);
+create index if not exists atendimentos_loja_idx    on atendimentos(loja_id);
 
 -- ─── Histórico de estoque ────────────────────────────────────
 create table if not exists historico (
@@ -109,6 +152,7 @@ create table if not exists historico (
   tipo                text default 'zerado',
   quantidade_anterior integer,
   quantidade_nova     integer,
+  loja_id             uuid references lojas(id) on delete cascade,
   data_zerado         timestamptz default now(),
   data_reposto        timestamptz,
   quantidade_reposta  integer
@@ -125,6 +169,7 @@ create table if not exists planos (
   checkout_url text,
   beneficios   jsonb not null default '[]',
   ativo        boolean not null default true,
+  loja_id      uuid references lojas(id) on delete cascade,
   created_at   timestamptz default now()
 );
 
@@ -143,6 +188,7 @@ create table if not exists assinaturas (
   data_renovacao          date,
   valor                   numeric(10,2),
   observacoes             text,
+  loja_id                 uuid references lojas(id) on delete cascade,
   created_at              timestamptz default now(),
   updated_at              timestamptz default now()
 );
@@ -150,32 +196,31 @@ create table if not exists assinaturas (
 create index if not exists assinaturas_cliente_idx on assinaturas(cliente_id);
 create index if not exists assinaturas_status_idx  on assinaturas(status);
 
--- ─── Uso de benefícios (controle mensal) ─────────────────────
+-- ─── Uso de benefícios ───────────────────────────────────────
 create table if not exists uso_beneficios (
   id             bigserial primary key,
   assinatura_id  bigint references assinaturas(id) on delete cascade,
   cliente_id     bigint references clientes(id)    on delete set null,
   plano_id       bigint references planos(id)      on delete set null,
   comanda_id     bigint,
-  ciclo          text not null,         -- 'YYYY-MM'
-  beneficio_id   text not null,         -- UUID do planos.beneficios[].id
+  ciclo          text not null,
+  beneficio_id   text not null,
   quantidade     integer not null default 1,
   valor_desconto numeric(10,2),
   estornado      boolean not null default false,
+  loja_id        uuid references lojas(id) on delete cascade,
   created_at     timestamptz default now()
 );
 
 create index if not exists idx_uso_beneficios_lookup
   on uso_beneficios(assinatura_id, ciclo);
 
--- Impede que o mesmo benefício seja aplicado duas vezes na mesma comanda
 create unique index if not exists idx_uso_beneficios_comanda_unico
   on uso_beneficios(comanda_id, beneficio_id)
   where comanda_id is not null and not estornado;
 
 -- ─── Sessões de caixa ────────────────────────────────────────
--- Controla abertura/fechamento físico do caixa.
--- Máximo uma sessão aberta por vez (idx_sessoes_caixa_uma_aberta).
+-- Uma sessão aberta por loja (idx_sessoes_caixa_uma_aberta).
 create table if not exists sessoes_caixa (
   id               bigserial primary key,
   status           text not null default 'aberta'
@@ -186,6 +231,7 @@ create table if not exists sessoes_caixa (
   diferenca        numeric(10,2),
   aberto_por       text,
   fechado_por      text,
+  loja_id          uuid references lojas(id) on delete cascade,
   opened_at        timestamptz not null default now(),
   closed_at        timestamptz,
   snapshot         jsonb,
@@ -193,13 +239,12 @@ create table if not exists sessoes_caixa (
 );
 
 create unique index if not exists idx_sessoes_caixa_uma_aberta
-  on sessoes_caixa(status) where status = 'aberta';
+  on sessoes_caixa(loja_id, status) where status = 'aberta';
 
 create index if not exists idx_sessoes_caixa_opened
   on sessoes_caixa(opened_at desc);
 
 -- ─── Movimentos de caixa ─────────────────────────────────────
--- Append-only. Registra abertura, entradas de comanda, sangrias e suprimentos.
 create table if not exists movimentos_caixa (
   id              bigserial primary key,
   sessao_id       bigint not null references sessoes_caixa(id),
@@ -210,6 +255,7 @@ create table if not exists movimentos_caixa (
   referencia_tipo text,
   referencia_id   bigint,
   criado_por      text,
+  loja_id         uuid references lojas(id) on delete cascade,
   created_at      timestamptz not null default now()
 );
 
@@ -239,6 +285,7 @@ create table if not exists comandas (
   sessao_caixa_id      bigint references sessoes_caixa(id),
   status               text default 'aberta'
                        check (status in ('aberta','fechada','cancelada')),
+  loja_id              uuid references lojas(id) on delete cascade,
   created_at           timestamptz default now(),
   updated_at           timestamptz default now(),
   closed_at            timestamptz,
@@ -249,9 +296,9 @@ create table if not exists comandas (
 
 create index if not exists idx_comandas_status    on comandas(status, created_at desc);
 create index if not exists idx_comandas_cliente   on comandas(cliente_id);
+create index if not exists idx_comandas_loja      on comandas(loja_id);
 create index if not exists idx_comandas_closed_at on comandas(closed_at desc)
   where closed_at is not null;
-
 create index if not exists idx_comandas_sessao_caixa on comandas(sessao_caixa_id)
   where sessao_caixa_id is not null;
 
@@ -265,20 +312,20 @@ create unique index if not exists idx_atendimentos_comanda
   where comanda_id is not null;
 
 -- ─── Eventos de auditoria das comandas ───────────────────────
--- Append-only. Trigger fn_bloquear_mutacao_auditoria() impede UPDATE/DELETE.
 create table if not exists comanda_eventos (
-  id          bigserial primary key,
-  comanda_id  integer not null references comandas(id) on delete cascade,
-  tipo        text not null,   -- 'criada' | 'fechada' | 'cancelada'
-  descricao   text,
-  payload     jsonb,
-  created_at  timestamptz default now()
+  id         bigserial primary key,
+  comanda_id integer not null references comandas(id) on delete cascade,
+  tipo       text not null,
+  descricao  text,
+  payload    jsonb,
+  loja_id    uuid references lojas(id) on delete cascade,
+  created_at timestamptz default now()
 );
 
 create index if not exists idx_comanda_eventos_comanda
   on comanda_eventos(comanda_id, created_at desc);
 
--- ─── Log de webhooks de pagamento ────────────────────────────
+-- ─── Log de webhooks ─────────────────────────────────────────
 create table if not exists webhook_logs (
   id         serial primary key,
   gateway    text,
@@ -290,8 +337,7 @@ create table if not exists webhook_logs (
 );
 
 -- ─── Audit log geral ─────────────────────────────────────────
--- Registra INSERT/UPDATE/DELETE em tabelas financeiras sensíveis.
--- Append-only: trigger fn_bloquear_mutacao_auditoria() bloqueia UPDATE/DELETE.
+-- Append-only. Não tem loja_id — é global/administrativo.
 create table if not exists audit_log (
   id           bigserial primary key,
   tabela       text not null,
@@ -308,77 +354,133 @@ create index if not exists idx_audit_log_registro on audit_log(registro_id, tabe
 -- ─── Horários especiais ───────────────────────────────────────
 create table if not exists horarios_especiais (
   id              serial primary key,
-  data            date not null unique,
+  data            date not null,
   hora_abertura   text not null default '09:00',
   hora_fechamento text not null default '20:00',
   fechado         boolean not null default false,
   motivo          text,
+  loja_id         uuid references lojas(id) on delete cascade,
   created_at      timestamptz default now()
 );
 
+-- Uma configuração por data por loja
+create unique index if not exists idx_horarios_especiais_data_loja
+  on horarios_especiais(data, loja_id);
+
 
 -- ============================================================
--- FUNÇÕES E TRIGGERS
+-- FUNÇÕES AUXILIARES
 -- ============================================================
 
--- ─── Stored procedure: baixar estoque em batch atômico ──────
-create or replace function baixar_estoque_comanda(items jsonb)
-returns void language plpgsql as $$
-declare
-  item_rec jsonb;
-  v_pid    int;
-  v_qtd    int;
-  v_ant    int;
-  v_nov    int;
-  v_nome   text;
-  v_cor    text;
-  v_cat    text;
-  v_foto   text;
-  v_tipo   text;
+-- ─── updated_at automático ───────────────────────────────────
+create or replace function handle_updated_at()
+returns trigger language plpgsql as $$
 begin
-  for item_rec in select * from jsonb_array_elements(items)
-  loop
-    v_pid := (item_rec->>'produto_id')::int;
-    v_qtd := (item_rec->>'quantidade')::int;
+  NEW.updated_at = now();
+  return NEW;
+end;
+$$;
 
-    select p.quantidade, p.nome, p.cor, coalesce(c.nome,''), p.foto
-    into   v_ant, v_nome, v_cor, v_cat, v_foto
-    from   produtos p
-    left   join categorias c on c.id = p.categoria_id
-    where  p.id = v_pid
-    for    update of p;
+-- ─── Role do usuário atual (evita recursão RLS) ──────────────
+create or replace function get_my_role()
+returns text language sql security definer stable as $$
+  select role from profiles where id = auth.uid();
+$$;
 
-    if not found then continue; end if;
+-- ─── loja_id do usuário atual ────────────────────────────────
+create or replace function get_my_loja_id()
+returns uuid language sql security definer stable as $$
+  select loja_id from profiles where id = auth.uid();
+$$;
 
-    v_ant := coalesce(v_ant, 0);
-    v_nov := greatest(0, v_ant - v_qtd);
+-- ─── Auto-cria profile ao criar usuário no Supabase Auth ─────
+create or replace function handle_new_auth_user()
+returns trigger language plpgsql security definer as $$
+begin
+  insert into profiles (id, email, full_name, role, loja_id)
+  values (
+    NEW.id,
+    NEW.email,
+    coalesce(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    coalesce(NEW.raw_user_meta_data->>'role', 'user'),
+    case
+      when NEW.raw_user_meta_data->>'loja_id' is not null
+        and NEW.raw_user_meta_data->>'loja_id' != ''
+      then (NEW.raw_user_meta_data->>'loja_id')::uuid
+      else null
+    end
+  )
+  on conflict (id) do nothing;
+  return NEW;
+end;
+$$;
 
-    if v_ant = v_nov then continue; end if;
+-- ─── Auto-preenche loja_id no INSERT ─────────────────────────
+create or replace function auto_set_loja_id()
+returns trigger language plpgsql as $$
+begin
+  if NEW.loja_id is null then
+    NEW.loja_id := get_my_loja_id();
+  end if;
+  return NEW;
+end;
+$$;
 
-    update produtos set quantidade = v_nov where id = v_pid;
 
-    v_tipo := case
-      when v_nov = 0     then 'zerado'
-      when v_nov > v_ant then 'entrada'
-      else                    'saida'
-    end;
+-- ============================================================
+-- TRIGGERS DE INFRAESTRUTURA
+-- ============================================================
 
-    insert into historico(
-      produto_id, produto_nome, produto_cor, categoria_nome, foto,
-      tipo, quantidade_anterior, quantidade_nova
-    ) values (
-      v_pid, v_nome, coalesce(v_cor,''), v_cat, v_foto,
-      v_tipo, v_ant, v_nov
+-- ─── updated_at automático ───────────────────────────────────
+drop trigger if exists lojas_updated_at on lojas;
+create trigger lojas_updated_at
+  before update on lojas
+  for each row execute function handle_updated_at();
+
+drop trigger if exists profiles_updated_at on profiles;
+create trigger profiles_updated_at
+  before update on profiles
+  for each row execute function handle_updated_at();
+
+drop trigger if exists assinaturas_updated_at on assinaturas;
+create trigger assinaturas_updated_at
+  before update on assinaturas
+  for each row execute function handle_updated_at();
+
+-- ─── Auth: auto-cria profile ao registrar usuário ────────────
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_auth_user();
+
+-- ─── Auto-set loja_id em todas as tabelas de dados ───────────
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'produtos','clientes','servicos','barbeiros','planos',
+    'atendimentos','comandas','assinaturas','uso_beneficios',
+    'sessoes_caixa','movimentos_caixa','historico','comanda_eventos',
+    'horarios_especiais','configuracoes'
+  ] loop
+    execute format('drop trigger if exists trg_auto_loja_id on %I', t);
+    execute format(
+      'create trigger trg_auto_loja_id
+         before insert on %I
+         for each row execute function auto_set_loja_id()',
+      t
     );
   end loop;
 end;
 $$;
 
 
--- ─── Trigger BEFORE INSERT: normaliza e valida nova comanda ──
--- Garante timestamps e version server-side.
--- Bloqueia criação direta com status != 'aberta'.
+-- ============================================================
+-- FUNÇÕES E TRIGGERS DE NEGÓCIO
+-- ============================================================
 
+-- ─── BEFORE INSERT: normaliza e valida nova comanda ──────────
 create or replace function fn_normalizar_comanda_insert()
 returns trigger language plpgsql as $$
 begin
@@ -407,23 +509,16 @@ $$;
 drop trigger if exists trg_normalizar_comanda_insert on comandas;
 create trigger trg_normalizar_comanda_insert
   before insert on comandas
-  for each row
-  execute function fn_normalizar_comanda_insert();
+  for each row execute function fn_normalizar_comanda_insert();
 
 
--- ─── Trigger BEFORE UPDATE: imutabilidade de comanda fechada ─
--- Bloco A: comanda JÁ estava 'fechada' — único campo mutável é
---   gcal_event_id → null (para reagendamento via Agenda).
--- Bloco B: transição para 'fechada' — valida forma_pagamento,
---   valor_total e soma dos componentes; define timestamps server-side.
--- Bloco C: comanda 'aberta' — apenas atualiza updated_at e version.
-
+-- ─── BEFORE UPDATE: imutabilidade de comanda fechada ─────────
 create or replace function validar_fechamento_comanda()
 returns trigger language plpgsql as $$
 declare v_soma numeric;
 begin
 
-  -- ── Bloco A: já estava 'fechada' ─────────────────────────────
+  -- Bloco A: já estava fechada — somente gcal_event_id pode ser nulificado
   if OLD.status = 'fechada' then
     if (NEW.status              is distinct from OLD.status)              or
        (NEW.valor_total         is distinct from OLD.valor_total)         or
@@ -443,13 +538,12 @@ begin
         'Comanda % já está fechada: campos financeiros e de status são imutáveis.',
         OLD.id using errcode = 'P0002';
     end if;
-    -- Preserva version/updated_at — gcal_event_id pode ser nulificado
     NEW.version    := OLD.version;
     NEW.updated_at := OLD.updated_at;
     return NEW;
   end if;
 
-  -- ── Bloco B: transição para 'fechada' ────────────────────────
+  -- Bloco B: transição para fechada — valida e seta timestamps
   if NEW.status = 'fechada' then
     if NEW.forma_pagamento is null or
        NEW.forma_pagamento not in ('debito', 'credito', 'pix', 'dinheiro') then
@@ -470,7 +564,6 @@ begin
         NEW.valor_total, v_soma
         using errcode = 'P0005';
     end if;
-    -- Timestamps server-side — nunca do cliente
     NEW.closed_at  := now();
     NEW.updated_at := now();
   else
@@ -485,29 +578,26 @@ $$;
 drop trigger if exists trg_validar_fechamento_comanda on comandas;
 create trigger trg_validar_fechamento_comanda
   before update on comandas
-  for each row
-  execute function validar_fechamento_comanda();
+  for each row execute function validar_fechamento_comanda();
 
 
--- ─── Trigger AFTER INSERT: auditoria de criação de comanda ───
--- Garante que toda criação gere evento 'criada' — sem depender
--- de chamadas explícitas no código da aplicação.
-
+-- ─── AFTER INSERT: auditoria de criação de comanda ───────────
 create or replace function fn_auditar_comanda_criada()
 returns trigger language plpgsql security definer as $$
 begin
-  insert into comanda_eventos (comanda_id, tipo, descricao, payload)
+  insert into comanda_eventos (comanda_id, tipo, descricao, payload, loja_id)
   values (
     NEW.id,
     'criada',
     format('Comanda criada para %s', coalesce(NEW.cliente_nome, 'desconhecido')),
     jsonb_build_object(
-      'fonte',         case when NEW.gcal_event_id is not null then 'agenda' else 'manual' end,
-      'gcal_event_id', NEW.gcal_event_id,
-      'cliente_id',    NEW.cliente_id,
-      'barbeiro_id',   NEW.barbeiro_id,
-      'status_inicial',NEW.status
-    )
+      'fonte',          case when NEW.gcal_event_id is not null then 'agenda' else 'manual' end,
+      'gcal_event_id',  NEW.gcal_event_id,
+      'cliente_id',     NEW.cliente_id,
+      'barbeiro_id',    NEW.barbeiro_id,
+      'status_inicial', NEW.status
+    ),
+    NEW.loja_id
   );
   return NEW;
 end;
@@ -516,14 +606,10 @@ $$;
 drop trigger if exists trg_auditar_comanda_criada on comandas;
 create trigger trg_auditar_comanda_criada
   after insert on comandas
-  for each row
-  execute function fn_auditar_comanda_criada();
+  for each row execute function fn_auditar_comanda_criada();
 
 
--- ─── Triggers de imutabilidade para tabelas de auditoria ─────
--- historico, comanda_eventos e audit_log são append-only.
--- Nenhum role — incluindo service_role — pode alterar ou deletar.
-
+-- ─── Tabelas append-only: bloqueia UPDATE e DELETE ───────────
 create or replace function fn_bloquear_mutacao_auditoria()
 returns trigger language plpgsql as $$
 begin
@@ -534,30 +620,28 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_imutavel_historico       on historico;
-drop trigger if exists trg_imutavel_comanda_eventos on comanda_eventos;
-drop trigger if exists trg_imutavel_audit_log       on audit_log;
-
+drop trigger if exists trg_imutavel_historico on historico;
 create trigger trg_imutavel_historico
   before update or delete on historico
   for each row execute function fn_bloquear_mutacao_auditoria();
 
+drop trigger if exists trg_imutavel_comanda_eventos on comanda_eventos;
 create trigger trg_imutavel_comanda_eventos
   before update or delete on comanda_eventos
   for each row execute function fn_bloquear_mutacao_auditoria();
 
+drop trigger if exists trg_imutavel_audit_log on audit_log;
 create trigger trg_imutavel_audit_log
   before update or delete on audit_log
   for each row execute function fn_bloquear_mutacao_auditoria();
 
+drop trigger if exists trg_imutavel_movimentos_caixa on movimentos_caixa;
+create trigger trg_imutavel_movimentos_caixa
+  before update or delete on movimentos_caixa
+  for each row execute function fn_bloquear_mutacao_auditoria();
 
--- ─── Audit log para tabelas financeiras críticas ─────────────
--- configuracoes: valor mascarado (nunca persiste a senha em texto claro).
--- planos: mudança de preço de assinatura.
--- barbeiros: cadastro/remoção de operadores.
--- atendimentos: qualquer UPDATE pós-finalização.
--- assinaturas: mudança de status, valor ou plano.
 
+-- ─── Audit log para tabelas financeiras ──────────────────────
 create or replace function fn_audit_log()
 returns trigger language plpgsql security definer as $$
 declare
@@ -611,10 +695,13 @@ create trigger trg_audit_assinaturas
   after insert or update or delete on assinaturas
   for each row execute function fn_audit_log();
 
+drop trigger if exists trg_audit_sessoes_caixa on sessoes_caixa;
+create trigger trg_audit_sessoes_caixa
+  after insert or update on sessoes_caixa
+  for each row execute function fn_audit_log();
+
 
 -- ─── Timestamps server-side em atendimentos ──────────────────
--- INSERT direto via anon REST podia definir data_cadastro falso.
-
 create or replace function fn_timestamps_atendimentos()
 returns trigger language plpgsql as $$
 begin
@@ -630,9 +717,6 @@ create trigger trg_timestamps_atendimentos
 
 
 -- ─── Imutabilidade de atendimento vinculado a comanda fechada ─
--- Após finalizar_comanda() definir o atendimento, valor_total,
--- forma_pagamento e status não podem mais ser alterados via REST.
-
 create or replace function fn_proteger_atendimento_fechado()
 returns trigger language plpgsql as $$
 declare
@@ -664,11 +748,85 @@ create trigger trg_proteger_atendimento_fechado
   for each row execute function fn_proteger_atendimento_fechado();
 
 
--- ─── RPC: finalizar_comanda() — operação atômica ─────────────
--- 9 passos em uma única transação PostgreSQL:
--- lock pessimista → idempotência → optimistic locking → validações
--- → estoque → atendimento → fechar comanda → benefícios → auditoria
+-- ─── Proteger sessão de caixa fechada ────────────────────────
+create or replace function fn_proteger_sessao_fechada()
+returns trigger language plpgsql as $$
+begin
+  if OLD.status = 'fechada' then
+    raise exception
+      'Sessão de caixa % já está fechada e é imutável.', OLD.id
+      using errcode = 'P0043';
+  end if;
+  return NEW;
+end;
+$$;
 
+drop trigger if exists trg_proteger_sessao_fechada on sessoes_caixa;
+create trigger trg_proteger_sessao_fechada
+  before update on sessoes_caixa
+  for each row execute function fn_proteger_sessao_fechada();
+
+
+-- ─── Baixar estoque em batch atômico ─────────────────────────
+create or replace function baixar_estoque_comanda(items jsonb)
+returns void language plpgsql as $$
+declare
+  item_rec jsonb;
+  v_pid    int;
+  v_qtd    int;
+  v_ant    int;
+  v_nov    int;
+  v_nome   text;
+  v_cor    text;
+  v_cat    text;
+  v_foto   text;
+  v_tipo   text;
+begin
+  for item_rec in select * from jsonb_array_elements(items)
+  loop
+    v_pid := (item_rec->>'produto_id')::int;
+    v_qtd := (item_rec->>'quantidade')::int;
+
+    select p.quantidade, p.nome, p.cor, coalesce(c.nome,''), p.foto
+    into   v_ant, v_nome, v_cor, v_cat, v_foto
+    from   produtos p
+    left   join categorias c on c.id = p.categoria_id
+    where  p.id = v_pid
+    for    update of p;
+
+    if not found then continue; end if;
+
+    v_ant := coalesce(v_ant, 0);
+    v_nov := greatest(0, v_ant - v_qtd);
+
+    if v_ant = v_nov then continue; end if;
+
+    update produtos set quantidade = v_nov where id = v_pid;
+
+    v_tipo := case
+      when v_nov = 0     then 'zerado'
+      when v_nov > v_ant then 'entrada'
+      else                    'saida'
+    end;
+
+    insert into historico(
+      produto_id, produto_nome, produto_cor, categoria_nome, foto,
+      tipo, quantidade_anterior, quantidade_nova
+    ) values (
+      v_pid, v_nome, coalesce(v_cor,''), v_cat, v_foto,
+      v_tipo, v_ant, v_nov
+    );
+    -- loja_id auto-preenchido pelo trg_auto_loja_id
+  end loop;
+end;
+$$;
+
+
+-- ============================================================
+-- RPCs
+-- ============================================================
+
+-- ─── finalizar_comanda() ─────────────────────────────────────
 create or replace function finalizar_comanda(
   p_comanda_id  integer,
   p_payload     jsonb
@@ -826,7 +984,7 @@ begin
     returning id into v_atend_id;
   end if;
 
-  -- Passo 7: fechar comanda (trigger valida + seta closed_at/updated_at + incrementa version)
+  -- Passo 7: fechar comanda
   update comandas set
     status               = 'fechada',
     atendimento_id       = v_atend_id,
@@ -845,7 +1003,7 @@ begin
     sessao_caixa_id      = v_sessao_id
   where id = p_comanda_id;
 
-  -- Passo 7b: registrar entrada automática no caixa (apenas dinheiro)
+  -- Passo 7b: registrar entrada no caixa (apenas dinheiro)
   if v_forma_pagamento = 'dinheiro' then
     insert into movimentos_caixa (
       sessao_id, tipo, valor, motivo, referencia_tipo, referencia_id
@@ -879,8 +1037,8 @@ begin
     on conflict do nothing;
   end if;
 
-  -- Passo 9: auditoria garantida (dentro da TX — nunca fire-and-forget)
-  insert into comanda_eventos (comanda_id, tipo, descricao, payload)
+  -- Passo 9: auditoria
+  insert into comanda_eventos (comanda_id, tipo, descricao, payload, loja_id)
   values (
     p_comanda_id, 'fechada',
     format('Fechada — R$ %s via %s', to_char(v_valor_total,'FM999999990.00'), v_forma_pagamento),
@@ -894,7 +1052,8 @@ begin
       'atendimento_id',     v_atend_id,
       'version_finalizado', v_comanda.version,
       'sessao_caixa_id',    v_sessao_id
-    )
+    ),
+    v_comanda.loja_id
   );
 
   return jsonb_build_object(
@@ -908,7 +1067,7 @@ end;
 $$;
 
 
--- ─── RPC: cancelar_comanda() — cancelamento atômico ──────────
+-- ─── cancelar_comanda() ──────────────────────────────────────
 create or replace function cancelar_comanda(
   p_comanda_id  integer,
   p_motivo      text default null
@@ -942,11 +1101,12 @@ begin
     updated_at     = now()
   where id = p_comanda_id;
 
-  insert into comanda_eventos (comanda_id, tipo, descricao, payload)
+  insert into comanda_eventos (comanda_id, tipo, descricao, payload, loja_id)
   values (
     p_comanda_id, 'cancelada',
     coalesce(nullif(trim(p_motivo), ''), 'Cancelada sem motivo registrado'),
-    jsonb_build_object('motivo', p_motivo)
+    jsonb_build_object('motivo', p_motivo),
+    v_comanda.loja_id
   );
 
   return jsonb_build_object('ok', true, 'idempotent', false, 'comanda_id', p_comanda_id);
@@ -957,8 +1117,7 @@ end;
 $$;
 
 
--- ─── RPC: abrir_caixa() ──────────────────────────────────────
-
+-- ─── abrir_caixa() ───────────────────────────────────────────
 create or replace function abrir_caixa(
   p_valor_abertura numeric default 0,
   p_aberto_por     text    default null
@@ -998,8 +1157,7 @@ end;
 $$;
 
 
--- ─── RPC: fechar_caixa() ─────────────────────────────────────
-
+-- ─── fechar_caixa() ──────────────────────────────────────────
 create or replace function fechar_caixa(
   p_sessao_id        bigint,
   p_valor_fechamento numeric  default 0,
@@ -1097,8 +1255,7 @@ end;
 $$;
 
 
--- ─── RPC: registrar_movimento_caixa() ────────────────────────
-
+-- ─── registrar_movimento_caixa() ─────────────────────────────
 create or replace function registrar_movimento_caixa(
   p_sessao_id  bigint,
   p_tipo       text,
@@ -1148,40 +1305,11 @@ end;
 $$;
 
 
--- ─── Trigger: proteger sessão fechada ────────────────────────
+-- ============================================================
+-- VIEWS
+-- ============================================================
 
-create or replace function fn_proteger_sessao_fechada()
-returns trigger language plpgsql as $$
-begin
-  if OLD.status = 'fechada' then
-    raise exception
-      'Sessão de caixa % já está fechada e é imutável.', OLD.id
-      using errcode = 'P0043';
-  end if;
-  return NEW;
-end;
-$$;
-
-drop trigger if exists trg_proteger_sessao_fechada on sessoes_caixa;
-create trigger trg_proteger_sessao_fechada
-  before update on sessoes_caixa
-  for each row execute function fn_proteger_sessao_fechada();
-
-drop trigger if exists trg_imutavel_movimentos_caixa on movimentos_caixa;
-create trigger trg_imutavel_movimentos_caixa
-  before update or delete on movimentos_caixa
-  for each row execute function fn_bloquear_mutacao_auditoria();
-
-drop trigger if exists trg_audit_sessoes_caixa on sessoes_caixa;
-create trigger trg_audit_sessoes_caixa
-  after insert or update on sessoes_caixa
-  for each row execute function fn_audit_log();
-
-
--- ─── View: reconciliação financeira ──────────────────────────
--- Detecta divergências entre comandas fechadas e atendimentos.
--- Casos: SEM_ATENDIMENTO | VALOR_DIVERGENTE | SOMA_INVALIDA | OK
-
+-- ─── Reconciliação financeira ─────────────────────────────────
 create or replace view vw_reconciliacao_financeira as
 select
   c.id                                                          as comanda_id,
@@ -1215,9 +1343,7 @@ where c.status = 'fechada'
 order by c.closed_at desc;
 
 
--- ─── View: resumo financeiro diário ──────────────────────────
--- Fonte única de verdade para relatórios de caixa diário.
-
+-- ─── Resumo financeiro diário ─────────────────────────────────
 create or replace view vw_resumo_financeiro_diario as
 select
   c.closed_at::date                                             as data,
@@ -1238,10 +1364,7 @@ group by c.closed_at::date
 order by data desc;
 
 
--- ─── View: auditoria de benefícios aplicados ─────────────────
--- Cruza uso_beneficios com comandas para detectar abusos,
--- estornos suspeitos e descontos sem plano ativo.
-
+-- ─── Auditoria de benefícios ──────────────────────────────────
 create or replace view vw_beneficios_auditoria as
 select
   ub.id                                       as uso_id,
@@ -1267,10 +1390,7 @@ left  join clientes cl on cl.id = ub.cliente_id
 order by ub.created_at desc;
 
 
--- ─── Função: reconciliação por período ───────────────────────
--- Retorna apenas registros com divergência no período informado.
--- Uso: SELECT * FROM verificar_reconciliacao('2026-05-01', '2026-05-31');
-
+-- ─── Reconciliação por período ────────────────────────────────
 create or replace function verificar_reconciliacao(
   p_data_inicio date default (current_date - interval '30 days')::date,
   p_data_fim    date default current_date
@@ -1295,10 +1415,7 @@ language sql stable as $$
 $$;
 
 
--- ─── Função: integridade unificada ───────────────────────────
--- Retorna JSON com todos os indicadores de saúde do sistema.
--- Uso: SELECT verificar_integridade_completa();
-
+-- ─── Integridade unificada ────────────────────────────────────
 create or replace function verificar_integridade_completa(
   p_data_inicio date default (current_date - interval '30 days')::date,
   p_data_fim    date default current_date
@@ -1376,128 +1493,145 @@ $$;
 -- ROW LEVEL SECURITY
 -- ============================================================
 
--- App single-tenant sem Supabase Auth: toda operação usa a anon key.
--- Princípio: anon pode ler e escrever dados operacionais, mas NÃO
--- pode deletar registros financeiros nem alterar tabelas de auditoria.
--- service_role é reservado para manutenção administrativa.
+-- ─── Lojas ────────────────────────────────────────────────────
+alter table lojas enable row level security;
+drop policy if exists lojas_admin on lojas;
+drop policy if exists lojas_read  on lojas;
+create policy lojas_admin on lojas for all to authenticated
+  using (get_my_role() = 'admin') with check (get_my_role() = 'admin');
+create policy lojas_read on lojas for select to authenticated
+  using (id = get_my_loja_id() or get_my_role() = 'admin');
 
--- ── Tabelas operacionais ──────────────────────────────────────
-alter table categorias         enable row level security;
-alter table produtos           enable row level security;
-alter table clientes           enable row level security;
-alter table servicos           enable row level security;
-alter table barbeiros          enable row level security;
-alter table planos             enable row level security;
-alter table horarios_especiais enable row level security;
+-- ─── Profiles ─────────────────────────────────────────────────
+alter table profiles enable row level security;
+drop policy if exists "profiles_select_own_or_admin"     on profiles;
+drop policy if exists "profiles_update_own_or_admin"     on profiles;
+drop policy if exists "profiles_insert_admin"            on profiles;
+drop policy if exists "profiles_insert_trigger_or_admin" on profiles;
+drop policy if exists "profiles_delete_admin"            on profiles;
 
-drop policy if exists anon_all on categorias;         create policy anon_all on categorias         for all to anon using (true) with check (true);
-drop policy if exists anon_all on produtos;           create policy anon_all on produtos           for all to anon using (true) with check (true);
-drop policy if exists anon_all on clientes;           create policy anon_all on clientes           for all to anon using (true) with check (true);
-drop policy if exists anon_all on servicos;           create policy anon_all on servicos           for all to anon using (true) with check (true);
-drop policy if exists anon_all on barbeiros;          create policy anon_all on barbeiros          for all to anon using (true) with check (true);
-drop policy if exists anon_all on planos;             create policy anon_all on planos             for all to anon using (true) with check (true);
-drop policy if exists anon_all on horarios_especiais; create policy anon_all on horarios_especiais for all to anon using (true) with check (true);
+create policy "profiles_select_own_or_admin" on profiles
+  for select using (auth.uid() = id or get_my_role() = 'admin');
 
--- ── Configurações: sem DELETE para anon ──────────────────────
--- DELETE em configuracoes (ex: chave 'financeiro_senha') só via service_role.
-alter table configuracoes enable row level security;
-drop policy if exists anon_all    on configuracoes;
-drop policy if exists anon_select on configuracoes;
-drop policy if exists anon_insert on configuracoes;
-drop policy if exists anon_update on configuracoes;
-create policy anon_select on configuracoes for select to anon using (true);
-create policy anon_insert on configuracoes for insert to anon with check (true);
-create policy anon_update on configuracoes for update to anon using (true) with check (true);
+create policy "profiles_update_own_or_admin" on profiles
+  for update using (auth.uid() = id or get_my_role() = 'admin');
 
--- ── Tabelas financeiras: SELECT + INSERT + UPDATE, sem DELETE ─
--- Deleção deve passar pelas RPCs (soft-delete) ou service_role.
-alter table atendimentos   enable row level security;
-alter table assinaturas    enable row level security;
-alter table uso_beneficios enable row level security;
-alter table comandas       enable row level security;
+-- Permite: admin, service_role (API admin) e trigger SECURITY DEFINER
+create policy "profiles_insert_trigger_or_admin" on profiles
+  for insert with check (
+    get_my_role() = 'admin'
+    or auth.role() = 'service_role'
+    or auth.uid() is null
+  );
 
-drop policy if exists anon_all    on atendimentos;
-drop policy if exists anon_select on atendimentos;
-drop policy if exists anon_insert on atendimentos;
-drop policy if exists anon_update on atendimentos;
-create policy anon_select on atendimentos for select to anon using (true);
-create policy anon_insert on atendimentos for insert to anon with check (true);
-create policy anon_update on atendimentos for update to anon using (true) with check (true);
+create policy "profiles_delete_admin" on profiles
+  for delete using (get_my_role() = 'admin');
 
-drop policy if exists anon_all    on assinaturas;
-drop policy if exists anon_select on assinaturas;
-drop policy if exists anon_insert on assinaturas;
-drop policy if exists anon_update on assinaturas;
-create policy anon_select on assinaturas for select to anon using (true);
-create policy anon_insert on assinaturas for insert to anon with check (true);
-create policy anon_update on assinaturas for update to anon using (true) with check (true);
+-- ─── Categorias: global, qualquer autenticado lê ──────────────
+alter table categorias enable row level security;
+drop policy if exists anon_all      on categorias;
+drop policy if exists cat_read      on categorias;
+drop policy if exists cat_write     on categorias;
+drop policy if exists cat_anon_read on categorias;
+create policy cat_read      on categorias for select to authenticated using (true);
+create policy cat_anon_read on categorias for select to anon using (true);
+create policy cat_write     on categorias for all to authenticated
+  using (get_my_role() = 'admin') with check (get_my_role() = 'admin');
 
-drop policy if exists anon_all    on uso_beneficios;
-drop policy if exists anon_select on uso_beneficios;
-drop policy if exists anon_insert on uso_beneficios;
-drop policy if exists anon_update on uso_beneficios;
-create policy anon_select on uso_beneficios for select to anon using (true);
-create policy anon_insert on uso_beneficios for insert to anon with check (true);
-create policy anon_update on uso_beneficios for update to anon using (true) with check (true);
+-- ─── Tabelas de dados: isolamento por loja ────────────────────
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'produtos','clientes','servicos','barbeiros','planos',
+    'atendimentos','comandas','assinaturas','uso_beneficios',
+    'sessoes_caixa','movimentos_caixa','historico','comanda_eventos',
+    'horarios_especiais','configuracoes'
+  ] loop
+    execute format('alter table %I enable row level security', t);
+    execute format('drop policy if exists anon_all      on %I', t);
+    execute format('drop policy if exists anon_select   on %I', t);
+    execute format('drop policy if exists anon_insert   on %I', t);
+    execute format('drop policy if exists anon_update   on %I', t);
+    execute format('drop policy if exists loja_isolation on %I', t);
+    execute format(
+      'create policy loja_isolation on %I
+         for all to authenticated
+         using (
+           get_my_role() = ''admin''
+           or loja_id = get_my_loja_id()
+         )
+         with check (
+           get_my_role() = ''admin''
+           or loja_id = get_my_loja_id()
+         )',
+      t
+    );
+  end loop;
+end;
+$$;
 
-drop policy if exists anon_all    on comandas;
-drop policy if exists anon_select on comandas;
-drop policy if exists anon_insert on comandas;
-drop policy if exists anon_update on comandas;
-create policy anon_select on comandas for select to anon using (true);
-create policy anon_insert on comandas for insert to anon with check (true);
-create policy anon_update on comandas for update to anon using (true) with check (true);
+-- ─── Audit log e webhook_logs: append-only global ─────────────
+alter table audit_log    enable row level security;
+alter table webhook_logs enable row level security;
 
--- ── Caixa: SELECT + INSERT + UPDATE (sem DELETE) ─────────────
-alter table sessoes_caixa    enable row level security;
-alter table movimentos_caixa enable row level security;
+drop policy if exists anon_select          on audit_log;
+drop policy if exists anon_insert          on audit_log;
+drop policy if exists authenticated_select on audit_log;
+drop policy if exists authenticated_insert on audit_log;
+create policy authenticated_select on audit_log for select to authenticated using (true);
+create policy authenticated_insert on audit_log for insert to authenticated with check (true);
 
-drop policy if exists anon_select on sessoes_caixa;
-drop policy if exists anon_insert on sessoes_caixa;
-drop policy if exists anon_update on sessoes_caixa;
-create policy anon_select on sessoes_caixa for select to anon using (true);
-create policy anon_insert on sessoes_caixa for insert to anon with check (true);
-create policy anon_update on sessoes_caixa for update to anon using (true) with check (true);
-
-drop policy if exists anon_select on movimentos_caixa;
-drop policy if exists anon_insert on movimentos_caixa;
-create policy anon_select on movimentos_caixa for select to anon using (true);
-create policy anon_insert on movimentos_caixa for insert to anon with check (true);
-
--- ── Tabelas de auditoria: apenas SELECT + INSERT ──────────────
--- Append-only por design. Triggers bloqueiam UPDATE/DELETE.
-alter table historico       enable row level security;
-alter table comanda_eventos enable row level security;
-alter table webhook_logs    enable row level security;
-alter table audit_log       enable row level security;
-
-drop policy if exists anon_select on historico;       create policy anon_select on historico       for select to anon using (true);
-drop policy if exists anon_insert on historico;       create policy anon_insert on historico       for insert to anon with check (true);
-drop policy if exists anon_select on comanda_eventos; create policy anon_select on comanda_eventos for select to anon using (true);
-drop policy if exists anon_insert on comanda_eventos; create policy anon_insert on comanda_eventos for insert to anon with check (true);
-drop policy if exists anon_select on webhook_logs;    create policy anon_select on webhook_logs    for select to anon using (true);
-drop policy if exists anon_insert on webhook_logs;    create policy anon_insert on webhook_logs    for insert to anon with check (true);
-drop policy if exists anon_select on audit_log;       create policy anon_select on audit_log       for select to anon using (true);
-drop policy if exists anon_insert on audit_log;       create policy anon_insert on audit_log       for insert to anon with check (true);
+drop policy if exists anon_select          on webhook_logs;
+drop policy if exists anon_insert          on webhook_logs;
+drop policy if exists authenticated_select on webhook_logs;
+drop policy if exists authenticated_insert on webhook_logs;
+create policy authenticated_select on webhook_logs for select to authenticated using (true);
+create policy authenticated_insert on webhook_logs for insert to authenticated with check (true);
 
 
 -- ============================================================
 -- GRANTS
 -- ============================================================
 
-grant execute on function baixar_estoque_comanda(jsonb)           to anon;
-grant execute on function finalizar_comanda(integer, jsonb)       to anon;
-grant execute on function cancelar_comanda(integer, text)         to anon;
-grant execute on function verificar_reconciliacao(date, date)                          to anon;
-grant execute on function verificar_integridade_completa(date, date)                   to anon;
-grant execute on function abrir_caixa(numeric, text)                                   to anon;
-grant execute on function fechar_caixa(bigint, numeric, text)                          to anon;
-grant execute on function registrar_movimento_caixa(bigint, text, numeric, text, text) to anon;
-grant select  on vw_reconciliacao_financeira                                            to anon;
-grant select  on vw_resumo_financeiro_diario                                            to anon;
-grant select  on vw_beneficios_auditoria                                                to anon;
-grant select  on audit_log                                                              to anon;
-grant select, insert, update on sessoes_caixa                                           to anon;
-grant select, insert         on movimentos_caixa                                        to anon;
-grant usage, select on sequence sessoes_caixa_id_seq                                    to anon;
-grant usage, select on sequence movimentos_caixa_id_seq                                 to anon;
+grant execute on function get_my_role()                                                to authenticated;
+grant execute on function get_my_loja_id()                                             to authenticated;
+grant execute on function baixar_estoque_comanda(jsonb)                                to authenticated;
+grant execute on function finalizar_comanda(integer, jsonb)                            to authenticated;
+grant execute on function cancelar_comanda(integer, text)                              to authenticated;
+grant execute on function verificar_reconciliacao(date, date)                          to authenticated;
+grant execute on function verificar_integridade_completa(date, date)                   to authenticated;
+grant execute on function abrir_caixa(numeric, text)                                   to authenticated;
+grant execute on function fechar_caixa(bigint, numeric, text)                          to authenticated;
+grant execute on function registrar_movimento_caixa(bigint, text, numeric, text, text) to authenticated;
+grant select  on vw_reconciliacao_financeira                                            to authenticated;
+grant select  on vw_resumo_financeiro_diario                                            to authenticated;
+grant select  on vw_beneficios_auditoria                                                to authenticated;
+grant select  on audit_log                                                              to authenticated;
+grant select, insert, update on sessoes_caixa                                           to authenticated;
+grant select, insert         on movimentos_caixa                                        to authenticated;
+grant usage, select on sequence sessoes_caixa_id_seq                                    to authenticated;
+grant usage, select on sequence movimentos_caixa_id_seq                                 to authenticated;
+
+
+-- ============================================================
+-- SETUP INICIAL (rodar uma vez após criar o banco)
+-- ============================================================
+--
+-- 1. Criar o primeiro admin no Supabase Dashboard:
+--    Authentication → Users → Add user
+--
+-- 2. Promover para admin:
+--    UPDATE profiles SET role = 'admin' WHERE email = 'seu-email@exemplo.com';
+--
+-- 3. Para bancos com dados existentes, fazer backfill de profiles:
+--    INSERT INTO profiles (id, email, full_name, role)
+--    SELECT u.id, u.email,
+--           COALESCE(u.raw_user_meta_data->>'full_name', split_part(u.email,'@',1)),
+--           'user'
+--    FROM auth.users u
+--    LEFT JOIN profiles p ON p.id = u.id
+--    WHERE p.id IS NULL;
+--
+-- ============================================================

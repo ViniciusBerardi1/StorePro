@@ -14,6 +14,7 @@ import Comandas from "./components/views/Comandas";
 import ClientesLista, { PlanosManager } from "./components/views/ClientesLista";
 import Relatorios from "./components/views/Relatorios";
 import Caixa from "./components/views/Caixa";
+import Configuracoes from "./components/views/Configuracoes";
 import PaginaAssinatura from "./components/views/PaginaAssinatura";
 import AdminApp from "./components/admin/AdminApp";
 import ResetPassword from "./components/admin/ResetPassword";
@@ -517,7 +518,9 @@ function AppPrincipal() {
             exit="exit"
             transition={pageTransition}
           >
-            {view === "sobre" ? (
+            {view === "configuracoes" ? (
+              <Configuracoes />
+            ) : view === "sobre" ? (
               <Sobre />
             ) : view === "servicos" ? (
               <Servicos />

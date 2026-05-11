@@ -59,6 +59,7 @@ const VIEWS_ATIVAS = [
   "clientes_lista", "planos",
   "financeiro", "relatorios",
   "estoque_loja", "estoque_bar",
+  "configuracoes", "sobre",
 ];
 
 function isAtivo(entrada, view) {
