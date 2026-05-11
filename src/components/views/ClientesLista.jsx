@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { Crown, Scissors, AlertTriangle, Settings, XCircle, CheckCircle2, Loader2,
-  Pencil, Trash2, Star, ClipboardList, Search, CreditCard, DollarSign, Calendar } from "lucide-react";
+  Pencil, Trash2, Star, ClipboardList, Search, CreditCard, DollarSign, Calendar, Users } from "lucide-react";
 
 // ─── Formatters ──────────────────────────────────────────────────
 const BRL      = (v) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
