@@ -412,19 +412,25 @@ async function getConfiguracao(chave) {
 
 async function setConfiguracao(chave, valor) {
   const v = typeof valor === "string" ? valor : JSON.stringify(valor);
-  // UPDATE first (RLS filtra por loja_id automaticamente)
-  const { data: updated, error: errUpdate } = await supabase
+  // SELECT para ver se já existe (RLS filtra por loja_id)
+  const { data: existing } = await supabase
     .from("configuracoes")
-    .update({ valor: v })
+    .select("id")
     .eq("chave", chave)
-    .select("id");
-  if (errUpdate) throw new Error(errUpdate.message);
-  // Se nenhuma linha foi atualizada, insere (trigger auto-seta loja_id)
-  if (!updated || updated.length === 0) {
-    const { error: errInsert } = await supabase
+    .maybeSingle();
+  if (existing?.id) {
+    // UPDATE pelo id exato — sem risco de conflito
+    const { error } = await supabase
+      .from("configuracoes")
+      .update({ valor: v })
+      .eq("id", existing.id);
+    if (error) throw new Error(error.message);
+  } else {
+    // INSERT — trigger seta loja_id automaticamente
+    const { error } = await supabase
       .from("configuracoes")
       .insert({ chave, valor: v });
-    if (errInsert) throw new Error(errInsert.message);
+    if (error) throw new Error(error.message);
   }
 }
 
