@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { db } from "../../services/supabaseDb";
+import { PageHeader } from "../ui/DS";
 import {
   DollarSign, Scissors, CreditCard, Receipt, Package, ClipboardList,
   AlertTriangle, Beer, ShoppingBag, RefreshCw, TrendingUp, BarChart2,
@@ -689,33 +690,32 @@ export default function Dashboard({ produtos, setView }) {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800">Financeiro</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Caixa operacional do período</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-            {PERIODOS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPeriodo(p.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                  ${periodo === p.id ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-              >
-                {p.label}
-              </button>
-            ))}
+      <PageHeader
+        eyebrow="Gestão"
+        title="Financeiro"
+        action={
+          <div className="flex items-center gap-2">
+            <div className="flex bg-white border border-gray-200 rounded-xl p-0.5 gap-0.5">
+              {PERIODOS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriodo(p.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
+                    ${periodo === p.id ? "bg-indigo-500 text-white" : "text-gray-600 hover:text-gray-900"}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={carregar}
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            >
+              <RefreshCw size={14} />
+            </button>
           </div>
-          <button
-            onClick={carregar}
-            className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
-          >
-            <RefreshCw size={13} />
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Tabs */}
       <div className="flex gap-1">

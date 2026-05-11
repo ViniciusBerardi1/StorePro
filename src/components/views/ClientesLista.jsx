@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { Crown, Scissors, AlertTriangle, Settings, XCircle, CheckCircle2, Loader2,
   Pencil, Trash2, Star, ClipboardList, Search, CreditCard, DollarSign, Calendar, Users } from "lucide-react";
+import { PageHeader } from "../ui/DS";
 
 // ─── Formatters ──────────────────────────────────────────────────
 const BRL      = (v) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -1536,22 +1537,18 @@ export default function ClientesLista({ initialAba = "todos" }) {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800">Clientes</h2>
-          {!loading && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              {clientes.length} cadastrado{clientes.length !== 1 ? "s" : ""}
-              {assinantesIds.size > 0 && ` · ${assinantesIds.size} assinante${assinantesIds.size !== 1 ? "s" : ""}`}
-            </p>
-          )}
-        </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
-        >+ Novo cliente</button>
-      </div>
+      <PageHeader
+        eyebrow="Cadastros"
+        title={loading ? "Clientes" : `Clientes · ${clientes.length}`}
+        action={
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            Novo cliente
+          </button>
+        }
+      />
 
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">

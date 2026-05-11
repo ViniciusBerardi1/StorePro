@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
-import { Banknote, QrCode, CreditCard } from "lucide-react";
+import { Banknote, QrCode, CreditCard, RefreshCw } from "lucide-react";
+import { PageHeader, PaymentPill, CaixaBanner } from "../ui/DS";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -372,47 +373,63 @@ export default function Caixa() {
   if (loading) return <Skeleton />;
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">Caixa</h1>
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-          sessao
-            ? "bg-emerald-100 text-emerald-700"
-            : "bg-gray-100 text-gray-500"
-        }`}>
-          {sessao ? "Aberto" : "Fechado"}
-        </span>
-      </div>
+      <PageHeader
+        eyebrow="Operação"
+        title="Caixa"
+        action={
+          sessao && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setModal({ tipo: "sangria" }); setModalValor(""); setModalMotivo(""); }}
+                className="px-3 py-2 bg-white hover:bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium transition-colors"
+              >
+                Sangria
+              </button>
+              <button
+                onClick={() => { setModal({ tipo: "suprimento" }); setModalValor(""); setModalMotivo(""); }}
+                className="px-3 py-2 bg-white hover:bg-blue-50 border border-blue-200 text-blue-600 rounded-xl text-sm font-medium transition-colors"
+              >
+                Suprimento
+              </button>
+              <button
+                onClick={() => { setShowFechar(true); setValorContado(""); }}
+                className="px-3 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-xl text-sm font-semibold transition-colors"
+              >
+                Fechar caixa
+              </button>
+            </div>
+          )
+        }
+      />
 
       {erro && (
         <div className="bg-red-50 text-red-600 rounded-xl p-4 text-sm">{erro}</div>
       )}
 
+      <CaixaBanner
+        sessao={sessao}
+        onFechar={() => { setShowFechar(true); setValorContado(""); }}
+        onAbrir={() => {}}
+      />
+
       {/* Resumo do último fechamento */}
       <AnimatePresence>
         {ultimoFechamento && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-          >
-            <FechamentoResumo
-              dados={ultimoFechamento}
-              onFechar={() => setUltimoFechamento(null)}
-            />
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <FechamentoResumo dados={ultimoFechamento} onFechar={() => setUltimoFechamento(null)} />
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Sem sessão aberta */}
       {!sessao && (
-        <div className="bg-white rounded-2xl shadow-sm p-6">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6">
           <p className="text-sm text-gray-500 mb-5">
-            Nenhum caixa aberto. Informe o fundo inicial de troco para começar.
+            Informe o fundo inicial de troco para abrir o caixa.
           </p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 max-w-sm">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">R$</span>
               <input
@@ -423,7 +440,7 @@ export default function Caixa() {
                 onChange={(e) => setValorAbertura(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAbrirCaixa()}
                 placeholder="0,00"
-                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               />
             </div>
             <button
@@ -431,7 +448,7 @@ export default function Caixa() {
               disabled={abrindo}
               className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 whitespace-nowrap"
             >
-              {abrindo ? "Abrindo..." : "Abrir Caixa"}
+              {abrindo ? "Abrindo..." : "Abrir caixa"}
             </button>
           </div>
         </div>
@@ -440,45 +457,54 @@ export default function Caixa() {
       {/* Sessão aberta */}
       {sessao && (
         <>
-          {/* Cards de saldo e info */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-2xl shadow-sm p-4">
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4">
               <p className="text-xs text-gray-400 mb-1">Saldo em dinheiro</p>
-              <p className="text-2xl font-bold text-gray-800 tabular-nums">{fmtValor(saldo)}</p>
+              <p className="text-2xl font-bold text-gray-800 tabular-nums leading-tight">{fmtValor(saldo)}</p>
             </div>
-            <div className="bg-white rounded-2xl shadow-sm p-4">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4">
               <p className="text-xs text-gray-400 mb-1">Aberto em</p>
               <p className="text-sm font-semibold text-gray-700">{fmtDataHora(sessao.opened_at)}</p>
-              {sessao.aberto_por && (
-                <p className="text-xs text-gray-400 mt-0.5">por {sessao.aberto_por}</p>
-              )}
+              {sessao.aberto_por && <p className="text-xs text-gray-400 mt-0.5">por {sessao.aberto_por}</p>}
+            </div>
+            <div className="bg-white border border-gray-200 rounded-2xl p-4">
+              <p className="text-xs text-gray-400 mb-1">Entradas</p>
+              <p className="text-2xl font-bold text-gray-800 tabular-nums leading-tight">
+                {fmtValor(movimentos.filter((m) => TIPO_INFO[m.tipo]?.positivo).reduce((s, m) => s + Number(m.valor), 0))}
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-2xl p-4">
+              <p className="text-xs text-gray-400 mb-1">Movimentos</p>
+              <p className="text-2xl font-bold text-gray-800 tabular-nums leading-tight">{movimentos.length}</p>
             </div>
           </div>
 
           {/* Lista de movimentos */}
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-50 flex justify-between items-center">
-              <h2 className="text-sm font-semibold text-gray-600">Movimentos</h2>
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-sm font-semibold text-gray-700">Movimentos</h2>
               <span className="text-xs text-gray-400">{movimentos.length} registros</span>
             </div>
-            <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+            <div className="divide-y divide-gray-100 scroll-area max-h-80 overflow-y-auto">
               {movimentos.length === 0 ? (
-                <p className="text-xs text-gray-400 px-4 py-4 text-center">Nenhum movimento registrado ainda.</p>
+                <p className="text-xs text-gray-400 px-5 py-6 text-center">Nenhum movimento registrado ainda.</p>
               ) : (
                 movimentos.map((m) => {
                   const info = TIPO_INFO[m.tipo] ?? { label: m.tipo, cor: "text-gray-500", positivo: true };
                   return (
-                    <div key={m.id} className="flex items-center px-4 py-2.5 gap-3">
-                      <span className="text-[11px] text-gray-400 w-11 shrink-0 tabular-nums">{fmtHora(m.created_at)}</span>
+                    <div key={m.id} className="flex items-center px-5 py-3 gap-3">
+                      <span className="text-[11px] text-gray-400 w-11 shrink-0 tabular-nums font-semibold">{fmtHora(m.created_at)}</span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-medium ${info.cor}`}>{info.label}</p>
-                        {m.motivo && (
-                          <p className="text-[11px] text-gray-400 truncate">{m.motivo}</p>
+                        <p className="text-sm font-semibold text-gray-900">{info.label}</p>
+                        {m.forma_pagamento && (
+                          <div className="mt-0.5"><PaymentPill method={m.forma_pagamento} /></div>
+                        )}
+                        {m.motivo && !m.forma_pagamento && (
+                          <p className="text-[11px] text-gray-400 truncate mt-0.5">{m.motivo}</p>
                         )}
                       </div>
-                      <span className={`text-sm font-semibold tabular-nums ${
-                        info.positivo ? "text-emerald-600" : "text-red-500"
-                      }`}>
+                      <span className={`text-sm font-bold tabular-nums ${info.positivo ? "text-gray-900" : "text-red-600"}`}>
                         {info.positivo ? "+" : "−"}{fmtValor(m.valor)}
                       </span>
                     </div>
@@ -487,38 +513,16 @@ export default function Caixa() {
               )}
             </div>
           </div>
-
-          {/* Ações */}
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              onClick={() => { setModal({ tipo: "sangria" }); setModalValor(""); setModalMotivo(""); }}
-              className="py-3 bg-white hover:bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium transition-colors"
-            >
-              Sangria
-            </button>
-            <button
-              onClick={() => { setModal({ tipo: "suprimento" }); setModalValor(""); setModalMotivo(""); }}
-              className="py-3 bg-white hover:bg-blue-50 border border-blue-200 text-blue-600 rounded-xl text-sm font-medium transition-colors"
-            >
-              Suprimento
-            </button>
-            <button
-              onClick={() => { setShowFechar(true); setValorContado(""); }}
-              className="py-3 bg-gray-800 hover:bg-gray-900 text-white rounded-xl text-sm font-semibold transition-colors"
-            >
-              Fechar Caixa
-            </button>
-          </div>
         </>
       )}
 
       {/* Histórico de sessões fechadas */}
       {historico.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-600">Sessões anteriores</h2>
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-700">Sessões anteriores</h2>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-gray-100">
             {historico.map((s) => (
               <SessaoItem key={s.id} sessao={s} />
             ))}

@@ -6,6 +6,7 @@ import { TrendingDown, TrendingUp, XCircle, UserX, Clock, Package, Award,
   BarChart, Trophy, Download, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getRelatoriosPeriodo, getRelatoriosPeriodoAnterior, getUltimaVisitaClientes, getComissoesPorBarbeiro } from "../../services/relatoriosDb";
+import { PageHeader } from "../ui/DS";
 
 const BRL = (v) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -1409,31 +1410,29 @@ export default function Relatorios() {
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800">Relatórios</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Análise estratégica por período</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleDownload}
-            disabled={baixando}
-            className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
-            title="Exportar Excel do período selecionado"
-          >
-            {baixando ? <Loader2 size={13} className="animate-spin shrink-0" /> : <Download size={13} className="shrink-0" />} {baixando ? "Gerando…" : "Excel"}
-          </button>
-          <button
-            onClick={carregar}
-            disabled={loading}
-            className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
-            title="Atualizar"
-          >
-            <RefreshCw size={13} />
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Gestão"
+        title="Relatórios"
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownload}
+              disabled={baixando}
+              className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors"
+            >
+              {baixando ? <Loader2 size={13} className="animate-spin shrink-0" /> : <Download size={13} className="shrink-0" />}
+              {baixando ? "Gerando…" : "Excel"}
+            </button>
+            <button
+              onClick={carregar}
+              disabled={loading}
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors disabled:opacity-40"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
+        }
+      />
 
       {/* Date range */}
       <Card className="!p-3">

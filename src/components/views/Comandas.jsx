@@ -5,6 +5,7 @@ import {
   Scissors, Beer, ShoppingBag, QrCode, CreditCard, Banknote,
   Crown, Receipt, AlertTriangle, CheckCircle2, XCircle, RefreshCw, Pencil, Plus,
 } from "lucide-react";
+import { PageHeader, ChannelChip, StatusPill } from "../ui/DS";
 import ClienteSelector from "./ClienteSelector";
 import { calcularBeneficios, cicloAtual } from "../../services/beneficiosCalc";
 import { finalizarComanda, parsearErroComanda } from "../../services/comandasService";
@@ -587,37 +588,49 @@ function ComandaCard({ comanda, aberta, onToggle, barbeiros, servicos, produtosB
       className={`bg-white border rounded-2xl transition-shadow
         ${aberta ? "border-indigo-200 shadow-md" : assinaturaData ? "border-amber-200" : "border-gray-200"}`}
     >
-      {/* Header */}
+      {/* Card header */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors rounded-2xl"
+        className="w-full px-4 py-4 text-left hover:bg-gray-50/60 transition-colors rounded-2xl"
       >
-        <span className="shrink-0 text-gray-400">
-          {assinaturaData ? <Crown size={18} strokeWidth={2} className="text-amber-500" /> : <Receipt size={18} strokeWidth={2} />}
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-gray-800 truncate">{comanda.cliente_nome}</p>
-            {assinaturaData && (
-              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full shrink-0">
-                {assinaturaData.planos?.nome ?? "Assinante"}
-              </span>
-            )}
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-0.5">
+              Comanda #{comanda.id}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-gray-900">{comanda.cliente_nome}</span>
+              {assinaturaData && (
+                <ChannelChip channel="premium" label={assinaturaData.planos?.nome ?? "Premium"} size="sm" />
+              )}
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">
-            {barbeiro && <span className="mr-2 text-indigo-400 font-medium inline-flex items-center gap-1"><Scissors size={11} strokeWidth={2} />{barbeiro.nome}</span>}
-            {horario && <span className="mr-2">{horario}</span>}
-            {resumo
-              ? <span className="text-gray-500">{resumo}</span>
-              : <span className="italic">Sem itens</span>
-            }
-          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <StatusPill status={aberta ? "em_andamento" : "aberto"} label={aberta ? "Em atendimento" : "Aberta"} />
+            <span className="text-gray-300 text-sm">{aberta ? "▾" : "▸"}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {comanda.valor_total > 0 && (
-            <span className="text-sm font-bold text-indigo-600">{fmtValor(comanda.valor_total)}</span>
+
+        {/* Channel chips row */}
+        <div className="flex flex-wrap gap-1.5 mb-2.5">
+          {comanda.valor_servicos > 0 && <ChannelChip size="sm" channel="servicos" label={fmtValor(comanda.valor_servicos)} />}
+          {comanda.valor_bar      > 0 && <ChannelChip size="sm" channel="bar"      label={fmtValor(comanda.valor_bar)} />}
+          {comanda.valor_loja     > 0 && <ChannelChip size="sm" channel="loja"     label={fmtValor(comanda.valor_loja)} />}
+          {comanda.valor_servicos === 0 && comanda.valor_bar === 0 && comanda.valor_loja === 0 && (
+            <span className="text-[11px] text-gray-400 italic">Sem itens</span>
           )}
-          <span className="text-gray-300 text-sm">{aberta ? "▾" : "▸"}</span>
+        </div>
+
+        {/* Footer row */}
+        <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
+          <div className="text-[11px] text-gray-500">
+            {barbeiro && <span className="mr-2 font-medium">{barbeiro.nome}</span>}
+            {horario && <span>{horario}</span>}
+            {!barbeiro && !horario && <span>{fmtTempo(comanda.created_at)}</span>}
+          </div>
+          <span className="text-sm font-bold text-gray-900 tabular-nums">
+            {fmtValor(comanda.valor_total)}
+          </span>
         </div>
       </button>
 
@@ -789,28 +802,28 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   }, []);
 
   return (
-    <div className="w-full flex flex-col gap-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h2 className="text-xl font-semibold text-gray-800">Comandas</h2>
-          {!carregando && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              {totalComandas === 0 ? "Nenhuma comanda aberta" : `${totalComandas} aberta${totalComandas !== 1 ? "s" : ""}`}
-            </p>
-          )}
-        </motion.div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={carregar}
-            className="text-xs text-gray-400 hover:text-indigo-500 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50"
-          ><RefreshCw size={14} strokeWidth={2} /></button>
-          <button
-            onClick={() => { setCriandoNova(true); setClienteSel(null); }}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
-          >+ Nova comanda</button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Operação"
+        title={carregando ? "Comandas" : totalComandas === 0 ? "Comandas abertas" : `Comandas abertas · ${totalComandas}`}
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={carregar}
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+              title="Atualizar"
+            >
+              <RefreshCw size={15} strokeWidth={2} />
+            </button>
+            <button
+              onClick={() => { setCriandoNova(true); setClienteSel(null); }}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+            >
+              Nova comanda avulsa
+            </button>
+          </div>
+        }
+      />
 
       {/* Nova comanda */}
       <AnimatePresence>

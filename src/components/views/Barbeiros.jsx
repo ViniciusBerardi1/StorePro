@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { Users, AlertTriangle } from "lucide-react";
+import { PageHeader } from "../ui/DS";
 
 export const GCAL_CORES = {
   "1":  { label: "Lavanda",   hex: "#7986CB" },
@@ -192,20 +193,19 @@ export default function Barbeiros() {
   };
 
   return (
-    <div className="w-full flex flex-col gap-4">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
-      >
-        <h2 className="text-xl font-semibold text-gray-800">Barbeiros</h2>
-        <button
-          onClick={() => { setEditando(null); setShowForm(true); }}
-          className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
-        >
-          + Novo
-        </button>
-      </motion.div>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="Cadastros"
+        title="Equipe"
+        action={
+          <button
+            onClick={() => { setEditando(null); setShowForm(true); }}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            Novo barbeiro
+          </button>
+        }
+      />
 
       {erro && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">

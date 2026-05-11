@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
-import { Scissors, Trash2, AlertTriangle } from "lucide-react";
+import { Scissors, Trash2, AlertTriangle, Pencil } from "lucide-react";
+import { PageHeader } from "../ui/DS";
 
 function fmtValor(v) {
   return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -220,22 +221,19 @@ export default function Servicos() {
   const inativos = servicos.filter((s) => !s.ativo);
 
   return (
-    <div className="w-full flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <motion.h2
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-xl font-semibold text-gray-800"
-        >
-          Serviços
-        </motion.h2>
-        <button
-          onClick={() => { setEditando(null); setShowForm(true); }}
-          className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
-        >
-          + Novo serviço
-        </button>
-      </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="Cadastros"
+        title="Serviços"
+        action={
+          <button
+            onClick={() => { setEditando(null); setShowForm(true); }}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            Novo serviço
+          </button>
+        }
+      />
 
       {erro && (
         <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
@@ -246,96 +244,97 @@ export default function Servicos() {
       {carregando ? (
         <div className="py-16 text-center text-sm text-gray-400 animate-pulse">Carregando...</div>
       ) : servicos.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-gray-200 rounded-2xl p-10 text-center"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
-            <Scissors size={22} strokeWidth={1.5} className="text-gray-400" />
+        <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">
+          <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-3">
+            <Scissors size={24} strokeWidth={1.5} className="text-indigo-400" />
           </div>
-          <p className="text-sm text-gray-500 mb-4">Nenhum serviço cadastrado ainda.</p>
+          <p className="text-base font-semibold text-gray-800 mb-1">Nenhum serviço cadastrado</p>
+          <p className="text-xs text-gray-400 mb-4">Adicione os serviços oferecidos pela sua barbearia.</p>
           <button
             onClick={() => { setEditando(null); setShowForm(true); }}
-            className="text-sm text-indigo-500 hover:text-indigo-600 font-medium"
+            className="text-sm text-indigo-500 hover:text-indigo-600 font-semibold"
           >
             + Criar primeiro serviço
           </button>
-        </motion.div>
+        </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {/* Serviços ativos */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-gray-200 rounded-2xl p-5"
-          >
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-              Ativos ({ativos.length})
-            </p>
-            {ativos.length === 0 ? (
-              <p className="text-sm text-gray-400">Nenhum serviço ativo.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {ativos.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 hover:bg-indigo-50 transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{s.nome}</p>
-                      <p className="text-sm font-semibold text-indigo-600 mt-0.5">{fmtValor(s.valor)}</p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => { setEditando(s); setShowForm(true); }}
-                        className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-white transition-colors"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => setConfirmandoId(s.id)}
-                        className="text-xs text-gray-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-white transition-colors"
-                      >
-                        Excluir
-                      </button>
+          {ativos.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_100px_120px_56px] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 border-b border-gray-200 bg-gray-50/60">
+                <div>Serviço</div>
+                <div>Duração</div>
+                <div className="text-right">Preço</div>
+                <div />
+              </div>
+              {ativos.map((s) => (
+                <div
+                  key={s.id}
+                  className="grid grid-cols-[1fr_100px_120px_56px] items-center px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-gray-50/60 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+                      <Scissors size={15} strokeWidth={2.2} className="text-indigo-700" />
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">{s.nome}</div>
+                      <div className="text-[11px] text-gray-400">Serviço ativo</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-
-          {/* Serviços inativos */}
-          {inativos.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white border border-gray-200 rounded-2xl p-5"
-            >
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                Inativos ({inativos.length})
-              </p>
-              <div className="flex flex-col gap-2">
-                {inativos.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 opacity-50"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-600 truncate line-through">{s.nome}</p>
-                      <p className="text-sm text-gray-400 mt-0.5">{fmtValor(s.valor)}</p>
-                    </div>
+                  <div className="text-sm text-gray-600 tabular-nums">
+                    {s.duracao_minutos ? `${s.duracao_minutos} min` : "—"}
+                  </div>
+                  <div className="text-sm font-bold text-gray-900 text-right tabular-nums">{fmtValor(s.valor)}</div>
+                  <div className="flex justify-end gap-1">
                     <button
                       onClick={() => { setEditando(s); setShowForm(true); }}
-                      className="text-xs text-gray-400 hover:text-indigo-500 px-2 py-1 rounded-lg transition-colors"
+                      className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                      title="Editar"
                     >
-                      Editar
+                      <Pencil size={14} strokeWidth={2} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmandoId(s.id)}
+                      className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      title="Excluir"
+                    >
+                      <Trash2 size={14} strokeWidth={2} />
                     </button>
                   </div>
-                ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {inativos.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden opacity-60">
+              <div className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 border-b border-gray-200 bg-gray-50/60">
+                Inativos ({inativos.length})
               </div>
-            </motion.div>
+              {inativos.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-gray-100 last:border-b-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                      <Scissors size={15} strokeWidth={2} className="text-gray-400" />
+                    </span>
+                    <div className="text-sm font-medium text-gray-500 line-through">{s.nome}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-400 tabular-nums">{fmtValor(s.valor)}</span>
+                    <button
+                      onClick={() => { setEditando(s); setShowForm(true); }}
+                      className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                    >
+                      <Pencil size={14} strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
