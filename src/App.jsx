@@ -505,7 +505,7 @@ function AppPrincipal() {
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="fixed top-2 right-14 md:right-4 z-50 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold px-4 h-10 rounded-2xl transition-colors shadow-lg text-sm md:text-base flex items-center"
             >
-              ✨ Novo produto
+              + Novo produto
             </motion.button>
           )}
         </AnimatePresence>
