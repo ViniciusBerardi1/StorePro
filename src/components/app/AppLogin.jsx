@@ -1,31 +1,28 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Store, Mail, Lock, AlertCircle } from "lucide-react";
+import { Store, Key, Lock, AlertCircle } from "lucide-react";
 import { supabase } from "../../services/supabase";
 
 export default function AppLogin() {
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState(null);
+  const [identificador, setIdentificador] = useState("");
+  const [senha,         setSenha]         = useState("");
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !password) return;
+    if (!identificador.trim() || !senha) return;
     setLoading(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+
+    // O email interno é gerado a partir do slug: slug@loja.storepro
+    const email = `${identificador.trim().toLowerCase()}@loja.storepro`;
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password: senha });
     setLoading(false);
+
     if (err) {
-      setError(
-        err.message === "Invalid login credentials"
-          ? "E-mail ou senha incorretos."
-          : err.message || "Falha na autenticação."
-      );
-      setPassword("");
+      setError("Identificador ou senha incorretos.");
+      setSenha("");
     }
   };
 
@@ -47,13 +44,13 @@ export default function AppLogin() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="relative">
-            <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <Key size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="E-mail"
-              autoComplete="email"
+              type="text"
+              value={identificador}
+              onChange={(e) => setIdentificador(e.target.value)}
+              placeholder="Identificador da barbearia"
+              autoComplete="username"
               autoFocus
               required
               className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm
@@ -65,8 +62,8 @@ export default function AppLogin() {
             <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
               placeholder="Senha"
               autoComplete="current-password"
               required

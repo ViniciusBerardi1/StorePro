@@ -117,6 +117,41 @@ export async function getAllSubscriptions() {
 
 // ── Lojas ────────────────────────────────────────────────────────
 
+export async function createLojaComUsuario(nome, slug, senha) {
+  const { adminSupabase } = await import("./adminSupabase");
+  const email = `${slug}@loja.storepro`;
+
+  // 1. Cria a loja
+  const { data: loja, error: lojaErr } = await supabase
+    .from("lojas")
+    .insert({ nome, slug })
+    .select()
+    .single();
+  if (lojaErr) throw lojaErr;
+
+  // 2. Cria o usuário Supabase Auth sem confirmação de email
+  const { data: authData, error: authErr } = await adminSupabase.auth.admin.createUser({
+    email,
+    password: senha,
+    email_confirm: true,
+    user_metadata: { full_name: nome, loja_id: loja.id },
+  });
+  if (authErr) {
+    // Rollback: remove a loja se o usuário falhou
+    await supabase.from("lojas").delete().eq("id", loja.id);
+    throw authErr;
+  }
+
+  // 3. Garante que o profile está vinculado à loja (trigger já deve fazer isso,
+  //    mas fazemos um upsert defensivo)
+  await adminSupabase
+    .from("profiles")
+    .upsert({ id: authData.user.id, email, full_name: nome, role: "user", loja_id: loja.id })
+    .eq("id", authData.user.id);
+
+  return { loja, usuario: authData.user };
+}
+
 export async function getAllLojas() {
   const { data, error } = await supabase
     .from("lojas")

@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { Store, Plus, RefreshCw, Copy, CheckCircle, AlertCircle, ToggleLeft, ToggleRight } from "lucide-react";
-import { getAllLojas, createLoja, toggleLojaAtivo } from "../../../services/adminAuth";
+import { Store, Plus, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle, ToggleLeft, ToggleRight } from "lucide-react";
+import { getAllLojas, createLojaComUsuario, toggleLojaAtivo } from "../../../services/adminAuth";
+
+function slugify(str) {
+  return str
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 function LojaBadge({ ativo }) {
   return (
@@ -12,36 +22,189 @@ function LojaBadge({ ativo }) {
   );
 }
 
-function InviteCell({ lojaId }) {
+function CreateForm({ onCreated, onCancel }) {
+  const [nome,      setNome]      = useState("");
+  const [slug,      setSlug]      = useState("");
+  const [senha,     setSenha]     = useState("");
+  const [showSenha, setShowSenha] = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState(null);
+  const [slugManual, setSlugManual] = useState(false);
+
+  const handleNome = (v) => {
+    setNome(v);
+    if (!slugManual) setSlug(slugify(v));
+  };
+
+  const handleSlug = (v) => {
+    setSlug(slugify(v));
+    setSlugManual(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!nome.trim() || !slug.trim() || !senha) return;
+    if (senha.length < 6) { setError("Senha deve ter pelo menos 6 caracteres."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await createLojaComUsuario(nome.trim(), slug.trim(), senha);
+      onCreated(result);
+    } catch (err) {
+      setError(err.message || "Erro ao criar barbearia.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+      <p className="text-sm font-semibold text-gray-700 mb-4">Nova barbearia</p>
+      <div className="flex flex-col gap-3">
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Nome da barbearia</label>
+          <input
+            value={nome}
+            onChange={(e) => handleNome(e.target.value)}
+            placeholder="Ex: Barbearia do João"
+            autoFocus
+            required
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">
+            Identificador de acesso
+            <span className="ml-1 text-gray-400 font-normal">(usado no login)</span>
+          </label>
+          <input
+            value={slug}
+            onChange={(e) => handleSlug(e.target.value)}
+            placeholder="barbearia-do-joao"
+            required
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+          <p className="text-[11px] text-gray-400 mt-1">
+            O dono vai usar este identificador para entrar no app.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Senha de acesso</label>
+          <div className="relative">
+            <input
+              type={showSenha ? "text" : "password"}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              required
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            <button
+              type="button"
+              onClick={() => setShowSenha(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showSenha ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+            <AlertCircle size={14} className="shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-1">
+          <button
+            type="submit"
+            disabled={saving || !nome.trim() || !slug.trim() || !senha}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saving ? "Criando..." : "Criar barbearia"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function CredenciaisModal({ loja, usuario, onClose }) {
   const [copied, setCopied] = useState(false);
-  const link = `${window.location.origin}/cadastro?loja=${lojaId}`;
+
+  const texto = `Barbearia: ${loja.nome}\nIdentificador: ${loja.slug}\nSenha: (a que você definiu)`;
 
   const copy = () => {
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(texto);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <button
-      onClick={copy}
-      title={link}
-      className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 text-xs font-medium transition-colors"
-    >
-      {copied ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} />}
-      {copied ? "Copiado!" : "Copiar link"}
-    </button>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+            <CheckCircle size={20} />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">Barbearia criada!</p>
+            <p className="text-xs text-gray-400">Compartilhe os dados de acesso</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 rounded-xl p-4 font-mono text-sm space-y-2 mb-4">
+          <div>
+            <span className="text-gray-400 text-xs">Identificador</span>
+            <p className="font-semibold text-gray-800">{loja.slug}</p>
+          </div>
+          <div>
+            <span className="text-gray-400 text-xs">Senha</span>
+            <p className="text-gray-500 text-xs italic">a senha que você definiu</p>
+          </div>
+          <div>
+            <span className="text-gray-400 text-xs">URL do app</span>
+            <p className="font-semibold text-indigo-600">{window.location.origin}</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={copy}
+            className="flex-1 flex items-center justify-center gap-2 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+          >
+            {copied ? <CheckCircle size={14} className="text-emerald-500" /> : null}
+            {copied ? "Copiado!" : "Copiar dados"}
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function AdminLojas() {
   const [lojas,     setLojas]     = useState([]);
   const [loading,   setLoading]   = useState(true);
-  const [saving,    setSaving]    = useState(false);
-  const [error,     setError]     = useState(null);
-  const [success,   setSuccess]   = useState(null);
   const [showForm,  setShowForm]  = useState(false);
-  const [nome,      setNome]      = useState("");
+  const [sucesso,   setSucesso]   = useState(null); // { loja, usuario }
+  const [error,     setError]     = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,27 +219,10 @@ export default function AdminLojas() {
     load().finally(() => setLoading(false));
   }, [load]);
 
-  const notify = (msg, type = "success") => {
-    if (type === "success") setSuccess(msg);
-    else setError(msg);
-    setTimeout(() => { setSuccess(null); setError(null); }, 3000);
-  };
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    if (!nome.trim()) return;
-    setSaving(true);
-    try {
-      await createLoja(nome.trim());
-      setNome("");
-      setShowForm(false);
-      await load();
-      notify("Barbearia criada com sucesso!");
-    } catch (err) {
-      notify(err.message || "Erro ao criar barbearia.", "error");
-    } finally {
-      setSaving(false);
-    }
+  const handleCreated = (result) => {
+    setShowForm(false);
+    setSucesso(result);
+    load();
   };
 
   const handleToggle = async (loja) => {
@@ -84,7 +230,7 @@ export default function AdminLojas() {
       await toggleLojaAtivo(loja.id, !loja.ativo);
       setLojas((prev) => prev.map((l) => l.id === loja.id ? { ...l, ativo: !l.ativo } : l));
     } catch (err) {
-      notify(err.message || "Erro ao atualizar status.", "error");
+      setError(err.message || "Erro ao atualizar status.");
     }
   };
 
@@ -93,13 +239,10 @@ export default function AdminLojas() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Barbearias</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Gerencie as barbearias cadastradas</p>
+          <p className="text-sm text-gray-400 mt-0.5">Gerencie as barbearias e seus acessos</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => load()}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
-          >
+          <button onClick={load} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
             <RefreshCw size={14} />
           </button>
           <button
@@ -112,45 +255,18 @@ export default function AdminLojas() {
         </div>
       </div>
 
-      {(error || success) && (
-        <div className={`mb-4 flex items-center gap-2 text-sm rounded-xl px-4 py-3 border
-          ${success
-            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-            : "bg-red-50 border-red-200 text-red-600"
-          }`}>
-          {success ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
-          {success || error}
+      {error && (
+        <div className="mb-4 flex items-center gap-2 text-sm bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3">
+          <AlertCircle size={15} />
+          {error}
         </div>
       )}
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Nova barbearia</p>
-          <div className="flex gap-3">
-            <input
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome da barbearia"
-              autoFocus
-              required
-              className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <button
-              type="submit"
-              disabled={saving || !nome.trim()}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
-            >
-              {saving ? "Criando..." : "Criar"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowForm(false); setNome(""); }}
-              className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
+        <CreateForm
+          onCreated={handleCreated}
+          onCancel={() => setShowForm(false)}
+        />
       )}
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -162,16 +278,14 @@ export default function AdminLojas() {
           <div className="py-16 text-center">
             <Store size={32} className="mx-auto text-gray-300 mb-3" />
             <p className="text-gray-400 text-sm">Nenhuma barbearia cadastrada.</p>
-            <p className="text-gray-300 text-xs mt-1">Clique em "Nova barbearia" para começar.</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nome</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Criada em</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Identificador</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Link de convite</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
@@ -186,19 +300,17 @@ export default function AdminLojas() {
                       <span className="font-medium text-gray-800">{loja.nome}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-gray-500 hidden sm:table-cell">
-                    {new Date(loja.created_at).toLocaleDateString("pt-BR")}
+                  <td className="px-5 py-4 hidden sm:table-cell">
+                    <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">
+                      {loja.slug || "—"}
+                    </span>
                   </td>
                   <td className="px-5 py-4">
                     <LojaBadge ativo={loja.ativo} />
                   </td>
-                  <td className="px-5 py-4">
-                    <InviteCell lojaId={loja.id} />
-                  </td>
                   <td className="px-5 py-4 text-right">
                     <button
                       onClick={() => handleToggle(loja)}
-                      title={loja.ativo ? "Desativar" : "Ativar"}
                       className="text-gray-400 hover:text-gray-600 transition-colors"
                     >
                       {loja.ativo
@@ -214,9 +326,13 @@ export default function AdminLojas() {
         )}
       </div>
 
-      <p className="text-xs text-gray-400 mt-4">
-        O link de convite direciona o dono da barbearia para criar a conta vinculada a essa unidade.
-      </p>
+      {sucesso && (
+        <CredenciaisModal
+          loja={sucesso.loja}
+          usuario={sucesso.usuario}
+          onClose={() => setSucesso(null)}
+        />
+      )}
     </div>
   );
 }
