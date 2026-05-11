@@ -213,12 +213,6 @@ function AppInterno() {
 
   if (!isAuthenticated) return <AppLogin />;
 
-  // Admin não usa o app principal — vai para /admin
-  if (isAdmin) {
-    window.location.href = "/admin";
-    return null;
-  }
-
   // Usuário autenticado mas sem loja vinculada
   if (!hasLoja) {
     return (
