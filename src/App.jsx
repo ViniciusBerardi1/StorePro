@@ -511,6 +511,7 @@ function AppPrincipal() {
         </AnimatePresence>
 
         <main className="md:ml-60 pt-20 md:pt-8 px-4 md:px-8 pb-8">
+        <div className="max-w-[1280px] mx-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={view}
@@ -570,6 +571,7 @@ function AppPrincipal() {
             )}
           </motion.div>
         </AnimatePresence>
+        </div>
         </main>
       </div>
 
