@@ -412,10 +412,20 @@ async function getConfiguracao(chave) {
 
 async function setConfiguracao(chave, valor) {
   const v = typeof valor === "string" ? valor : JSON.stringify(valor);
-  const { error } = await supabase
+  // UPDATE first (RLS filtra por loja_id automaticamente)
+  const { data: updated, error: errUpdate } = await supabase
     .from("configuracoes")
-    .upsert({ chave, valor: v }, { onConflict: "chave,loja_id" });
-  if (error) throw new Error(error.message);
+    .update({ valor: v })
+    .eq("chave", chave)
+    .select("id");
+  if (errUpdate) throw new Error(errUpdate.message);
+  // Se nenhuma linha foi atualizada, insere (trigger auto-seta loja_id)
+  if (!updated || updated.length === 0) {
+    const { error: errInsert } = await supabase
+      .from("configuracoes")
+      .insert({ chave, valor: v });
+    if (errInsert) throw new Error(errInsert.message);
+  }
 }
 
 async function getWebhookLogs(limit = 20) {
