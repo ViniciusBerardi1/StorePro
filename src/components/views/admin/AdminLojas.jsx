@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Store, Plus, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle, ToggleLeft, ToggleRight } from "lucide-react";
-import { getAllLojas, createLojaComUsuario, toggleLojaAtivo } from "../../../services/adminAuth";
+import { Store, Plus, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { getAllLojas, createLojaComUsuario, toggleLojaAtivo, deleteLoja } from "../../../services/adminAuth";
 
 function slugify(str) {
   return str
@@ -200,11 +200,12 @@ function CredenciaisModal({ loja, usuario, onClose }) {
 }
 
 export default function AdminLojas() {
-  const [lojas,     setLojas]     = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [showForm,  setShowForm]  = useState(false);
-  const [sucesso,   setSucesso]   = useState(null); // { loja, usuario }
-  const [error,     setError]     = useState(null);
+  const [lojas,       setLojas]       = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showForm,    setShowForm]    = useState(false);
+  const [sucesso,     setSucesso]     = useState(null); // { loja, usuario }
+  const [error,       setError]       = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // lojaId
 
   const load = useCallback(async () => {
     try {
@@ -231,6 +232,17 @@ export default function AdminLojas() {
       setLojas((prev) => prev.map((l) => l.id === loja.id ? { ...l, ativo: !l.ativo } : l));
     } catch (err) {
       setError(err.message || "Erro ao atualizar status.");
+    }
+  };
+
+  const handleDelete = async (lojaId) => {
+    try {
+      await deleteLoja(lojaId);
+      setLojas((prev) => prev.filter((l) => l.id !== lojaId));
+      setConfirmDelete(null);
+    } catch (err) {
+      setError(err.message || "Erro ao excluir barbearia.");
+      setConfirmDelete(null);
     }
   };
 
@@ -309,15 +321,40 @@ export default function AdminLojas() {
                     <LojaBadge ativo={loja.ativo} />
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <button
-                      onClick={() => handleToggle(loja)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {loja.ativo
-                        ? <ToggleRight size={20} className="text-emerald-500" />
-                        : <ToggleLeft size={20} />
-                      }
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleToggle(loja)}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {loja.ativo
+                          ? <ToggleRight size={20} className="text-emerald-500" />
+                          : <ToggleLeft size={20} />
+                        }
+                      </button>
+                      {confirmDelete === loja.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDelete(loja.id)}
+                            className="text-[11px] font-semibold bg-red-600 text-white px-2 py-1 rounded-lg hover:bg-red-700 transition-colors"
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="text-[11px] text-gray-500 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(loja.id)}
+                          className="p-1 text-gray-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

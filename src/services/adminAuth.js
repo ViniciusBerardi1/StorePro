@@ -188,6 +188,20 @@ export async function toggleLojaAtivo(lojaId, ativo) {
   if (error) throw error;
 }
 
+export async function deleteLoja(lojaId) {
+  const { error } = await supabase
+    .from("lojas")
+    .delete()
+    .eq("id", lojaId);
+  if (error) throw error;
+}
+
+export async function deleteUser(userId) {
+  // Deleta o usuário do Supabase Auth (cascata remove o profile)
+  const { error } = await tempClient.auth.admin.deleteUser(userId);
+  if (error) throw error;
+}
+
 export async function assignUserToLoja(userId, lojaId) {
   const { error } = await supabase
     .from("profiles")

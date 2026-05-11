@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, RefreshCw, ChevronDown, AlertCircle, CheckCircle, Scissors } from "lucide-react";
-import { getAllProfiles, updateUserRole, setUserActive, getAllLojas, assignUserToLoja } from "../../../services/adminAuth";
+import { Search, RefreshCw, ChevronDown, AlertCircle, CheckCircle, Scissors, Trash2 } from "lucide-react";
+import { getAllProfiles, updateUserRole, setUserActive, getAllLojas, assignUserToLoja, deleteUser } from "../../../services/adminAuth";
 
 // ── Small sub-components ─────────────────────────────────────────
 
@@ -190,14 +190,15 @@ function LojaSelector({ userId, currentLojaId, lojas, onChanged }) {
 // ── Main component ───────────────────────────────────────────────
 
 export default function AdminUsers({ currentUserId }) {
-  const [users,     setUsers]     = useState([]);
-  const [lojas,     setLojas]     = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error,     setError]     = useState(null);
-  const [toast,     setToast]     = useState(null);
-  const [search,    setSearch]    = useState("");
-  const [filter,    setFilter]    = useState("all"); // all | admin | user | inactive
+  const [users,         setUsers]         = useState([]);
+  const [lojas,         setLojas]         = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [error,         setError]         = useState(null);
+  const [toast,         setToast]         = useState(null);
+  const [search,        setSearch]        = useState("");
+  const [filter,        setFilter]        = useState("all"); // all | admin | user | inactive
+  const [confirmDelete, setConfirmDelete] = useState(null); // userId
 
   const load = async () => {
     try {
@@ -230,6 +231,18 @@ export default function AdminUsers({ currentUserId }) {
       prev.map((u) => (u.id === userId ? { ...u, ...patch } : u))
     );
     setToast({ message: "Alteração salva com sucesso.", type: "success" });
+  };
+
+  const handleDelete = async (userId) => {
+    try {
+      await deleteUser(userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setConfirmDelete(null);
+      setToast({ message: "Usuário excluído.", type: "success" });
+    } catch (err) {
+      setToast({ message: err.message || "Erro ao excluir usuário.", type: "error" });
+      setConfirmDelete(null);
+    }
   };
 
   const handleToggleActive = async (user) => {
@@ -339,7 +352,7 @@ export default function AdminUsers({ currentUserId }) {
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {/* Table header */}
-        <div className="hidden md:grid grid-cols-[1fr_180px_140px_120px_130px_100px]
+        <div className="hidden md:grid grid-cols-[1fr_180px_140px_120px_130px_160px]
                         px-5 py-3 border-b border-gray-100 bg-gray-50/60">
           {["Usuário", "Barbearia", "Papel", "Status", "Criado em", "Ações"].map((h) => (
             <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -377,7 +390,7 @@ export default function AdminUsers({ currentUserId }) {
               return (
                 <div
                   key={u.id}
-                  className={`md:grid md:grid-cols-[1fr_180px_140px_120px_130px_100px]
+                  className={`md:grid md:grid-cols-[1fr_180px_140px_120px_130px_160px]
                               flex flex-wrap items-center gap-3 px-5 py-4
                               hover:bg-gray-50/60 transition-colors
                               ${!u.is_active ? "opacity-60" : ""}`}
@@ -436,7 +449,7 @@ export default function AdminUsers({ currentUserId }) {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleToggleActive(u)}
                       disabled={isMe}
@@ -448,6 +461,30 @@ export default function AdminUsers({ currentUserId }) {
                     >
                       {u.is_active ? "Desativar" : "Ativar"}
                     </button>
+                    {confirmDelete === u.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDelete(u.id)}
+                          className="text-[11px] font-semibold bg-red-600 text-white px-2 py-1 rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="text-[11px] text-gray-500 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(u.id)}
+                        disabled={isMe}
+                        className="p-1.5 text-gray-300 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 disabled:opacity-0"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
