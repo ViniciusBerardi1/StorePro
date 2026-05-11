@@ -24,6 +24,7 @@ import { useAppAuth } from "./hooks/useAppAuth";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
+import { supabase } from "./services/supabase";
 
 // ─── Detecção de rotas especiais ─────────────────────────────────
 const isPublicRoute  = window.location.pathname.startsWith("/assinar");
@@ -126,13 +127,14 @@ function SenhaModal({ onConfirmar, onFechar }) {
     setVerificando(true);
     setErro(null);
     try {
-      const senhaCorreta = await db.getConfiguracao("financeiro_senha");
-      if (!senhaCorreta) return setErro("Senha não configurada. Insira em: configuracoes → financeiro_senha.");
-      if (senha === senhaCorreta) {
-        onConfirmar();
-      } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) { setErro("Sessão inválida. Faça login novamente."); return; }
+      const { error } = await supabase.auth.signInWithPassword({ email: user.email, password: senha });
+      if (error) {
         setErro("Senha incorreta.");
         setSenha("");
+      } else {
+        onConfirmar();
       }
     } catch {
       setErro("Erro ao verificar. Tente novamente.");

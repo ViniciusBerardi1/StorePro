@@ -49,8 +49,7 @@ const MENU = [
 ];
 
 const BOTTOM_NAV = [
-  { view: "configuracoes", label: "Configurações", Icon: Settings },
-  { view: "sobre",         label: "Sobre",         Icon: Info     },
+  { view: "sobre", label: "Sobre", Icon: Info },
 ];
 
 const VIEWS_ATIVAS = [
