@@ -28,5 +28,5 @@ src/seed.js
 
 # Dev tooling
 .claude/
-supabase/migrations/
+# supabase/migrations/ — migrations rastreadas no repo
 graphify-out/
