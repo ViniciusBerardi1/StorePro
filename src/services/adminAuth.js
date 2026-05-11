@@ -5,11 +5,11 @@
 import { supabase } from "./supabase";
 import { createClient } from "@supabase/supabase-js";
 
-// Cliente temporário para criar usuários sem afetar a sessão do admin.
-// Não persiste sessão — seguro de usar em paralelo com o cliente principal.
+// Cliente service-role para criar usuários sem confirmação de email e sem
+// afetar a sessão do admin. Service key dá bypass em RLS — use só aqui.
 const tempClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  import.meta.env.VITE_SUPABASE_SERVICE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
@@ -137,11 +137,12 @@ export async function createLojaComUsuario(nome, slug, senha) {
     .single();
   if (lojaErr) throw lojaErr;
 
-  // 2. Cria o usuário via signUp (requer "Confirm email" desativado no Supabase Dashboard)
-  const { data: authData, error: authErr } = await tempClient.auth.signUp({
+  // 2. Cria o usuário via admin API (service key bypassa confirmação de email e RLS)
+  const { data: authData, error: authErr } = await tempClient.auth.admin.createUser({
     email,
     password: senha,
-    options: { data: { full_name: nome, loja_id: loja.id } },
+    email_confirm: true,
+    user_metadata: { full_name: nome, loja_id: loja.id },
   });
   if (authErr) {
     await supabase.from("lojas").delete().eq("id", loja.id);
@@ -151,7 +152,7 @@ export async function createLojaComUsuario(nome, slug, senha) {
   // 3. Vincula o profile à loja (trigger handle_new_auth_user já faz isso via metadata,
   //    mas garantimos com upsert caso o trigger não tenha rodado ainda)
   if (authData.user) {
-    await supabase
+    await tempClient
       .from("profiles")
       .upsert({ id: authData.user.id, email, full_name: nome, role: "user", loja_id: loja.id },
                { onConflict: "id" });
