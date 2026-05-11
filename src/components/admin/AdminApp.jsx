@@ -82,20 +82,20 @@ function AdminUnauthorized({ onSignOut }) {
 
 // ── Page renderer ────────────────────────────────────────────────
 
-function AdminPage({ path, currentUserId }) {
-  const pageVariants = {
-    initial: { opacity: 0, y: 10 },
-    animate: { opacity: 1, y: 0  },
-    exit:    { opacity: 0, y: -8 },
-  };
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0  },
+  exit:    { opacity: 0, y: -8 },
+};
 
-  let Page;
-  if (path === "/admin")                    Page = () => <AdminDashboard />;
-  else if (path.startsWith("/admin/lojas")) Page = () => <AdminLojas />;
-  else if (path.startsWith("/admin/users")) Page = () => <AdminUsers currentUserId={currentUserId} />;
-  else if (path.startsWith("/admin/subscriptions")) Page = () => <AdminSubscriptions />;
-  else if (path.startsWith("/admin/settings"))      Page = () => <AdminSettings />;
-  else Page = () => (
+function AdminPage({ path, currentUserId }) {
+  let content;
+  if (path === "/admin")                           content = <AdminDashboard />;
+  else if (path.startsWith("/admin/lojas"))        content = <AdminLojas />;
+  else if (path.startsWith("/admin/users"))        content = <AdminUsers currentUserId={currentUserId} />;
+  else if (path.startsWith("/admin/subscriptions")) content = <AdminSubscriptions />;
+  else if (path.startsWith("/admin/settings"))     content = <AdminSettings />;
+  else content = (
     <div className="text-center py-20">
       <p className="text-gray-400 text-sm">Página não encontrada.</p>
       <a href="/admin" className="text-indigo-600 text-sm hover:underline mt-2 inline-block">
@@ -114,7 +114,7 @@ function AdminPage({ path, currentUserId }) {
         exit="exit"
         transition={{ duration: 0.18, ease: "easeInOut" }}
       >
-        <Page />
+        {content}
       </motion.div>
     </AnimatePresence>
   );
