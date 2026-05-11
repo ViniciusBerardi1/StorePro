@@ -60,8 +60,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sessoes_caixa_uma_aberta
   ON sessoes_caixa(loja_id, status) WHERE status = 'aberta';
 
 -- ── 6. horarios_especiais: unique por (data, loja) ──────────
--- Tenta dropar o índice antigo se existir
-DROP INDEX IF EXISTS horarios_especiais_data_key;
+ALTER TABLE horarios_especiais DROP CONSTRAINT IF EXISTS horarios_especiais_data_key;
 DROP INDEX IF EXISTS idx_horarios_especiais_data;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_horarios_especiais_data_loja
   ON horarios_especiais(data, loja_id);
