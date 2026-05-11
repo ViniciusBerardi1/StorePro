@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Store, Lock, AlertTriangle } from "lucide-react";
+import { Store, Lock, AlertTriangle, LogOut } from "lucide-react";
 import Sidebar from "./components/layout/Sidebar";
 import ProdutoList from "./components/produto/ProdutoList";
 import ProdutoForm from "./components/produto/ProdutoForm";
@@ -16,13 +16,19 @@ import Relatorios from "./components/views/Relatorios";
 import Caixa from "./components/views/Caixa";
 import PaginaAssinatura from "./components/views/PaginaAssinatura";
 import AdminApp from "./components/admin/AdminApp";
+import ResetPassword from "./components/admin/ResetPassword";
+import AppLogin from "./components/app/AppLogin";
+import Cadastro from "./components/app/Cadastro";
+import { useAppAuth } from "./hooks/useAppAuth";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
 
 // ─── Detecção de rotas especiais ─────────────────────────────────
-const isPublicRoute = window.location.pathname.startsWith("/assinar");
-const isAdminRoute  = window.location.pathname.startsWith("/admin");
+const isPublicRoute  = window.location.pathname.startsWith("/assinar");
+const isAdminRoute   = window.location.pathname.startsWith("/admin");
+const isResetRoute   = window.location.pathname.startsWith("/reset-password");
+const isCadastroRoute = window.location.pathname.startsWith("/cadastro");
 
 const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos", "estoque_loja", "estoque_bar"];
 
@@ -186,18 +192,55 @@ function SenhaModal({ onConfirmar, onFechar }) {
 
 export default function App() {
   // Rotas especiais renderizadas sem o shell do app principal
-  if (isPublicRoute) return <PaginaAssinatura />;
-  if (isAdminRoute)  return <AdminApp />;
+  if (isPublicRoute)  return <PaginaAssinatura />;
+  if (isResetRoute)   return <ResetPassword />;
+  if (isCadastroRoute) return <Cadastro />;
+  if (isAdminRoute)   return <AdminApp />;
 
   return <AppInterno />;
 }
 
 function AppInterno() {
-  const [autenticado, setAutenticado] = useState(
-    () => sessionStorage.getItem("storepro_autenticado") === "1"
-  );
+  const { isAuthenticated, isAdmin, hasLoja, loading, signOut } = useAppAuth();
 
-  if (!autenticado) return <LoginApp onEntrar={() => setAutenticado(true)} />;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-10 h-10 rounded-2xl bg-indigo-600 animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <AppLogin />;
+
+  // Admin não usa o app principal — vai para /admin
+  if (isAdmin) {
+    window.location.href = "/admin";
+    return null;
+  }
+
+  // Usuário autenticado mas sem loja vinculada
+  if (!hasLoja) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-sm w-full text-center">
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">
+            <Store size={22} />
+          </div>
+          <h2 className="text-lg font-bold text-gray-900 mb-2">Conta sem barbearia</h2>
+          <p className="text-sm text-gray-400 mb-6">
+            Sua conta ainda não foi vinculada a uma barbearia. Entre em contato com o administrador.
+          </p>
+          <button
+            onClick={signOut}
+            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            Sair
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return <AppPrincipal />;
 }

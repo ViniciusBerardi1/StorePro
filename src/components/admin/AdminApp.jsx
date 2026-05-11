@@ -4,6 +4,7 @@ import { useAdminAuth } from "../../hooks/useAdminAuth";
 import AdminLogin from "./AdminLogin";
 import AdminLayout from "./AdminLayout";
 import AdminDashboard    from "../views/admin/AdminDashboard";
+import AdminLojas        from "../views/admin/AdminLojas";
 import AdminUsers        from "../views/admin/AdminUsers";
 import AdminSubscriptions from "../views/admin/AdminSubscriptions";
 import AdminSettings     from "../views/admin/AdminSettings";
@@ -90,6 +91,7 @@ function AdminPage({ path, currentUserId }) {
 
   let Page;
   if (path === "/admin")                    Page = () => <AdminDashboard />;
+  else if (path.startsWith("/admin/lojas")) Page = () => <AdminLojas />;
   else if (path.startsWith("/admin/users")) Page = () => <AdminUsers currentUserId={currentUserId} />;
   else if (path.startsWith("/admin/subscriptions")) Page = () => <AdminSubscriptions />;
   else if (path.startsWith("/admin/settings"))      Page = () => <AdminSettings />;

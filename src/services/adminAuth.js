@@ -12,6 +12,13 @@ export async function adminSignIn(email, password) {
   return data;
 }
 
+export async function resetPasswordForEmail(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
+  if (error) throw error;
+}
+
 export async function adminSignOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
@@ -106,6 +113,43 @@ export async function getAllSubscriptions() {
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
+}
+
+// ── Lojas ────────────────────────────────────────────────────────
+
+export async function getAllLojas() {
+  const { data, error } = await supabase
+    .from("lojas")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createLoja(nome) {
+  const { data, error } = await supabase
+    .from("lojas")
+    .insert({ nome })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function toggleLojaAtivo(lojaId, ativo) {
+  const { error } = await supabase
+    .from("lojas")
+    .update({ ativo })
+    .eq("id", lojaId);
+  if (error) throw error;
+}
+
+export async function assignUserToLoja(userId, lojaId) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ loja_id: lojaId })
+    .eq("id", userId);
+  if (error) throw error;
 }
 
 export async function getAllConfiguracoes() {

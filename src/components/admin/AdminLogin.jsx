@@ -1,13 +1,29 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Shield, Mail, Lock, AlertCircle } from "lucide-react";
-import { adminSignIn } from "../../services/adminAuth";
+import { Shield, Mail, Lock, AlertCircle, CheckCircle } from "lucide-react";
+import { adminSignIn, resetPasswordForEmail } from "../../services/adminAuth";
 
 export default function AdminLogin() {
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState(null);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState(null);
+  const [resetSent,    setResetSent]    = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleReset = async () => {
+    if (!email.trim()) { setError("Insira seu e-mail para recuperar a senha."); return; }
+    setResetLoading(true);
+    setError(null);
+    try {
+      await resetPasswordForEmail(email.trim().toLowerCase());
+      setResetSent(true);
+    } catch (err) {
+      setError(err.message || "Erro ao enviar e-mail de recuperação.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,7 +117,23 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        {resetSent ? (
+          <div className="flex items-center gap-2 mt-5 bg-green-50 border border-green-100 rounded-xl px-3.5 py-2.5 text-sm text-green-700">
+            <CheckCircle size={14} className="shrink-0" />
+            E-mail de recuperação enviado. Verifique sua caixa de entrada.
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={resetLoading}
+            className="w-full text-center text-xs text-indigo-500 hover:text-indigo-700 mt-4 disabled:opacity-50 transition-colors"
+          >
+            {resetLoading ? "Enviando…" : "Esqueci minha senha"}
+          </button>
+        )}
+
+        <p className="text-center text-xs text-gray-400 mt-3">
           Acesso restrito — somente administradores
         </p>
       </motion.div>

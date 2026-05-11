@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, RefreshCw, ChevronDown, AlertCircle, CheckCircle } from "lucide-react";
-import { getAllProfiles, updateUserRole, setUserActive } from "../../../services/adminAuth";
+import { Search, RefreshCw, ChevronDown, AlertCircle, CheckCircle, Scissors } from "lucide-react";
+import { getAllProfiles, updateUserRole, setUserActive, getAllLojas, assignUserToLoja } from "../../../services/adminAuth";
 
 // ── Small sub-components ─────────────────────────────────────────
 
@@ -115,10 +115,83 @@ function RoleSelector({ userId, currentRole, onChanged, disabled }) {
   );
 }
 
+// ── Loja selector ────────────────────────────────────────────────
+
+function LojaSelector({ userId, currentLojaId, lojas, onChanged }) {
+  const [open,    setOpen]    = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const current = lojas.find((l) => l.id === currentLojaId);
+
+  const select = async (lojaId) => {
+    if (lojaId === currentLojaId) { setOpen(false); return; }
+    setLoading(true);
+    setOpen(false);
+    try {
+      await assignUserToLoja(userId, lojaId);
+      onChanged(userId, { loja_id: lojaId });
+    } catch (err) {
+      onChanged(userId, null, err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={loading}
+        className="flex items-center gap-1.5 text-[12px] font-medium text-gray-600
+                   hover:text-gray-900 px-2 py-1 rounded-lg hover:bg-gray-100
+                   transition-colors disabled:opacity-50 max-w-[160px]"
+      >
+        {loading ? (
+          <span className="text-gray-400">...</span>
+        ) : current ? (
+          <span className="flex items-center gap-1.5 truncate">
+            <Scissors size={11} className="text-indigo-500 shrink-0" />
+            <span className="truncate">{current.nome}</span>
+          </span>
+        ) : (
+          <span className="text-gray-400 italic">Sem barbearia</span>
+        )}
+        <ChevronDown size={11} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200
+                          rounded-xl shadow-lg overflow-hidden min-w-[180px] max-h-48 overflow-y-auto">
+            <button
+              onClick={() => select(null)}
+              className={`w-full text-left px-3 py-2 text-sm transition-colors
+                ${!currentLojaId ? "bg-gray-50 text-gray-400 cursor-default" : "hover:bg-indigo-50 text-gray-700 hover:text-indigo-700"}`}
+            >
+              Sem barbearia
+            </button>
+            {lojas.map((loja) => (
+              <button
+                key={loja.id}
+                onClick={() => select(loja.id)}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors
+                  ${loja.id === currentLojaId ? "bg-gray-50 text-gray-400 cursor-default" : "hover:bg-indigo-50 text-gray-700 hover:text-indigo-700"}`}
+              >
+                {loja.nome}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────
 
 export default function AdminUsers({ currentUserId }) {
   const [users,     setUsers]     = useState([]);
+  const [lojas,     setLojas]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,     setError]     = useState(null);
@@ -128,8 +201,9 @@ export default function AdminUsers({ currentUserId }) {
 
   const load = async () => {
     try {
-      const data = await getAllProfiles();
-      setUsers(data);
+      const [profiles, lojasData] = await Promise.all([getAllProfiles(), getAllLojas()]);
+      setUsers(profiles);
+      setLojas(lojasData);
       setError(null);
     } catch (err) {
       setError(err.message || "Erro ao carregar usuários.");
@@ -265,9 +339,9 @@ export default function AdminUsers({ currentUserId }) {
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {/* Table header */}
-        <div className="hidden md:grid grid-cols-[1fr_140px_120px_130px_100px]
+        <div className="hidden md:grid grid-cols-[1fr_180px_140px_120px_130px_100px]
                         px-5 py-3 border-b border-gray-100 bg-gray-50/60">
-          {["Usuário", "Papel", "Status", "Criado em", "Ações"].map((h) => (
+          {["Usuário", "Barbearia", "Papel", "Status", "Criado em", "Ações"].map((h) => (
             <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               {h}
             </span>
@@ -303,7 +377,7 @@ export default function AdminUsers({ currentUserId }) {
               return (
                 <div
                   key={u.id}
-                  className={`md:grid md:grid-cols-[1fr_140px_120px_130px_100px]
+                  className={`md:grid md:grid-cols-[1fr_180px_140px_120px_130px_100px]
                               flex flex-wrap items-center gap-3 px-5 py-4
                               hover:bg-gray-50/60 transition-colors
                               ${!u.is_active ? "opacity-60" : ""}`}
@@ -327,6 +401,18 @@ export default function AdminUsers({ currentUserId }) {
                       </p>
                       <p className="text-xs text-gray-400 truncate">{u.email}</p>
                     </div>
+                  </div>
+
+                  {/* Loja */}
+                  <div className="md:flex items-center">
+                    {u.role !== "admin" && (
+                      <LojaSelector
+                        userId={u.id}
+                        currentLojaId={u.loja_id}
+                        lojas={lojas}
+                        onChanged={handleChanged}
+                      />
+                    )}
                   </div>
 
                   {/* Role (with inline selector) */}

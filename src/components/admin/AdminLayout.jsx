@@ -10,11 +10,13 @@ import {
   X,
   Shield,
   ChevronRight,
+  Scissors,
 } from "lucide-react";
 import { adminSignOut } from "../../services/adminAuth";
 
 const NAV_ITEMS = [
   { path: "/admin",               label: "Dashboard",     Icon: LayoutDashboard },
+  { path: "/admin/lojas",         label: "Barbearias",    Icon: Scissors        },
   { path: "/admin/users",         label: "Usuários",      Icon: Users           },
   { path: "/admin/subscriptions", label: "Assinaturas",   Icon: CreditCard      },
   { path: "/admin/settings",      label: "Configurações", Icon: Settings        },
@@ -97,6 +99,7 @@ function SidebarContent({ currentPath, onNavigate, user, profile, onSignOut }) {
 
 function BreadcrumbLabel({ path }) {
   if (path === "/admin")               return "Dashboard";
+  if (path.startsWith("/admin/lojas")) return "Barbearias";
   if (path.startsWith("/admin/users")) return "Usuários";
   if (path.startsWith("/admin/subscriptions")) return "Assinaturas";
   if (path.startsWith("/admin/settings"))      return "Configurações";

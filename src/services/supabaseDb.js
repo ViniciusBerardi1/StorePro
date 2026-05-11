@@ -414,7 +414,7 @@ async function setConfiguracao(chave, valor) {
   const v = typeof valor === "string" ? valor : JSON.stringify(valor);
   const { error } = await supabase
     .from("configuracoes")
-    .upsert({ chave, valor: v }, { onConflict: "chave" });
+    .upsert({ chave, valor: v }, { onConflict: "chave,loja_id" });
   if (error) throw new Error(error.message);
 }
 
@@ -806,7 +806,7 @@ async function upsertHorarioEspecial(h) {
   const { id, created_at, ...payload } = h;
   const { data, error } = await supabase
     .from("horarios_especiais")
-    .upsert(id ? { id, ...payload } : payload, { onConflict: "data" })
+    .upsert(id ? { id, ...payload } : payload, { onConflict: "data,loja_id" })
     .select()
     .single();
   if (error) throw new Error(error.message);
