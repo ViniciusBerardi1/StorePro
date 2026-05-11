@@ -3,7 +3,12 @@
  * Only imported by admin components; never used in the barbershop app.
  */
 import { supabase } from "./supabase";
-import { adminSupabase } from "./adminSupabase";
+import { createClient } from "@supabase/supabase-js";
+
+const adminSupabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_SERVICE_KEY
+);
 
 // ── Auth ────────────────────────────────────────────────────────
 
