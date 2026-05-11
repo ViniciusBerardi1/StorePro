@@ -7,17 +7,11 @@ import {
   Pencil, Plus, ChevronLeft, Trash2,
 } from "lucide-react";
 import { PageHeader, ChannelChip, StatusPill } from "../ui/DS";
+import { fmtValor, fmtHora } from "../../utils/fmt";
 import ClienteSelector from "./ClienteSelector";
 import { calcularBeneficios, cicloAtual } from "../../services/beneficiosCalc";
 import { finalizarComanda, parsearErroComanda } from "../../services/comandasService";
 
-function fmtValor(v) {
-  return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-function fmtHora(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
 function fmtTempo(iso) {
   if (!iso) return "";
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -140,7 +134,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   // ─── Autosave (debounce 600 ms) ─────────────────────────────────
   useEffect(() => {
     if (isInitialRender.current) { isInitialRender.current = false; return; }
-    if (finalizando || removendo) return;
+    if (finalizando || removendo || cancelando) return;
     const timer = setTimeout(async () => {
       const payload = {
         servicos:   servicos.filter((s) => servicosSel.has(s.id)).map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor) })),
@@ -164,7 +158,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
     }, 600);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servicosSel, qtdBar, qtdLoja, formaPagamento, desconto.tipo, desconto.valor, desconto.alvo, beneficioDesconto]);
+  }, [servicosSel, qtdBar, qtdLoja, formaPagamento, desconto.tipo, desconto.valor, desconto.alvo, beneficioDesconto, servicos, produtosBar, produtosLoja]);
 
   const handleFinalizar = async () => {
     if (!formaPagamento) return setErro("Selecione a forma de pagamento.");
@@ -734,7 +728,7 @@ export default function Comandas({ onAtendimentoFinalizado }) {
       paginaAtual.current = nextPage;
       setComandas((prev) => [...prev, ...mais]);
     } catch { /* silently fail */ }
-    setCarregandoMais(false);
+    finally { setCarregandoMais(false); }
   };
 
   useEffect(() => { carregar(); }, [carregar]);

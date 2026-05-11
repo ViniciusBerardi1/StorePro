@@ -142,17 +142,23 @@ async function getClientesComStats() {
 }
 
 async function getAtendimentosByCliente(clienteId, clienteNome) {
-  const { data, error } = await supabase
+  const norm = (clienteNome || "").trim();
+  let query = supabase
     .from("atendimentos")
     .select("*")
     .order("data_hora", { ascending: false });
+
+  if (clienteId && norm) {
+    query = query.or(`cliente_id.eq.${clienteId},cliente_nome.eq.${norm}`);
+  } else if (clienteId) {
+    query = query.eq("cliente_id", clienteId);
+  } else if (norm) {
+    query = query.eq("cliente_nome", norm);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  const norm = (clienteNome || "").toLowerCase().trim();
-  return (data ?? []).filter(
-    (a) =>
-      (clienteId && a.cliente_id === Number(clienteId)) ||
-      (a.cliente_nome || "").toLowerCase().trim() === norm
-  );
+  return data ?? [];
 }
 
 async function addCliente(c) {
@@ -219,8 +225,8 @@ async function getAtendimentosMes(ano, mes) {
   return data;
 }
 
+// eslint-disable-next-line no-unused-vars
 async function getFaturamentoUltimosDias(dias = 7) {
-  // Mantida para compatibilidade — use getDashboardData() quando possível
   const agora = new Date();
   const inicio = new Date(agora);
   inicio.setDate(agora.getDate() - (dias - 1));
@@ -253,79 +259,6 @@ async function getFaturamentoUltimosDias(dias = 7) {
     resultado.push({ data: dataLabel, valor });
   }
   return resultado;
-}
-
-// ─── Dashboard: UMA única query substitui 9 ─────────────────────
-// Busca a janela mínima necessária (início do mês OU 7 dias atrás,
-// o que vier primeiro), depois filtra tudo em memória.
-async function getDashboardData() {
-  const agora = new Date();
-
-  // Janela de busca: cobre o mês atual E os últimos 7 dias
-  const seteAtras = new Date(agora);
-  seteAtras.setDate(agora.getDate() - 6);
-  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
-  const inicioJanela = seteAtras < inicioMes ? seteAtras : inicioMes;
-
-  const { ini: iniQuery } = rangeLocalDia(
-    inicioJanela.getFullYear(), inicioJanela.getMonth() + 1, inicioJanela.getDate()
-  );
-  const { fim: fimQuery } = rangeLocalDia(
-    agora.getFullYear(), agora.getMonth() + 1, agora.getDate()
-  );
-
-  const { data, error } = await supabase
-    .from("atendimentos")
-    .select("*")
-    .gte("data_hora", iniQuery)
-    .lte("data_hora", fimQuery)
-    .order("data_hora", { ascending: false });
-  if (error) throw error;
-
-  const todos = data ?? [];
-
-  // ── Hoje (filtra em JS) ──────────────────────────────────────
-  const { ini: hojeIni, fim: hojeFim } = rangeLocalDia(
-    agora.getFullYear(), agora.getMonth() + 1, agora.getDate()
-  );
-  const hojeIniMs = new Date(hojeIni).getTime();
-  const hojeFimMs = new Date(hojeFim).getTime();
-  const hoje = todos
-    .filter(a => { const t = new Date(a.data_hora).getTime(); return t >= hojeIniMs && t <= hojeFimMs; })
-    .sort((a, b) => new Date(a.data_hora) - new Date(b.data_hora));
-
-  // ── Mês atual (filtra em JS) ─────────────────────────────────
-  const mesIniMs = new Date(agora.getFullYear(), agora.getMonth(), 1, 0, 0, 0, 0).getTime();
-  const ultimoDiaMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).getDate();
-  const mesFimMs = new Date(agora.getFullYear(), agora.getMonth(), ultimoDiaMes, 23, 59, 59, 999).getTime();
-  const mes = todos.filter(a => {
-    const t = new Date(a.data_hora).getTime();
-    return t >= mesIniMs && t <= mesFimMs;
-  });
-
-  // ── Gráfico 7 dias (agrupa em JS) ───────────────────────────
-  const grafico = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(agora);
-    d.setDate(agora.getDate() - i);
-    const { ini: dIni, fim: dFim } = rangeLocalDia(d.getFullYear(), d.getMonth() + 1, d.getDate());
-    const dIniMs = new Date(dIni).getTime();
-    const dFimMs = new Date(dFim).getTime();
-    const dataLabel = [
-      d.getFullYear(),
-      String(d.getMonth() + 1).padStart(2, "0"),
-      String(d.getDate()).padStart(2, "0"),
-    ].join("-");
-    const valor = todos
-      .filter(a => {
-        const t = new Date(a.data_hora).getTime();
-        return a.status === "concluido" && t >= dIniMs && t <= dFimMs;
-      })
-      .reduce((s, a) => s + (Number(a.valor_total) || 0), 0);
-    grafico.push({ data: dataLabel, valor });
-  }
-
-  return { hoje, mes, grafico };
 }
 
 async function addAtendimento(a) {
@@ -412,9 +345,9 @@ async function getConfiguracao(chave) {
 
 async function setConfiguracao(chave, valor) {
   const v = typeof valor === "string" ? valor : JSON.stringify(valor);
-  // Busca loja_id do usuário atual para incluir explicitamente no payload
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autenticado");
+  const { data, error: authError } = await supabase.auth.getUser();
+  if (authError || !data?.user) throw new Error("Não autenticado");
+  const user = data.user;
   const { data: profile } = await supabase
     .from("profiles").select("loja_id").eq("id", user.id).single();
   const lojaId = profile?.loja_id ?? null;
@@ -548,26 +481,6 @@ async function getEventosComanda(comandaId) {
   return data ?? [];
 }
 
-async function saveComanda(comanda) {
-  const { gcal_event_id } = comanda;
-  const { data: existente } = await supabase
-    .from("comandas")
-    .select("id")
-    .eq("gcal_event_id", gcal_event_id)
-    .maybeSingle();
-
-  if (existente?.id) {
-    const { id: _id, ...comandaPayload } = comanda;
-    const { error } = await supabase.from("comandas").update(comandaPayload).eq("id", existente.id);
-    if (error) throw error;
-    return existente.id;
-  }
-
-  const { data, error } = await supabase.from("comandas").insert(comanda).select().single();
-  if (error) throw error;
-  return data.id;
-}
-
 // ─── Queries genéricas por período ──────────────────────────────
 async function getAtendimentosPeriodo(ini, fim) {
   const { data, error } = await supabase
@@ -585,9 +498,9 @@ async function getComandasFechadasPeriodo(ini, fim) {
     .from("comandas")
     .select("*")
     .eq("status", "fechada")
-    .gte("created_at", ini)
-    .lte("created_at", fim)
-    .order("created_at", { ascending: false });
+    .gte("updated_at", ini)
+    .lte("updated_at", fim)
+    .order("updated_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
@@ -706,7 +619,7 @@ let _assinaturasCache   = null;
 let _assinaturasCacheTs = 0;
 const ASSINATURAS_TTL   = 60_000; // 60s
 
-function invalidarCacheAssinaturas() {
+export function invalidarCacheAssinaturas() {
   _assinaturasCache   = null;
   _assinaturasCacheTs = 0;
 }
@@ -923,7 +836,6 @@ export const db = {
   deleteProduto,
   addHistorico,
   getHistorico,
-  limparHistorico,
   registrarMovimento,
   getClientes,
   getClientesComStats,
@@ -935,7 +847,6 @@ export const db = {
   getAtendimentos,
   getAtendimentosHoje,
   getAtendimentosMes,
-  getFaturamentoUltimosDias,
   addAtendimento,
   updateAtendimento,
   deleteAtendimento,
@@ -953,7 +864,6 @@ export const db = {
   criarComanda,
   updateComanda,
   deleteComanda,
-  saveComanda,
   baixarEstoqueComanda,
   getAtendimentosPeriodo,
   getComandasFechadasPeriodo,

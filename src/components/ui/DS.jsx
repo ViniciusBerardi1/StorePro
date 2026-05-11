@@ -89,7 +89,7 @@ export function CaixaBanner({ sessao, onFechar, onAbrir, loading }) {
     return (
       <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 sp-pulse" />
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-sm font-semibold text-emerald-700">Caixa aberto · hoje {hora}</span>
         </div>
         <button onClick={onFechar} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800">

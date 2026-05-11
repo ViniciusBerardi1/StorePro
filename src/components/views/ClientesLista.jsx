@@ -1174,6 +1174,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
   const [editando, setEditando]         = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletando, setDeletando]       = useState(false);
+  const [erroDelete, setErroDelete]     = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -1207,10 +1208,14 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
 
   const handleDelete = async () => {
     setDeletando(true);
+    setErroDelete(null);
     try {
       await db.deleteCliente(cliente.id);
       onDeletado();
-    } catch { setDeletando(false); }
+    } catch (e) {
+      setErroDelete(e.message ?? "Erro ao excluir cliente.");
+      setDeletando(false);
+    }
   };
 
   const kpis = [
@@ -1394,6 +1399,7 @@ function ClientePerfil({ cliente, clientes, isAssinante, onVoltar, onEditado, on
                   Ação irreversível. O histórico de atendimentos não será afetado.
                 </p>
               </div>
+              {erroDelete && <p className="text-xs text-red-500 text-center mb-3">{erroDelete}</p>}
               <div className="flex gap-2">
                 <button
                   onClick={() => setConfirmDelete(false)}
@@ -1468,7 +1474,7 @@ const ORDENACOES = [
 
 const PAGE_SIZE = 20;
 
-export default function ClientesLista({ initialAba = "todos" }) {
+export default function ClientesLista() {
   const [clientes, setClientes]             = useState([]);
   const [assinantesIds, setAssinantesIds]   = useState(new Set());
   const [loading, setLoading]               = useState(true);
@@ -1514,7 +1520,7 @@ export default function ClientesLista({ initialAba = "todos" }) {
     else if (ordenacao === "gasto")   lista.sort((a, b) => (b.stats?.total || 0) - (a.stats?.total || 0));
     else if (ordenacao === "nome")    lista.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     return lista;
-  }, [clientes, busca, ordenacao, assinantesIds]);
+  }, [clientes, busca, ordenacao]);
 
   if (clienteSel) {
     return (

@@ -1,15 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { PageHeader } from "../ui/DS";
+import { fmtValor, fmtHora } from "../../utils/fmt";
 import {
-  DollarSign, Scissors, CreditCard, Receipt, Package, ClipboardList,
-  AlertTriangle, Beer, ShoppingBag, RefreshCw, TrendingUp, BarChart2,
-  Calendar, Banknote, History,
+  DollarSign, Scissors, CreditCard, Receipt, ClipboardList,
+  AlertTriangle, Beer, ShoppingBag, RefreshCw, TrendingUp,
+  Banknote, History,
 } from "lucide-react";
-
-const BRL = (v) =>
-  Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 // ─── Helpers de período ──────────────────────────────────────────
 function periodRange(periodo) {
@@ -85,7 +83,7 @@ function PagamentoBar({ atendimentos }) {
           <div key={f}>
             <div className="flex justify-between text-xs mb-1">
               <span className="text-gray-600 font-medium">{labels[f]}</span>
-              <span className="text-gray-400">{BRL(valor)} · {pct.toFixed(0)}%</span>
+              <span className="text-gray-400">{fmtValor(valor)} · {pct.toFixed(0)}%</span>
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <motion.div
@@ -115,7 +113,7 @@ function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
   const totalComandas = comandas.reduce((s, c) => s + Number(c.valor_total || 0), 0);
 
   const origens = [
-    { label: "Serviços", valor: receitaSvcs || fat, Icon: Scissors,   cor: "bg-indigo-50 border-indigo-100",  text: "text-indigo-700"  },
+    { label: "Serviços", valor: receitaSvcs, Icon: Scissors,   cor: "bg-indigo-50 border-indigo-100",  text: "text-indigo-700"  },
     { label: "Bar",      valor: receitaBar,          Icon: Beer,        cor: "bg-amber-50 border-amber-100",   text: "text-amber-700"   },
     { label: "Loja",     valor: receitaLoja,         Icon: ShoppingBag, cor: "bg-emerald-50 border-emerald-100", text: "text-emerald-700" },
   ].filter((o) => o.valor > 0);
@@ -129,10 +127,10 @@ function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon={DollarSign}  label="Faturamento"       valor={BRL(fat)}          sub={`${ok.length} concluídos`} />
+        <KpiCard icon={DollarSign}  label="Faturamento"       valor={fmtValor(fat)}          sub={`${ok.length} concluídos`} />
         <KpiCard icon={Scissors}    label="Atendimentos"      valor={ok.length}          sub={cancelados > 0 ? `${cancelados} cancelados` : undefined} />
-        <KpiCard icon={CreditCard}  label="Ticket médio"      valor={BRL(ticket)}        sub="por atendimento" />
-        <KpiCard icon={Receipt}     label="Comandas fechadas" valor={comandas.length}    sub={totalComandas > 0 ? BRL(totalComandas) : undefined} />
+        <KpiCard icon={CreditCard}  label="Ticket médio"      valor={fmtValor(ticket)}        sub="por atendimento" />
+        <KpiCard icon={Receipt}     label="Comandas fechadas" valor={comandas.length}    sub={totalComandas > 0 ? fmtValor(totalComandas) : undefined} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -159,7 +157,7 @@ function TabCaixa({ atendimentos, comandas, produtos, setView, sessaoCaixa }) {
                         <p className="text-[10px] text-gray-400">{pct.toFixed(1)}% do total</p>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-gray-800">{BRL(o.valor)}</span>
+                    <span className="text-sm font-bold text-gray-800">{fmtValor(o.valor)}</span>
                   </div>
                 );
               })}
@@ -216,10 +214,6 @@ function fmtDataHora(iso) {
   });
 }
 
-function fmtHora(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
 
 function duracaoLabel(msInicio, msFim) {
   const min = Math.floor((msFim - msInicio) / 60000);
@@ -292,7 +286,7 @@ function DetalheComanda({ cmd, custoPorId }) {
             {cmd.servicos.map((s, i) => (
               <div key={i} className="flex justify-between text-xs px-3 py-2 bg-indigo-50 rounded-xl">
                 <span className="text-indigo-700 font-medium">{s.nome}</span>
-                <span className="font-semibold text-indigo-600">{BRL(s.valor)}</span>
+                <span className="font-semibold text-indigo-600">{fmtValor(s.valor)}</span>
               </div>
             ))}
           </div>
@@ -309,11 +303,11 @@ function DetalheComanda({ cmd, custoPorId }) {
                 <div key={i} className="flex items-center justify-between text-xs px-3 py-2 bg-amber-50 rounded-xl">
                   <div className="flex-1 min-w-0">
                     <p className="text-amber-700 font-medium truncate">{item.nome}</p>
-                    {custo > 0 && <p className="text-amber-400">custo est. {BRL(custo * (item.quantidade || 1))}</p>}
+                    {custo > 0 && <p className="text-amber-400">custo est. {fmtValor(custo * (item.quantidade || 1))}</p>}
                   </div>
                   <div className="text-right ml-3 shrink-0">
-                    <p className="font-semibold text-amber-600">{BRL(Number(item.preco_venda || 0) * (item.quantidade || 1))}</p>
-                    <p className="text-amber-400">{item.quantidade}× {BRL(item.preco_venda)}</p>
+                    <p className="font-semibold text-amber-600">{fmtValor(Number(item.preco_venda || 0) * (item.quantidade || 1))}</p>
+                    <p className="text-amber-400">{item.quantidade}× {fmtValor(item.preco_venda)}</p>
                   </div>
                 </div>
               );
@@ -332,11 +326,11 @@ function DetalheComanda({ cmd, custoPorId }) {
                 <div key={i} className="flex items-center justify-between text-xs px-3 py-2 bg-emerald-50 rounded-xl">
                   <div className="flex-1 min-w-0">
                     <p className="text-emerald-700 font-medium truncate">{item.nome}</p>
-                    {custo > 0 && <p className="text-emerald-400">custo est. {BRL(custo * (item.quantidade || 1))}</p>}
+                    {custo > 0 && <p className="text-emerald-400">custo est. {fmtValor(custo * (item.quantidade || 1))}</p>}
                   </div>
                   <div className="text-right ml-3 shrink-0">
-                    <p className="font-semibold text-emerald-600">{BRL(Number(item.preco_venda || 0) * (item.quantidade || 1))}</p>
-                    <p className="text-emerald-400">{item.quantidade}× {BRL(item.preco_venda)}</p>
+                    <p className="font-semibold text-emerald-600">{fmtValor(Number(item.preco_venda || 0) * (item.quantidade || 1))}</p>
+                    <p className="text-emerald-400">{item.quantidade}× {fmtValor(item.preco_venda)}</p>
                   </div>
                 </div>
               );
@@ -349,17 +343,17 @@ function DetalheComanda({ cmd, custoPorId }) {
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Resumo</p>
         {Number(cmd.valor_servicos || 0) > 0 && (
           <div className="flex justify-between text-xs text-gray-500">
-            <span>Serviços</span><span className="font-medium">{BRL(cmd.valor_servicos)}</span>
+            <span>Serviços</span><span className="font-medium">{fmtValor(cmd.valor_servicos)}</span>
           </div>
         )}
         {Number(cmd.valor_bar || 0) > 0 && (
           <div className="flex justify-between text-xs text-gray-500">
-            <span className="flex items-center gap-1"><Beer size={11} strokeWidth={2} />Bar</span><span className="font-medium">{BRL(cmd.valor_bar)}</span>
+            <span className="flex items-center gap-1"><Beer size={11} strokeWidth={2} />Bar</span><span className="font-medium">{fmtValor(cmd.valor_bar)}</span>
           </div>
         )}
         {Number(cmd.valor_loja || 0) > 0 && (
           <div className="flex justify-between text-xs text-gray-500">
-            <span className="flex items-center gap-1"><ShoppingBag size={11} strokeWidth={2} />Loja</span><span className="font-medium">{BRL(cmd.valor_loja)}</span>
+            <span className="flex items-center gap-1"><ShoppingBag size={11} strokeWidth={2} />Loja</span><span className="font-medium">{fmtValor(cmd.valor_loja)}</span>
           </div>
         )}
         {cmd.desconto?.valor_calculado > 0 && (() => {
@@ -370,21 +364,21 @@ function DetalheComanda({ cmd, custoPorId }) {
           return (
             <>
               <div className="flex justify-between text-xs text-gray-400 border-t border-gray-200 pt-1.5 mt-0.5">
-                <span>Subtotal</span><span>{BRL(subtotal)}</span>
+                <span>Subtotal</span><span>{fmtValor(subtotal)}</span>
               </div>
               <div className="flex justify-between text-xs font-medium text-orange-500">
-                <span>Desconto ({label})</span><span>−{BRL(d.valor_calculado)}</span>
+                <span>Desconto ({label})</span><span>−{fmtValor(d.valor_calculado)}</span>
               </div>
             </>
           );
         })()}
         <div className="flex justify-between text-sm font-bold text-gray-800 border-t border-gray-200 pt-1.5 mt-0.5">
           <span>Total</span>
-          <span className="text-indigo-600">{BRL(cmd.valor_total)}</span>
+          <span className="text-indigo-600">{fmtValor(cmd.valor_total)}</span>
         </div>
         {custoTotal > 0 && (
           <div className={`flex justify-between text-xs border-t border-gray-100 pt-1 font-semibold ${lucro >= 0 ? "text-green-600" : "text-red-500"}`}>
-            <span>Lucro estimado</span><span>{BRL(lucro)}</span>
+            <span>Lucro estimado</span><span>{fmtValor(lucro)}</span>
           </div>
         )}
         {cmd.forma_pagamento && (
@@ -402,8 +396,11 @@ function DetalheComanda({ cmd, custoPorId }) {
 
 function TabExtrato({ atendimentos, comandas, produtos }) {
   const [expandida, setExpandida] = useState(null);
-  const custoPorId = {};
-  for (const p of produtos ?? []) custoPorId[p.id] = Number(p.preco_custo || 0);
+  const custoPorId = useMemo(() => {
+    const m = {};
+    for (const p of produtos ?? []) m[p.id] = Number(p.preco_custo || 0);
+    return m;
+  }, [produtos]);
 
   const sorted = [...comandas].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const atendSorted = [...atendimentos]
@@ -438,7 +435,7 @@ function TabExtrato({ atendimentos, comandas, produtos }) {
                           {cmd.forma_pagamento}
                         </span>
                       )}
-                      <span className="text-sm font-bold text-indigo-600">{BRL(cmd.valor_total)}</span>
+                      <span className="text-sm font-bold text-indigo-600">{fmtValor(cmd.valor_total)}</span>
                       <span className="text-gray-300 text-xs">{aberta ? "▾" : "▸"}</span>
                     </div>
                   </button>
@@ -472,7 +469,7 @@ function TabExtrato({ atendimentos, comandas, produtos }) {
                       {a.forma_pagamento}
                     </span>
                   )}
-                  <span className="text-xs font-semibold text-gray-700">{BRL(a.valor_total)}</span>
+                  <span className="text-xs font-semibold text-gray-700">{fmtValor(a.valor_total)}</span>
                 </div>
               </div>
             ))}
@@ -559,7 +556,7 @@ function TabHistoricoCaixa({ sessoesHistorico, setView }) {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-base font-bold text-gray-800">{BRL(totalMovimentado)}</p>
+                <p className="text-base font-bold text-gray-800">{fmtValor(totalMovimentado)}</p>
                 <p className="text-xs text-gray-400">
                   {s.qtd_comandas || 0} comanda{(s.qtd_comandas || 0) !== 1 ? "s" : ""}
                 </p>
@@ -578,7 +575,7 @@ function TabHistoricoCaixa({ sessoesHistorico, setView }) {
                   .map((f) => (
                     <div key={f.label} className={`flex flex-col px-3 py-2 rounded-xl border ${f.cor}`}>
                       <span className="text-[10px] font-semibold uppercase tracking-wide opacity-60">{f.label}</span>
-                      <span className="text-sm font-bold">{BRL(f.valor)}</span>
+                      <span className="text-sm font-bold">{fmtValor(f.valor)}</span>
                     </div>
                   ))}
               </div>
@@ -586,13 +583,13 @@ function TabHistoricoCaixa({ sessoesHistorico, setView }) {
 
             <div className="flex gap-4 flex-wrap text-xs text-gray-400">
               {Number(s.valor_abertura || 0) > 0 && (
-                <span>Abertura: <strong className="text-gray-600">{BRL(s.valor_abertura)}</strong></span>
+                <span>Abertura: <strong className="text-gray-600">{fmtValor(s.valor_abertura)}</strong></span>
               )}
               {Number(s.total_suprimentos || 0) > 0 && (
-                <span className="text-emerald-600">+{BRL(s.total_suprimentos)} suprimentos</span>
+                <span className="text-emerald-600">+{fmtValor(s.total_suprimentos)} suprimentos</span>
               )}
               {Number(s.total_sangrias || 0) > 0 && (
-                <span className="text-orange-500">−{BRL(s.total_sangrias)} sangrias</span>
+                <span className="text-orange-500">−{fmtValor(s.total_sangrias)} sangrias</span>
               )}
             </div>
 
@@ -608,7 +605,7 @@ function TabHistoricoCaixa({ sessoesHistorico, setView }) {
               >
                 <span>Diferença no fechamento</span>
                 <span>
-                  {diferenca > 0.01 ? "+" : ""}{BRL(diferenca)}
+                  {diferenca > 0.01 ? "+" : ""}{fmtValor(diferenca)}
                   {" "}
                   {Math.abs(diferenca) < 0.01 ? "✓ caixa bateu" : diferenca < 0 ? "↓ falta" : "↑ sobra"}
                 </span>

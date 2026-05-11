@@ -3,10 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { Scissors, Trash2, AlertTriangle, Pencil } from "lucide-react";
 import { PageHeader } from "../ui/DS";
-
-function fmtValor(v) {
-  return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { fmtValor } from "../../utils/fmt";
 
 function ServicoForm({ servico, onSalvar, onFechar }) {
   const [form, setForm] = useState({

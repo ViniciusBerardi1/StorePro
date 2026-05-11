@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../services/supabase";
+import { invalidarCacheAssinaturas } from "../services/supabaseDb";
 
 export function useAppAuth() {
   const [session,  setSession]  = useState(null);
@@ -40,6 +41,7 @@ export function useAppAuth() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const signOut = async () => {
+    invalidarCacheAssinaturas();
     await supabase.auth.signOut();
     window.location.reload();
   };

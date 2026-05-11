@@ -7,9 +7,7 @@ import { TrendingDown, TrendingUp, XCircle, UserX, Clock, Package, Award,
 import { motion } from "framer-motion";
 import { getRelatoriosPeriodo, getRelatoriosPeriodoAnterior, getUltimaVisitaClientes, getComissoesPorBarbeiro } from "../../services/relatoriosDb";
 import { PageHeader } from "../ui/DS";
-
-const BRL = (v) =>
-  Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+import { fmtValor as BRL } from "../../utils/fmt";
 
 function hoje() {
   const d = new Date();

@@ -3,14 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import { Banknote, QrCode, CreditCard, RefreshCw } from "lucide-react";
 import { PageHeader, PaymentPill, CaixaBanner } from "../ui/DS";
-
-function fmtValor(v) {
-  return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function fmtHora(ts) {
-  return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
+import { fmtValor, fmtHora } from "../../utils/fmt";
 
 function fmtDataHora(ts) {
   const d = new Date(ts);
@@ -330,7 +323,7 @@ export default function Caixa() {
       setValorAbertura("");
       await carregar();
     } catch (e) {
-      alert(e.message);
+      setErro(e.message);
     } finally {
       setAbrindo(false);
     }
@@ -339,7 +332,7 @@ export default function Caixa() {
   async function handleMovimento() {
     if (!modal || !sessao) return;
     const valor = Number(modalValor || 0);
-    if (valor <= 0) { alert("Informe um valor maior que zero."); return; }
+    if (valor <= 0) { setErro("Informe um valor maior que zero."); return; }
     setSalvandoModal(true);
     try {
       await db.registrarMovimentoCaixa(sessao.id, modal.tipo, valor, modalMotivo || null);
@@ -364,7 +357,7 @@ export default function Caixa() {
       setValorContado("");
       await carregar();
     } catch (e) {
-      alert(e.message);
+      setErro(e.message);
     } finally {
       setFechando(false);
     }
@@ -411,7 +404,7 @@ export default function Caixa() {
       <CaixaBanner
         sessao={sessao}
         onFechar={() => { setShowFechar(true); setValorContado(""); }}
-        onAbrir={() => {}}
+        onAbrir={handleAbrirCaixa}
       />
 
       {/* Resumo do último fechamento */}

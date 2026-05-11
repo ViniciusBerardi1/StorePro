@@ -95,7 +95,8 @@ export async function getUltimaVisitaClientes() {
     .from("atendimentos")
     .select("cliente_nome, cliente_id, data_hora, valor_total")
     .eq("status", "concluido")
-    .order("data_hora", { ascending: false });
+    .order("data_hora", { ascending: false })
+    .limit(5000);
 
   if (error) throw error;
 

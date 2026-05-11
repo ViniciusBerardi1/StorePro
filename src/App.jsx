@@ -286,20 +286,18 @@ function AppPrincipal() {
   const [toast, setToast] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
   // ─── Auto-lock por inatividade (1 min) ──────────────────────────
-  const viewRef          = useRef(view);
-  const lastActivityRef  = useRef(Date.now());
-  const desbloqueadoRef  = useRef(false);
-  const checkRef         = useRef(null);
+  const viewRef         = useRef(view);
+  const lastActivityRef = useRef(Date.now());
+  const checkRef        = useRef(null);
 
   useEffect(() => { viewRef.current = view; }, [view]);
-  useEffect(() => { desbloqueadoRef.current = financeiroDesbloqueado; }, [financeiroDesbloqueado]);
 
-  // Listeners de atividade — adicionados uma única vez, sem remoção
+  // Listeners de atividade — limpos na desmontagem do componente
   useEffect(() => {
     const atualizar = () => { lastActivityRef.current = Date.now(); };
     const EVENTOS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
     EVENTOS.forEach((ev) => window.addEventListener(ev, atualizar, { passive: true }));
-    // sem cleanup — vivem enquanto o app existir
+    return () => EVENTOS.forEach((ev) => window.removeEventListener(ev, atualizar));
   }, []);
 
   // Polling a cada 2s: só age quando desbloqueado
@@ -312,7 +310,6 @@ function AppPrincipal() {
     lastActivityRef.current = Date.now(); // zera contagem ao desbloquear
 
     checkRef.current = setInterval(() => {
-      if (!desbloqueadoRef.current) return;
       if (Date.now() - lastActivityRef.current >= 60_000) {
         clearInterval(checkRef.current);
         setFinanceiroDesbloqueado(false);
