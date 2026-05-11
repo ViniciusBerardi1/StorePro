@@ -15,12 +15,14 @@ import ClientesLista, { PlanosManager } from "./components/views/ClientesLista";
 import Relatorios from "./components/views/Relatorios";
 import Caixa from "./components/views/Caixa";
 import PaginaAssinatura from "./components/views/PaginaAssinatura";
+import AdminApp from "./components/admin/AdminApp";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
 
-// ─── Rota pública (/assinar) ─────────────────────────────────────
+// ─── Detecção de rotas especiais ─────────────────────────────────
 const isPublicRoute = window.location.pathname.startsWith("/assinar");
+const isAdminRoute  = window.location.pathname.startsWith("/admin");
 
 const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos", "estoque_loja", "estoque_bar"];
 
@@ -183,8 +185,9 @@ function SenhaModal({ onConfirmar, onFechar }) {
 }
 
 export default function App() {
-  // Rota pública: renderiza direto sem login
+  // Rotas especiais renderizadas sem o shell do app principal
   if (isPublicRoute) return <PaginaAssinatura />;
+  if (isAdminRoute)  return <AdminApp />;
 
   return <AppInterno />;
 }
