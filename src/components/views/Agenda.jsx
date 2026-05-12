@@ -304,7 +304,9 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
   const [servicosSel, setServicosSel] = useState(new Set());
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState(null);
+  const [avisoForm, setAvisoForm] = useState(null);
   const [pendingSave, setPendingSave] = useState(null);
+  const [avisoHorarioPassado, setAvisoHorarioPassado] = useState(null);
   const [horarioSugerido, setHorarioSugerido] = useState(false);
 
   const buildSummary = (svcsSet, cliente) => {
@@ -451,9 +453,6 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
     const inicioNovo = new Date(`${form.data}T${form.horaInicio}:00`);
     const fimNovo = new Date(`${form.data}T${form.horaFim}:00`);
 
-    if (!evento && inicioNovo <= new Date())
-      return setErroForm("Não é possível agendar em horários que já passaram.");
-
     if (barbeiroId) {
       const barbSel = barbeirosRef.current.find((b) => b.id === barbeiroId);
       if (barbSel) {
@@ -478,6 +477,11 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
       end: { dateTime: `${form.data}T${form.horaFim}:00`, timeZone: TZ },
       ...(barbSel ? { colorId: barbSel.gcal_color_id } : {}),
     };
+
+    if (!evento && inicioNovo <= new Date()) {
+      setAvisoHorarioPassado(payload);
+      return;
+    }
 
     if (form.horaInicio < "09:00" || form.horaFim > "20:00") {
       setPendingSave(payload);
@@ -698,6 +702,57 @@ function EventoForm({ evento, diaPadrao, onSalvar, onFechar, onDeletar, onInicia
           </div>
         </form>
       </motion.div>
+
+      {/* Popup confirmação horário passado */}
+      <AnimatePresence>
+        {avisoHorarioPassado && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-3">
+                <Clock size={24} strokeWidth={1.5} className="text-orange-500" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-1">Horário já passou</h3>
+              <p className="text-sm text-gray-500 mb-5">
+                O horário selecionado já passou. Deseja agendar mesmo assim?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setAvisoHorarioPassado(null)}
+                  className="flex-1 border border-gray-200 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    const p = avisoHorarioPassado;
+                    setAvisoHorarioPassado(null);
+                    if (form.horaInicio < "09:00" || form.horaFim > "20:00") {
+                      setPendingSave(p);
+                    } else {
+                      await executarSalvar(p);
+                    }
+                  }}
+                  disabled={salvando}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
+                >
+                  {salvando ? "Salvando..." : "Agendar mesmo assim"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Popup confirmação fora do expediente */}
       <AnimatePresence>
