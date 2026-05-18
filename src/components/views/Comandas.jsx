@@ -114,29 +114,21 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
   }, [assinaturaData, usoBeneficios]);
 
   // IDs de serviços cobertos gratuitamente pelo plano nesta comanda
-  const idsViaPlano = useMemo(() => {
-    console.log("[via_plano] assinaturaData:", assinaturaData?.id, "plano:", assinaturaData?.planos?.nome, "beneficios:", assinaturaData?.planos?.beneficios);
-    console.log("[via_plano] beneficiosAplicados:", beneficiosAplicados);
-    const ids = new Set(
-      beneficiosAplicados
-        .filter((b) => b.tipo === "servico_gratis")
-        .map((b) => String(b.servico_id))
-    );
-    console.log("[via_plano] idsViaPlano:", [...ids]);
-    return ids;
-  }, [beneficiosAplicados]);
+  const idsViaPlano = useMemo(() => new Set(
+    beneficiosAplicados
+      .filter((b) => b.tipo === "servico_gratis")
+      .map((b) => String(b.servico_id))
+  ), [beneficiosAplicados]);
 
   // Array de serviços selecionados já com flag via_plano quando aplicável
-  const servicosFinais = useMemo(() => {
-    const result = servicos
+  const servicosFinais = useMemo(() =>
+    servicos
       .filter((s) => servicosSel.has(s.id))
       .map((s) => ({
         id: s.id, nome: s.nome, valor: Number(s.valor),
         ...(idsViaPlano.has(String(s.id)) ? { via_plano: true } : {}),
-      }));
-    console.log("[via_plano] servicosFinais:", result);
-    return result;
-  }, [servicos, servicosSel, idsViaPlano]);
+      })),
+  [servicos, servicosSel, idsViaPlano]);
 
   const toggleServico = (id) =>
     setServicosSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
