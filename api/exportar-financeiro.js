@@ -880,23 +880,25 @@ function buildPagamento(wb, rows, planos, periodo) {
 
   ws.columns = [
     { key: "a", width: 42 },
-    { key: "b", width: 14 },
-    { key: "c", width: 20 },
+    { key: "b", width: 10 },
+    { key: "c", width: 18 },
+    { key: "d", width: 16 },
+    { key: "e", width: 16 },
   ];
 
   const bMap = {};
 
   for (const row of rows) {
-    if (row.tipo === "PRODUTO_BAR") continue;
     const nome = row.barbeiro;
-    if (!bMap[nome]) bMap[nome] = { servicos: [], loja: [], planos: [] };
-    if (row.tipo === "SERVICO")          bMap[nome].servicos.push(row);
+    if (!bMap[nome]) bMap[nome] = { servicos: [], bar: [], loja: [], planos: [] };
+    if (row.tipo === "SERVICO")           bMap[nome].servicos.push(row);
+    else if (row.tipo === "PRODUTO_BAR")  bMap[nome].bar.push(row);
     else if (row.tipo === "PRODUTO_LOJA") bMap[nome].loja.push(row);
   }
 
   for (const plano of planos) {
     const nome = plano.barbeiro;
-    if (!bMap[nome]) bMap[nome] = { servicos: [], loja: [], planos: [] };
+    if (!bMap[nome]) bMap[nome] = { servicos: [], bar: [], loja: [], planos: [] };
     bMap[nome].planos.push(plano);
   }
 
@@ -910,15 +912,15 @@ function buildPagamento(wb, rows, planos, periodo) {
   cTitulo.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.darkBlue } };
   cTitulo.alignment = { vertical: "middle", horizontal: "center" };
   ws.getRow(r).height = 30;
-  ws.mergeCells(`A${r}:C${r}`);
+  ws.mergeCells(`A${r}:E${r}`);
   r++;
 
   const cInstr = ws.getCell(`A${r}`);
-  cInstr.value = `Gerado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}  •  Preencha "% Comissão" com valor decimal (ex: 0,40 = 40%)`;
+  cInstr.value = `Gerado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}  •  Preencha "% Comissão" (coluna D) com valor decimal (ex: 0,40 = 40%)`;
   cInstr.font  = { italic: true, size: 9, color: { argb: "FF555555" } };
   cInstr.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
   cInstr.alignment = { horizontal: "center" };
-  ws.mergeCells(`A${r}:C${r}`);
+  ws.mergeCells(`A${r}:E${r}`);
   r++;
 
   r++;
@@ -926,16 +928,17 @@ function buildPagamento(wb, rows, planos, periodo) {
   for (const nome of nomes) {
     const barber = bMap[nome];
 
+    // Barber name header
     const cBarbeiro = ws.getCell(`A${r}`);
     cBarbeiro.value = `  ✂️  ${nome.toUpperCase()}`;
     cBarbeiro.font  = { bold: true, size: 12, color: { argb: COR.white } };
     cBarbeiro.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.medBlue } };
     ws.getRow(r).height = 24;
-    ws.mergeCells(`A${r}:C${r}`);
+    ws.mergeCells(`A${r}:E${r}`);
     r++;
 
-    const hLabels = ["Descrição", "Qtd", "Valor"];
-    hLabels.forEach((lbl, i) => {
+    // Column headers
+    ["Descrição", "Qtd", "Total Gerado", "% Comissão", "A Pagar"].forEach((lbl, i) => {
       const c = ws.getRow(r).getCell(i + 1);
       c.value = lbl;
       c.font  = { bold: true, size: 10 };
@@ -945,156 +948,104 @@ function buildPagamento(wb, rows, planos, periodo) {
     });
     r++;
 
-    const refSubtotais = [];
+    const aPayRefs = [];
 
-    if (barber.servicos.length > 0) {
-      const cat = ws.getCell(`A${r}`);
-      cat.value = "✂️  Serviços";
-      cat.font  = { bold: true, size: 10, color: { argb: COR.medBlue } };
-      cat.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
-      ws.mergeCells(`A${r}:C${r}`);
+    // Renders one type section; returns the row index of the subtotal row
+    const renderTipo = (catLabel, items, isPlanos) => {
+      if (items.length === 0) return;
+
+      // Category header
+      ws.getCell(`A${r}`).value = catLabel;
+      ws.getCell(`A${r}`).font  = { bold: true, size: 10, color: { argb: COR.medBlue } };
+      ws.getCell(`A${r}`).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
+      ws.mergeCells(`A${r}:E${r}`);
       r++;
 
       const ini = r;
-      for (const item of groupByDesc(barber.servicos)) {
-        const row = ws.getRow(r);
-        row.getCell(1).value = `   ${item.descricao}`;
-        row.getCell(2).value = item.quantidade;
-        row.getCell(2).alignment = { horizontal: "center" };
-        row.getCell(3).value  = item.valor;
-        row.getCell(3).numFmt = '"R$"#,##0.00';
-        [1, 2, 3].forEach(c => borda(row.getCell(c)));
-        r++;
+
+      if (isPlanos) {
+        for (const plano of items) {
+          const rw = ws.getRow(r);
+          rw.getCell(1).value = `   ${plano.plano_nome}`;
+          rw.getCell(2).value = 1;
+          rw.getCell(2).alignment = { horizontal: "center" };
+          rw.getCell(3).value  = Number(plano.valor);
+          rw.getCell(3).numFmt = '"R$"#,##0.00';
+          [1, 2, 3].forEach(ci => borda(rw.getCell(ci)));
+          r++;
+        }
+      } else {
+        for (const item of groupByDesc(items)) {
+          const rw = ws.getRow(r);
+          rw.getCell(1).value = `   ${item.descricao}`;
+          rw.getCell(2).value = item.quantidade;
+          rw.getCell(2).alignment = { horizontal: "center" };
+          rw.getCell(3).value  = item.valor;
+          rw.getCell(3).numFmt = '"R$"#,##0.00';
+          [1, 2, 3].forEach(ci => borda(rw.getCell(ci)));
+          r++;
+        }
       }
 
-      const st = ws.getRow(r);
-      st.getCell(1).value  = "Subtotal Serviços";
-      st.getCell(1).font   = { bold: true };
-      st.getCell(3).value  = { formula: `SUM(C${ini}:C${r - 1})` };
+      // Subtotal row: label | qty_blank | SUM formula | yellow % input | A Pagar formula
+      const rSub = r;
+      const st   = ws.getRow(r);
+
+      st.getCell(1).value = `Subtotal ${catLabel.replace(/^\S+\s+/, "")}`;
+      st.getCell(1).font  = { bold: true };
+      st.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
+      borda(st.getCell(1));
+
+      st.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
+      borda(st.getCell(2));
+
+      st.getCell(3).value  = { formula: `SUM(C${ini}:C${rSub - 1})` };
       st.getCell(3).numFmt = '"R$"#,##0.00';
       st.getCell(3).font   = { bold: true };
-      [1, 2, 3].forEach(c => {
-        st.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
-        borda(st.getCell(c));
-      });
-      refSubtotais.push(`C${r}`);
+      st.getCell(3).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
+      borda(st.getCell(3));
+
+      // % Comissão — yellow, editable
+      st.getCell(4).value  = null;
+      st.getCell(4).numFmt = "0%";
+      st.getCell(4).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.yellow } };
+      st.getCell(4).font   = { bold: true };
+      st.getCell(4).alignment = { horizontal: "center" };
+      st.getCell(4).border = {
+        top:    { style: "medium", color: { argb: COR.yellowBrd } },
+        bottom: { style: "medium", color: { argb: COR.yellowBrd } },
+        left:   { style: "medium", color: { argb: COR.yellowBrd } },
+        right:  { style: "medium", color: { argb: COR.yellowBrd } },
+      };
+
+      // A Pagar — formula = total * %
+      st.getCell(5).value  = { formula: `C${rSub}*D${rSub}` };
+      st.getCell(5).numFmt = '"R$"#,##0.00';
+      st.getCell(5).font   = { bold: true, color: { argb: COR.greenText } };
+      st.getCell(5).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.greenBg } };
+      borda(st.getCell(5));
+
+      st.height = 22;
+      aPayRefs.push(`E${rSub}`);
       r++;
-    }
-
-    if (barber.loja.length > 0) {
-      const cat = ws.getCell(`A${r}`);
-      cat.value = "🛍️  Produtos Loja";
-      cat.font  = { bold: true, size: 10, color: { argb: COR.medBlue } };
-      cat.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
-      ws.mergeCells(`A${r}:C${r}`);
-      r++;
-
-      const ini = r;
-      for (const item of groupByDesc(barber.loja)) {
-        const row = ws.getRow(r);
-        row.getCell(1).value = `   ${item.descricao}`;
-        row.getCell(2).value = item.quantidade;
-        row.getCell(2).alignment = { horizontal: "center" };
-        row.getCell(3).value  = item.valor;
-        row.getCell(3).numFmt = '"R$"#,##0.00';
-        [1, 2, 3].forEach(c => borda(row.getCell(c)));
-        r++;
-      }
-
-      const st = ws.getRow(r);
-      st.getCell(1).value  = "Subtotal Produtos Loja";
-      st.getCell(1).font   = { bold: true };
-      st.getCell(3).value  = { formula: `SUM(C${ini}:C${r - 1})` };
-      st.getCell(3).numFmt = '"R$"#,##0.00';
-      st.getCell(3).font   = { bold: true };
-      [1, 2, 3].forEach(c => {
-        st.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
-        borda(st.getCell(c));
-      });
-      refSubtotais.push(`C${r}`);
-      r++;
-    }
-
-    if (barber.planos.length > 0) {
-      const cat = ws.getCell(`A${r}`);
-      cat.value = "📋  Planos / Assinaturas";
-      cat.font  = { bold: true, size: 10, color: { argb: COR.medBlue } };
-      cat.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
-      ws.mergeCells(`A${r}:C${r}`);
-      r++;
-
-      const ini = r;
-      for (const plano of barber.planos) {
-        const row = ws.getRow(r);
-        row.getCell(1).value = `   ${plano.plano_nome}`;
-        row.getCell(2).value = 1;
-        row.getCell(2).alignment = { horizontal: "center" };
-        row.getCell(3).value  = Number(plano.valor);
-        row.getCell(3).numFmt = '"R$"#,##0.00';
-        [1, 2, 3].forEach(c => borda(row.getCell(c)));
-        r++;
-      }
-
-      const st = ws.getRow(r);
-      st.getCell(1).value  = "Subtotal Planos";
-      st.getCell(1).font   = { bold: true };
-      st.getCell(3).value  = { formula: `SUM(C${ini}:C${r - 1})` };
-      st.getCell(3).numFmt = '"R$"#,##0.00';
-      st.getCell(3).font   = { bold: true };
-      [1, 2, 3].forEach(c => {
-        st.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
-        borda(st.getCell(c));
-      });
-      refSubtotais.push(`C${r}`);
-      r++;
-    }
-
-    const rBase = r;
-    const rowBase = ws.getRow(r);
-    rowBase.getCell(1).value = "BASE TOTAL";
-    rowBase.getCell(1).font  = { bold: true, size: 11, color: { argb: COR.darkBlue } };
-    rowBase.getCell(3).value  = { formula: refSubtotais.length ? refSubtotais.join("+") : "0" };
-    rowBase.getCell(3).numFmt = '"R$"#,##0.00';
-    rowBase.getCell(3).font   = { bold: true, size: 11, color: { argb: COR.darkBlue } };
-    rowBase.height = 22;
-    [1, 2, 3].forEach(c => {
-      rowBase.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
-      bordaMedia(rowBase.getCell(c));
-    });
-    r++;
-
-    const rPct = r;
-    const rowPct = ws.getRow(r);
-    rowPct.getCell(1).value = "% Comissão";
-    rowPct.getCell(1).font  = { bold: true };
-    rowPct.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.yellow } };
-    rowPct.getCell(2).value = "← ex: 0,40 = 40%";
-    rowPct.getCell(2).font  = { italic: true, size: 8, color: { argb: "FF888888" } };
-    rowPct.getCell(2).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.yellow } };
-    rowPct.getCell(2).alignment = { horizontal: "center" };
-    rowPct.getCell(3).value  = null;
-    rowPct.getCell(3).numFmt = '0.00%';
-    rowPct.getCell(3).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.yellow } };
-    rowPct.getCell(3).border = {
-      top:    { style: "medium", color: { argb: COR.yellowBrd } },
-      bottom: { style: "medium", color: { argb: COR.yellowBrd } },
-      left:   { style: "medium", color: { argb: COR.yellowBrd } },
-      right:  { style: "medium", color: { argb: COR.yellowBrd } },
     };
-    rowPct.height = 22;
-    [1, 2].forEach(c => borda(rowPct.getCell(c)));
-    r++;
 
+    renderTipo("✂️  Serviços", barber.servicos, false);
+    renderTipo("🍺  Bar", barber.bar, false);
+    renderTipo("🛍️  Produtos Loja", barber.loja, false);
+    renderTipo("📋  Planos / Assinaturas", barber.planos, true);
+
+    // TOTAL A PAGAR
     const rowTotal = ws.getRow(r);
-    rowTotal.getCell(1).value = "TOTAL A RECEBER";
+    rowTotal.getCell(1).value = "TOTAL A PAGAR";
     rowTotal.getCell(1).font  = { bold: true, size: 12, color: { argb: COR.greenText } };
-    rowTotal.getCell(3).value  = { formula: `C${rBase}*C${rPct}` };
-    rowTotal.getCell(3).numFmt = '"R$"#,##0.00';
-    rowTotal.getCell(3).font   = { bold: true, size: 12, color: { argb: COR.greenText } };
+    rowTotal.getCell(5).value  = aPayRefs.length ? { formula: aPayRefs.join("+") } : 0;
+    rowTotal.getCell(5).numFmt = '"R$"#,##0.00';
+    rowTotal.getCell(5).font   = { bold: true, size: 12, color: { argb: COR.greenText } };
     rowTotal.height = 24;
-    [1, 2, 3].forEach(c => {
-      rowTotal.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.greenBg } };
-      borda(rowTotal.getCell(c));
+    [1, 2, 3, 4, 5].forEach(ci => {
+      rowTotal.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.greenBg } };
+      borda(rowTotal.getCell(ci));
     });
     r++;
 
