@@ -1,4 +1,4 @@
-const CACHE_NAME = 'storepro-v3';
+const CACHE_NAME = 'storepro-v4';
 
 const APP_SHELL = ['/', '/manifest.json', '/favicon-192.png', '/favicon-512.png', '/storeprologo.png', '/favicon.svg'];
 
@@ -26,7 +26,9 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== self.location.origin) return;
 
   const { pathname } = url;
-  const isDynamic = pathname === '/' || /\.(html|js|jsx|ts|tsx|css)$/.test(pathname);
+  // Navegações SPA (qualquer rota que retorna index.html) e assets de código
+  // usam network-first para garantir que o bundle mais recente seja sempre servido.
+  const isDynamic = e.request.mode === 'navigate' || /\.(html|js|css)$/.test(pathname);
 
   if (isDynamic) {
     // Network-first: sempre busca versão nova, cai no cache se offline
