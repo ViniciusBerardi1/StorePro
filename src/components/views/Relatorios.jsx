@@ -481,7 +481,8 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
     for (const s of a.servicos || []) {
       // duracao_minutos salvo a partir desta versão; fallback 30min para registros antigos
       entry.minutos += s.duracao_minutos || 30;
-      entry.servicos[s.nome] = (entry.servicos[s.nome] || 0) + 1;
+      // Serviços via plano são exibidos em seção própria; não duplicar aqui
+      if (!s.via_plano) entry.servicos[s.nome] = (entry.servicos[s.nome] || 0) + 1;
     }
   }
 
@@ -675,7 +676,7 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
                 </div>
               </div>
             )}
-            {Object.keys(barbDetalhe.servicos).length === 0 && Object.keys(barbDetalhe.produtos).length === 0 && (
+            {Object.keys(barbDetalhe.servicos).length === 0 && Object.keys(barbDetalhe.produtos).length === 0 && Object.keys(barbDetalhe.servicosViaPlano).length === 0 && (
               <p className="text-xs text-gray-400">Sem detalhes disponíveis.</p>
             )}
           </div>
