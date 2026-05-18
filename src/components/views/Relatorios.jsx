@@ -464,6 +464,7 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
         faturamento: 0,
         minutos: 0,
         servicos: {},        // { nome: count }
+        servicosViaPlano: {}, // { nome: count } — cobertos pela assinatura
         produtos: {},        // { nome: { count, receita } }
         planosVendidos: 0,
         receitaPlanos: 0,
@@ -494,6 +495,9 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
       if (!entry.produtos[item.nome]) entry.produtos[item.nome] = { count: 0, receita: 0 };
       entry.produtos[item.nome].count += item.quantidade || 1;
       entry.produtos[item.nome].receita += (item.quantidade || 1) * Number(item.preco_venda || 0);
+    }
+    for (const s of (cmd.servicos || [])) {
+      if (s.via_plano) entry.servicosViaPlano[s.nome] = (entry.servicosViaPlano[s.nome] || 0) + 1;
     }
   }
 
@@ -636,6 +640,21 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
                     .sort((a, z) => z[1] - a[1])
                     .map(([nome, cnt]) => (
                       <span key={nome} className="bg-indigo-50 text-indigo-600 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                        {nome} × {cnt}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+            {Object.keys(barbDetalhe.servicosViaPlano).length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wide mb-1.5"><Crown size={10} strokeWidth={2} className="inline mr-1 -mt-0.5" />Serviços via plano (cobertos pela assinatura)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(barbDetalhe.servicosViaPlano)
+                    .sort((a, z) => z[1] - a[1])
+                    .map(([nome, cnt]) => (
+                      <span key={nome} className="bg-blue-50 text-blue-500 text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Crown size={9} strokeWidth={2} />
                         {nome} × {cnt}
                       </span>
                     ))}

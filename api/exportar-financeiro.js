@@ -93,6 +93,29 @@ const SQL_COMANDAS = `
     AND c.created_at <= $2::timestamptz
     AND jsonb_array_length(COALESCE(NULLIF(c.itens_loja, 'null'::jsonb), '[]'::jsonb)) > 0
 
+  UNION ALL
+
+  SELECT
+    c.created_at                              AS data,
+    c.id                                      AS comanda_id,
+    COALESCE(b.nome, 'Sem barbeiro')          AS barbeiro,
+    COALESCE(c.cliente_nome, '—')             AS cliente,
+    'SERVICO_PLANO'                           AS tipo,
+    s->>'nome'                                AS descricao,
+    1                                         AS quantidade,
+    (s->>'valor')::numeric                    AS valor_unitario,
+    (s->>'valor')::numeric                    AS valor_total
+  FROM comandas c
+  LEFT JOIN barbeiros b ON b.id = c.barbeiro_id
+  CROSS JOIN LATERAL jsonb_array_elements(
+    COALESCE(NULLIF(c.servicos, 'null'::jsonb), '[]'::jsonb)
+  ) AS s
+  WHERE c.status = 'fechada'
+    AND c.created_at >= $1::timestamptz
+    AND c.created_at <= $2::timestamptz
+    AND jsonb_array_length(COALESCE(NULLIF(c.servicos, 'null'::jsonb), '[]'::jsonb)) > 0
+    AND (s->>'via_plano')::boolean IS TRUE
+
   ORDER BY data, comanda_id, tipo, descricao
 `;
 
@@ -891,15 +914,16 @@ function buildPagamento(wb, rows, planos, periodo) {
 
   for (const row of rows) {
     const nome = row.barbeiro;
-    if (!bMap[nome]) bMap[nome] = { servicos: [], bar: [], loja: [], planos: [] };
+    if (!bMap[nome]) bMap[nome] = { servicos: [], bar: [], loja: [], planos: [], servicosPlano: [] };
     if (row.tipo === "SERVICO")           bMap[nome].servicos.push(row);
     else if (row.tipo === "PRODUTO_BAR")  bMap[nome].bar.push(row);
     else if (row.tipo === "PRODUTO_LOJA") bMap[nome].loja.push(row);
+    else if (row.tipo === "SERVICO_PLANO") bMap[nome].servicosPlano.push(row);
   }
 
   for (const plano of planos) {
     const nome = plano.barbeiro;
-    if (!bMap[nome]) bMap[nome] = { servicos: [], bar: [], loja: [], planos: [] };
+    if (!bMap[nome]) bMap[nome] = { servicos: [], bar: [], loja: [], planos: [], servicosPlano: [] };
     bMap[nome].planos.push(plano);
   }
 
@@ -1049,6 +1073,53 @@ function buildPagamento(wb, rows, planos, periodo) {
       borda(rowTotal.getCell(ci));
     });
     r++;
+
+    // Bloco informativo — serviços cobertos pelo plano (sem comissão)
+    if (barber.servicosPlano.length > 0) {
+      r++; // separador visual
+
+      const cPlanoHdr = ws.getCell(`A${r}`);
+      cPlanoHdr.value = "👑  Serviços via Plano — cobertos pela assinatura (sem comissão adicional)";
+      cPlanoHdr.font  = { bold: true, size: 10, color: { argb: COR.medBlue } };
+      cPlanoHdr.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
+      cPlanoHdr.alignment = { horizontal: "center" };
+      ws.mergeCells(`A${r}:E${r}`);
+      r++;
+
+      const ini = r;
+      for (const item of groupByDesc(barber.servicosPlano)) {
+        const rw = ws.getRow(r);
+        rw.getCell(1).value = `   ${item.descricao}`;
+        rw.getCell(2).value = item.quantidade;
+        rw.getCell(2).alignment = { horizontal: "center" };
+        rw.getCell(3).value  = item.valor;
+        rw.getCell(3).numFmt = '"R$"#,##0.00';
+        rw.getCell(3).font   = { color: { argb: COR.grayDark } };
+        [1, 2, 3].forEach(ci => {
+          rw.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
+          borda(rw.getCell(ci));
+        });
+        // Cols D e E ficam vazias mas com fundo igual
+        [4, 5].forEach(ci => {
+          rw.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
+          borda(rw.getCell(ci));
+        });
+        r++;
+      }
+
+      const stPlano = ws.getRow(r);
+      stPlano.getCell(1).value = "Total via Plano (informativo)";
+      stPlano.getCell(1).font  = { bold: true, italic: true, color: { argb: COR.medBlue } };
+      stPlano.getCell(3).value  = { formula: `SUM(C${ini}:C${r - 1})` };
+      stPlano.getCell(3).numFmt = '"R$"#,##0.00';
+      stPlano.getCell(3).font   = { bold: true, italic: true, color: { argb: COR.medBlue } };
+      [1, 2, 3, 4, 5].forEach(ci => {
+        stPlano.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
+        borda(stPlano.getCell(ci));
+      });
+      stPlano.height = 20;
+      r++;
+    }
 
     r += 2;
   }
