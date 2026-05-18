@@ -216,6 +216,17 @@ function AppInterno() {
 
   if (!isAuthenticated) return <AppLogin />;
 
+  // Sessão de admin detectada no cliente da loja (sessão residual ou troca de contexto).
+  // Limpa do cliente da loja e redireciona para /admin.
+  if (isAdmin) {
+    supabase.auth.signOut().then(() => { window.location.href = "/admin"; });
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-10 h-10 rounded-2xl bg-indigo-600 animate-pulse" />
+      </div>
+    );
+  }
+
   // Loja desativada — bloqueia acesso e força logout
   if (isAuthenticated && hasLoja && !lojaAtivo) {
     return (
