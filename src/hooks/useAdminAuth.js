@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "../services/supabase";
+import { adminAuthClient } from "../services/adminAuthClient";
 import { getMyProfile } from "../services/adminAuth";
 
 /**
@@ -26,7 +26,7 @@ export function useAdminAuth() {
 
   useEffect(() => {
     // 1. Hydrate from existing session (avoids flash of login screen)
-    supabase.auth.getSession().then(({ data: { session: s }, error }) => {
+    adminAuthClient.auth.getSession().then(({ data: { session: s }, error }) => {
       if (error) setAuthError(error.message);
       setSession(s);
       if (s?.user) {
@@ -39,7 +39,7 @@ export function useAdminAuth() {
     // 2. Subscribe to future auth state changes (login / logout / token refresh)
     // Loading is handled by the getSession().finally() above; auth changes after
     // initial hydration don't need to reset the loading flag.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = adminAuthClient.auth.onAuthStateChange(
       (event, s) => {
         setSession(s);
         if (s?.user) {

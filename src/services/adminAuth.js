@@ -2,7 +2,7 @@
  * adminAuth — Supabase Auth + profiles CRUD for the admin area.
  * Only imported by admin components; never used in the barbershop app.
  */
-import { supabase } from "./supabase";
+import { adminAuthClient } from "./adminAuthClient";
 import { createClient } from "@supabase/supabase-js";
 
 // Cliente service-role para criar usuários sem confirmação de email e sem
@@ -16,25 +16,25 @@ const tempClient = createClient(
 // ── Auth ────────────────────────────────────────────────────────
 
 export async function adminSignIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await adminAuthClient.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
 }
 
 export async function resetPasswordForEmail(email) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  const { error } = await adminAuthClient.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/reset-password`,
   });
   if (error) throw error;
 }
 
 export async function adminSignOut() {
-  const { error } = await supabase.auth.signOut();
+  const { error } = await adminAuthClient.auth.signOut();
   if (error) throw error;
 }
 
 export async function getAdminSession() {
-  const { data: { session }, error } = await supabase.auth.getSession();
+  const { data: { session }, error } = await adminAuthClient.auth.getSession();
   if (error) throw error;
   return session;
 }
@@ -42,7 +42,7 @@ export async function getAdminSession() {
 // ── Profile queries ─────────────────────────────────────────────
 
 export async function getMyProfile(userId) {
-  const { data, error } = await supabase
+  const { data, error } = await adminAuthClient
     .from("profiles")
     .select("*")
     .eq("id", userId)
@@ -52,7 +52,7 @@ export async function getMyProfile(userId) {
 }
 
 export async function getAllProfiles() {
-  const { data, error } = await supabase
+  const { data, error } = await adminAuthClient
     .from("profiles")
     .select("*")
     .order("created_at", { ascending: false });
@@ -62,9 +62,9 @@ export async function getAllProfiles() {
 
 export async function getProfilesCount() {
   const [total, admins, inactive] = await Promise.all([
-    supabase.from("profiles").select("*", { count: "exact", head: true }),
-    supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "admin"),
-    supabase.from("profiles").select("*", { count: "exact", head: true }).eq("is_active", false),
+    adminAuthClient.from("profiles").select("*", { count: "exact", head: true }),
+    adminAuthClient.from("profiles").select("*", { count: "exact", head: true }).eq("role", "admin"),
+    adminAuthClient.from("profiles").select("*", { count: "exact", head: true }).eq("is_active", false),
   ]);
   return {
     total:    total.count ?? 0,
@@ -75,7 +75,7 @@ export async function getProfilesCount() {
 
 export async function updateUserRole(userId, role) {
   if (!["user", "admin"].includes(role)) throw new Error("Invalid role");
-  const { error } = await supabase
+  const { error } = await adminAuthClient
     .from("profiles")
     .update({ role })
     .eq("id", userId);
@@ -83,7 +83,7 @@ export async function updateUserRole(userId, role) {
 }
 
 export async function setUserActive(userId, isActive) {
-  const { error } = await supabase
+  const { error } = await adminAuthClient
     .from("profiles")
     .update({ is_active: isActive })
     .eq("id", userId);
@@ -94,9 +94,9 @@ export async function setUserActive(userId, isActive) {
 
 export async function getAppStats() {
   const [clients, subs, configs] = await Promise.all([
-    supabase.from("clientes").select("*", { count: "exact", head: true }),
-    supabase.from("assinaturas").select("*", { count: "exact", head: true }).eq("ativa", true),
-    supabase.from("configuracoes").select("chave, valor").in("chave", ["app_senha"]),
+    adminAuthClient.from("clientes").select("*", { count: "exact", head: true }),
+    adminAuthClient.from("assinaturas").select("*", { count: "exact", head: true }).eq("ativa", true),
+    adminAuthClient.from("configuracoes").select("chave, valor").in("chave", ["app_senha"]),
   ]);
   return {
     totalClients:      clients.count ?? 0,
@@ -106,7 +106,7 @@ export async function getAppStats() {
 }
 
 export async function getRecentProfiles(limit = 8) {
-  const { data, error } = await supabase
+  const { data, error } = await adminAuthClient
     .from("profiles")
     .select("*")
     .order("created_at", { ascending: false })
@@ -116,7 +116,7 @@ export async function getRecentProfiles(limit = 8) {
 }
 
 export async function getAllSubscriptions() {
-  const { data, error } = await supabase
+  const { data, error } = await adminAuthClient
     .from("assinaturas")
     .select("*, planos(nome, valor_mensal), clientes(nome, telefone, email)")
     .order("created_at", { ascending: false });
@@ -130,7 +130,7 @@ export async function createLojaComUsuario(nome, slug, senha) {
   const email = `${slug}@loja.storepro`;
 
   // 1. Cria a loja
-  const { data: loja, error: lojaErr } = await supabase
+  const { data: loja, error: lojaErr } = await adminAuthClient
     .from("lojas")
     .insert({ nome, slug })
     .select()
@@ -145,7 +145,7 @@ export async function createLojaComUsuario(nome, slug, senha) {
     user_metadata: { full_name: nome, loja_id: loja.id },
   });
   if (authErr) {
-    await supabase.from("lojas").delete().eq("id", loja.id);
+    await adminAuthClient.from("lojas").delete().eq("id", loja.id);
     throw authErr;
   }
 
@@ -162,7 +162,7 @@ export async function createLojaComUsuario(nome, slug, senha) {
 }
 
 export async function getAllLojas() {
-  const { data, error } = await supabase
+  const { data, error } = await adminAuthClient
     .from("lojas")
     .select("*")
     .order("created_at", { ascending: false });
@@ -171,7 +171,7 @@ export async function getAllLojas() {
 }
 
 export async function createLoja(nome) {
-  const { data, error } = await supabase
+  const { data, error } = await adminAuthClient
     .from("lojas")
     .insert({ nome })
     .select()
@@ -181,7 +181,7 @@ export async function createLoja(nome) {
 }
 
 export async function toggleLojaAtivo(lojaId, ativo) {
-  const { error } = await supabase
+  const { error } = await adminAuthClient
     .from("lojas")
     .update({ ativo })
     .eq("id", lojaId);
@@ -189,10 +189,7 @@ export async function toggleLojaAtivo(lojaId, ativo) {
 }
 
 export async function deleteLoja(lojaId) {
-  const { error } = await supabase
-    .from("lojas")
-    .delete()
-    .eq("id", lojaId);
+  const { error } = await tempClient.rpc("admin_delete_loja", { p_loja_id: lojaId });
   if (error) throw error;
 }
 
@@ -203,7 +200,7 @@ export async function deleteUser(userId) {
 }
 
 export async function assignUserToLoja(userId, lojaId) {
-  const { error } = await supabase
+  const { error } = await adminAuthClient
     .from("profiles")
     .update({ loja_id: lojaId })
     .eq("id", userId);
@@ -211,7 +208,7 @@ export async function assignUserToLoja(userId, lojaId) {
 }
 
 export async function getAllConfiguracoes() {
-  const { data, error } = await supabase
+  const { data, error } = await adminAuthClient
     .from("configuracoes")
     .select("*")
     .order("chave");
@@ -220,7 +217,7 @@ export async function getAllConfiguracoes() {
 }
 
 export async function upsertConfiguracao(chave, valor) {
-  const { error } = await supabase
+  const { error } = await adminAuthClient
     .from("configuracoes")
     .upsert({ chave, valor }, { onConflict: "chave" });
   if (error) throw error;
