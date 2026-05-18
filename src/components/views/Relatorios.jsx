@@ -1233,231 +1233,6 @@ function TabClientes({ atendimentos, clientesUltimaVisita }) {
   );
 }
 
-// ─── Aba: Pagamento de Comissões ──────────────────────────────────
-
-const PERC_KEY = "storepro_comissao_percs";
-
-const TIPOS_COMISSAO = [
-  { id: "servicos", label: "Serviços",  bg: "bg-indigo-50",  cor: "text-indigo-600"  },
-  { id: "bar",      label: "Bar",       bg: "bg-amber-50",   cor: "text-amber-600"   },
-  { id: "loja",     label: "Loja",      bg: "bg-emerald-50", cor: "text-emerald-600" },
-  { id: "planos",   label: "Planos",    bg: "bg-violet-50",  cor: "text-violet-600"  },
-];
-
-function loadPercs() {
-  try { return JSON.parse(localStorage.getItem(PERC_KEY) || "{}"); }
-  catch { return {}; }
-}
-
-function TabPagamento({ atendimentos, comandas, barbeiros, assinaturas }) {
-  const [percs, setPercs] = useState(loadPercs);
-
-  const ok = atendimentos.filter((a) => a.status === "concluido");
-
-  // ── Agrega por barbeiro ────────────────────────────────────────
-  const mapa = {};
-  const getEntry = (barbId) => {
-    const barb = barbeiros.find((b) => b.id === barbId);
-    const key  = barbId ? String(barbId) : "sem";
-    if (!mapa[key]) mapa[key] = { key, nome: barb?.nome ?? "Sem barbeiro", servicos: 0, bar: 0, loja: 0, planos: 0 };
-    return mapa[key];
-  };
-
-  for (const a of ok) {
-    const entry = getEntry(a.barbeiro_id);
-    entry.servicos += Number(a.valor_total || 0);
-  }
-  for (const cmd of comandas) {
-    const entry = cmd.barbeiro_id ? getEntry(cmd.barbeiro_id) : null;
-    if (!entry) continue;
-    for (const item of cmd.itens_bar  || []) entry.bar  += (item.quantidade || 1) * Number(item.preco_venda || 0);
-    for (const item of cmd.itens_loja || []) entry.loja += (item.quantidade || 1) * Number(item.preco_venda || 0);
-  }
-  for (const ass of assinaturas) {
-    if (!ass.barbeiro_id) continue;
-    getEntry(ass.barbeiro_id).planos += Number(ass.valor ?? ass.planos?.valor ?? 0);
-  }
-
-  const lista = Object.values(mapa).sort(
-    (a, b) => (b.servicos + b.bar + b.loja + b.planos) - (a.servicos + a.bar + a.loja + a.planos)
-  );
-
-  const handlePerc = (barbeiroKey, tipo, raw) => {
-    const val = raw === "" ? "" : Math.min(100, Math.max(0, Number(raw)));
-    const next = { ...percs, [barbeiroKey]: { ...(percs[barbeiroKey] || {}), [tipo]: val } };
-    setPercs(next);
-    localStorage.setItem(PERC_KEY, JSON.stringify(next));
-  };
-
-  const calcComissao = (valor, key, tipo) => {
-    const p = percs?.[key]?.[tipo];
-    if (p === "" || p == null) return null;
-    return (valor * Number(p)) / 100;
-  };
-
-  const totalPagar = (barb) =>
-    TIPOS_COMISSAO.reduce((s, t) => s + (calcComissao(barb[t.id], barb.key, t.id) ?? 0), 0);
-
-  const temAlgumPerc = (barb) =>
-    TIPOS_COMISSAO.some((t) => { const p = percs?.[barb.key]?.[t.id]; return p !== "" && p != null; });
-
-  if (!lista.length) return (
-    <Card><p className="text-sm text-gray-400 text-center py-8">Nenhum dado no período.</p></Card>
-  );
-
-  const totalGeralPagar = lista.reduce((s, b) => s + totalPagar(b), 0);
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Instrução */}
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-xs text-blue-700 flex items-start gap-2">
-        <DollarSign size={13} className="shrink-0 mt-0.5" />
-        <span>
-          Informe a porcentagem de comissão por tipo de venda. Os percentuais são salvos automaticamente
-          e o cálculo é feito sobre o que cada profissional gerou no período selecionado.
-        </span>
-      </div>
-
-      {/* Card por barbeiro */}
-      {lista.map((barb) => {
-        const totalGerado  = TIPOS_COMISSAO.reduce((s, t) => s + barb[t.id], 0);
-        const totalComis   = totalPagar(barb);
-        const temPerc      = temAlgumPerc(barb);
-
-        return (
-          <Card key={barb.key}>
-            {/* Cabeçalho do barbeiro */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">
-                  {barb.nome.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">{barb.nome}</p>
-                  <p className="text-[10px] text-gray-400">Produziu {BRL(totalGerado)} no período</p>
-                </div>
-              </div>
-              {temPerc && (
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400 mb-0.5">Total a pagar</p>
-                  <p className="text-lg font-bold text-indigo-600 leading-none">{BRL(totalComis)}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Tabela de tipos */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100 text-gray-400 font-medium">
-                    <th className="text-left pb-2">Tipo</th>
-                    <th className="text-right pb-2">Gerado</th>
-                    <th className="text-right pb-2 w-32">% Comissão</th>
-                    <th className="text-right pb-2">A pagar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {TIPOS_COMISSAO.map((tipo) => {
-                    const valor    = barb[tipo.id];
-                    const comissao = calcComissao(valor, barb.key, tipo.id);
-                    const percVal  = percs?.[barb.key]?.[tipo.id] ?? "";
-
-                    return (
-                      <tr key={tipo.id} className="border-b border-gray-50">
-                        <td className="py-2.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${tipo.bg} ${tipo.cor}`}>
-                            {tipo.label}
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-right font-semibold text-gray-700">
-                          {valor > 0 ? BRL(valor) : <span className="text-gray-200">—</span>}
-                        </td>
-                        <td className="py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="1"
-                              value={percVal}
-                              onChange={(e) => handlePerc(barb.key, tipo.id, e.target.value)}
-                              placeholder="—"
-                              disabled={valor === 0}
-                              className="w-14 text-right border border-gray-200 rounded-lg px-2 py-1.5 text-xs
-                                         focus:outline-none focus:ring-2 focus:ring-indigo-300
-                                         disabled:opacity-30 disabled:cursor-not-allowed"
-                            />
-                            <span className="text-gray-400">%</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 text-right font-semibold">
-                          {comissao !== null
-                            ? <span className="text-indigo-600">{BRL(comissao)}</span>
-                            : <span className="text-gray-200">—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                {temPerc && (
-                  <tfoot>
-                    <tr className="border-t-2 border-indigo-100">
-                      <td colSpan={3} className="pt-3 pb-1 text-xs font-bold text-gray-700">
-                        Total a pagar no período
-                      </td>
-                      <td className="pt-3 pb-1 text-right text-base font-bold text-indigo-600">
-                        {BRL(totalComis)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </Card>
-        );
-      })}
-
-      {/* Resumo consolidado (só aparece com 2+ barbeiros) */}
-      {lista.length > 1 && (
-        <Card>
-          <SectionTitle icon={DollarSign}>Resumo — total a pagar por profissional</SectionTitle>
-          <div className="flex flex-col gap-2">
-            {lista.map((barb) => {
-              const totalG = TIPOS_COMISSAO.reduce((s, t) => s + barb[t.id], 0);
-              const totalC = totalPagar(barb);
-              const temP   = temAlgumPerc(barb);
-              return (
-                <div key={barb.key} className="flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] font-bold shrink-0">
-                      {barb.nome.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-700">{barb.nome}</p>
-                      <p className="text-[10px] text-gray-400">Produziu {BRL(totalG)}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {temP
-                      ? <p className="text-sm font-bold text-indigo-600">{BRL(totalC)}</p>
-                      : <p className="text-xs text-gray-300 italic">sem % definida</p>}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Total geral */}
-            <div className="flex items-center justify-between px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl mt-1">
-              <p className="text-sm font-bold text-gray-700">Total geral a pagar</p>
-              <p className="text-xl font-bold text-indigo-600">{BRL(totalGeralPagar)}</p>
-            </div>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
 // ─── Date Range Picker ────────────────────────────────────────────
 
 const PRESETS = [
@@ -1540,15 +1315,14 @@ function DateRangePicker({ dataIni, dataFim, onChange }) {
 // ─── Tabs ─────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "insights",  Icon: BarChart,    label: "Insights"   },
-  { id: "resumo",    Icon: BarChart2,   label: "Resumo"     },
-  { id: "servicos",  Icon: Scissors,   label: "Serviços"   },
-  { id: "produtos",  Icon: Package,    label: "Produtos"   },
-  { id: "horarios",  Icon: Clock,      label: "Horários"   },
-  { id: "clientes",  Icon: User,       label: "Clientes"   },
-  { id: "barbeiros", Icon: Scissors,   label: "Barbeiros"  },
-  { id: "retencao",  Icon: Users,      label: "Retenção"   },
-  { id: "pagamento", Icon: DollarSign, label: "Pagamento"  },
+  { id: "insights",  Icon: BarChart, label: "Insights"  },
+  { id: "resumo",    Icon: BarChart2, label: "Resumo"    },
+  { id: "servicos",  Icon: Scissors, label: "Serviços"  },
+  { id: "produtos",  Icon: Package,  label: "Produtos"  },
+  { id: "horarios",  Icon: Clock,    label: "Horários"  },
+  { id: "clientes",  Icon: User,     label: "Clientes"  },
+  { id: "barbeiros", Icon: Scissors, label: "Barbeiros" },
+  { id: "retencao",  Icon: Users,    label: "Retenção"  },
 ];
 
 // ─── Relatórios principal ─────────────────────────────────────────
@@ -1711,7 +1485,6 @@ export default function Relatorios() {
           {tab === "clientes"  && <TabClientes atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
           {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} assinaturas={assinaturas} carteira={carteiraBarbeiros} detalhe={detalheBarbeiro} setDetalhe={setDetalheBarbeiro} />}
           {tab === "retencao"  && <TabRetencao atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
-          {tab === "pagamento" && <TabPagamento atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} assinaturas={assinaturas} />}
         </motion.div>
       )}
     </div>
