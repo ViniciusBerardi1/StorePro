@@ -115,12 +115,14 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
 
   // IDs de serviços cobertos gratuitamente pelo plano nesta comanda
   const idsViaPlano = useMemo(() => {
+    console.log("[via_plano] assinaturaData:", assinaturaData?.id, "plano:", assinaturaData?.planos?.nome, "beneficios:", assinaturaData?.planos?.beneficios);
+    console.log("[via_plano] beneficiosAplicados:", beneficiosAplicados);
     const ids = new Set(
       beneficiosAplicados
         .filter((b) => b.tipo === "servico_gratis")
         .map((b) => String(b.servico_id))
     );
-    if (ids.size > 0) console.log("[via_plano] beneficiosAplicados:", beneficiosAplicados, "idsViaPlano:", [...ids]);
+    console.log("[via_plano] idsViaPlano:", [...ids]);
     return ids;
   }, [beneficiosAplicados]);
 
@@ -132,7 +134,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
         id: s.id, nome: s.nome, valor: Number(s.valor),
         ...(idsViaPlano.has(String(s.id)) ? { via_plano: true } : {}),
       }));
-    if (idsViaPlano.size > 0) console.log("[via_plano] servicosFinais:", result);
+    console.log("[via_plano] servicosFinais:", result);
     return result;
   }, [servicos, servicosSel, idsViaPlano]);
 
