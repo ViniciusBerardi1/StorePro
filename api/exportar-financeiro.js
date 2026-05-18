@@ -49,6 +49,7 @@ const SQL_COMANDAS = `
     AND c.created_at >= $1::timestamptz
     AND c.created_at <= $2::timestamptz
     AND jsonb_array_length(COALESCE(NULLIF(c.servicos, 'null'::jsonb), '[]'::jsonb)) > 0
+    AND (s->>'via_plano')::boolean IS NOT TRUE
 
   UNION ALL
 

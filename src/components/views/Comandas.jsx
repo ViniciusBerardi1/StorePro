@@ -113,6 +113,23 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
     return map;
   }, [assinaturaData, usoBeneficios]);
 
+  // IDs de serviços cobertos gratuitamente pelo plano nesta comanda
+  const idsViaPlano = useMemo(() => new Set(
+    beneficiosAplicados
+      .filter((b) => b.tipo === "servico_gratis")
+      .map((b) => String(b.servico_id))
+  ), [beneficiosAplicados]);
+
+  // Array de serviços selecionados já com flag via_plano quando aplicável
+  const servicosFinais = useMemo(() =>
+    servicos
+      .filter((s) => servicosSel.has(s.id))
+      .map((s) => ({
+        id: s.id, nome: s.nome, valor: Number(s.valor),
+        ...(idsViaPlano.has(String(s.id)) ? { via_plano: true } : {}),
+      })),
+  [servicos, servicosSel, idsViaPlano]);
+
   const toggleServico = (id) =>
     setServicosSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
@@ -137,7 +154,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
     if (finalizando || removendo || cancelando) return;
     const timer = setTimeout(async () => {
       const payload = {
-        servicos:   servicos.filter((s) => servicosSel.has(s.id)).map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor) })),
+        servicos:   servicosFinais,
         itens_bar:  produtosBar.filter((p) => qtdBar[p.id]).map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdBar[p.id] })),
         itens_loja: produtosLoja.filter((p) => qtdLoja[p.id]).map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdLoja[p.id] })),
         valor_servicos: totalServicos, valor_bar: totalBar, valor_loja: totalLoja, valor_total: total,
@@ -167,7 +184,7 @@ function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja
     setFinalizando(true); setErro(null);
     try {
       await onFinalizar({
-        servicos:   servicos.filter((s) => servicosSel.has(s.id)).map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor) })),
+        servicos:   servicosFinais,
         itens_bar:  produtosBar.filter((p) => qtdBar[p.id]).map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdBar[p.id] })),
         itens_loja: produtosLoja.filter((p) => qtdLoja[p.id]).map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdLoja[p.id] })),
         valor_servicos: totalServicos, valor_bar: totalBar, valor_loja: totalLoja, valor_total: total,
