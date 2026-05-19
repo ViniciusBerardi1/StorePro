@@ -1,47 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { db } from "../../services/supabaseDb";
-import {
-  Scissors, Beer, ShoppingBag, QrCode, CreditCard, Banknote,
-  Crown, Receipt, AlertTriangle, CheckCircle2, XCircle, Plus, Pencil,
-} from "lucide-react";
-
-function fmtValor(v) {
-  return Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { Scissors, Beer, ShoppingBag, AlertTriangle, Pencil } from "lucide-react";
+import { fmtValor } from "../../utils/fmt";
+import { PAGAMENTOS, ALVOS_DESCONTO, calcDesconto, labelDesconto } from "../../utils/desconto";
 
 const TABS = [
   { id: "servicos", label: "Serviços", Icon: Scissors   },
   { id: "bar",      label: "Bar",      Icon: Beer        },
   { id: "loja",     label: "Loja",     Icon: ShoppingBag },
 ];
-
-const PAGAMENTOS = [
-  { id: "pix",      label: "Pix",      Icon: QrCode     },
-  { id: "debito",   label: "Débito",   Icon: CreditCard },
-  { id: "credito",  label: "Crédito",  Icon: CreditCard },
-  { id: "dinheiro", label: "Dinheiro", Icon: Banknote   },
-];
-
-const ALVOS_DESCONTO = [
-  { id: "total",    label: "Total"    },
-  { id: "servicos", label: "Serviços" },
-  { id: "bar",      label: "Bar"      },
-  { id: "loja",     label: "Loja"     },
-];
-
-function calcDesconto(desc, totSvc, totBar, totLoja) {
-  const v = Number(desc.valor || 0);
-  if (v <= 0) return 0;
-  const base = { total: totSvc + totBar + totLoja, servicos: totSvc, bar: totBar, loja: totLoja }[desc.alvo] ?? 0;
-  const calc = desc.tipo === "percent" ? base * (v / 100) : Math.min(v, base);
-  return Math.round(calc * 100) / 100;
-}
-
-function labelDesconto(desc) {
-  const nome = { total: "Total", servicos: "Serviços", bar: "Bar", loja: "Loja" }[desc.alvo] ?? "Total";
-  return desc.tipo === "percent" ? `${nome} −${desc.valor}%` : nome;
-}
 
 export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar }) {
   const [tab, setTab] = useState("servicos");

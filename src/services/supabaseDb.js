@@ -225,40 +225,18 @@ async function getAtendimentosMes(ano, mes) {
   return data;
 }
 
-// eslint-disable-next-line no-unused-vars
-async function getFaturamentoUltimosDias(dias = 7) {
-  const agora = new Date();
-  const inicio = new Date(agora);
-  inicio.setDate(agora.getDate() - (dias - 1));
-  const { ini } = rangeLocalDia(inicio.getFullYear(), inicio.getMonth() + 1, inicio.getDate());
-  const { fim } = rangeLocalDia(agora.getFullYear(), agora.getMonth() + 1, agora.getDate());
-
-  const { data, error } = await supabase
-    .from("atendimentos")
-    .select("data_hora, valor_total")
-    .eq("status", "concluido")
-    .gte("data_hora", ini)
-    .lte("data_hora", fim);
-  if (error) throw error;
-
-  const resultado = [];
-  for (let i = dias - 1; i >= 0; i--) {
-    const d = new Date(agora);
-    d.setDate(agora.getDate() - i);
-    const { ini: dIni, fim: dFim } = rangeLocalDia(d.getFullYear(), d.getMonth() + 1, d.getDate());
-    const dIniMs = new Date(dIni).getTime();
-    const dFimMs = new Date(dFim).getTime();
-    const dataLabel = [
-      d.getFullYear(),
-      String(d.getMonth() + 1).padStart(2, "0"),
-      String(d.getDate()).padStart(2, "0"),
-    ].join("-");
-    const valor = (data ?? [])
-      .filter(a => { const t = new Date(a.data_hora).getTime(); return t >= dIniMs && t <= dFimMs; })
-      .reduce((s, a) => s + (Number(a.valor_total) || 0), 0);
-    resultado.push({ data: dataLabel, valor });
+async function saveComanda(comanda) {
+  const { gcal_event_id } = comanda;
+  if (gcal_event_id) {
+    const { data: existente } = await supabase
+      .from("comandas")
+      .select("id")
+      .eq("gcal_event_id", gcal_event_id)
+      .eq("status", "aberta")
+      .maybeSingle();
+    if (existente) return updateComanda(existente.id, comanda);
   }
-  return resultado;
+  return criarComanda(comanda);
 }
 
 async function addAtendimento(a) {
@@ -863,6 +841,7 @@ export const db = {
   getComandasAbertas,
   criarComanda,
   updateComanda,
+  saveComanda,
   deleteComanda,
   baixarEstoqueComanda,
   getAtendimentosPeriodo,

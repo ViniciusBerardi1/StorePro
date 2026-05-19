@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
 import {
-  Scissors, Beer, ShoppingBag, QrCode, CreditCard, Banknote,
+  Scissors, Beer, ShoppingBag,
   Crown, Receipt, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
   Pencil, Plus, ChevronLeft, Trash2,
 } from "lucide-react";
@@ -21,32 +21,7 @@ function fmtTempo(iso) {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-const PAGAMENTOS = [
-  { id: "pix",      label: "Pix",      Icon: QrCode     },
-  { id: "debito",   label: "Débito",   Icon: CreditCard },
-  { id: "credito",  label: "Crédito",  Icon: CreditCard },
-  { id: "dinheiro", label: "Dinheiro", Icon: Banknote   },
-];
-
-const ALVOS_DESCONTO = [
-  { id: "total",    label: "Total"    },
-  { id: "servicos", label: "Serviços" },
-  { id: "bar",      label: "Bar"      },
-  { id: "loja",     label: "Loja"     },
-];
-
-function calcDesconto(desc, totSvc, totBar, totLoja) {
-  const v = Number(desc.valor || 0);
-  if (v <= 0) return 0;
-  const base = { total: totSvc + totBar + totLoja, servicos: totSvc, bar: totBar, loja: totLoja }[desc.alvo] ?? 0;
-  const calc = desc.tipo === "percent" ? base * (v / 100) : Math.min(v, base);
-  return Math.round(calc * 100) / 100;
-}
-
-function labelDesconto(desc) {
-  const nome = { total: "Total", servicos: "Serviços", bar: "Bar", loja: "Loja" }[desc.alvo] ?? "Total";
-  return desc.tipo === "percent" ? `${nome} −${desc.valor}%` : nome;
-}
+import { PAGAMENTOS, ALVOS_DESCONTO, calcDesconto, labelDesconto } from "../../utils/desconto";
 
 // ─── Full-page editor (2-column layout) ────────────────────────────────────
 function ComandaEditor({ comanda, barbeiros, servicos, produtosBar, produtosLoja, onFinalizar, onRemover, onAutosave, assinaturaData, onBack }) {
