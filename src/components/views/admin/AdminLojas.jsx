@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Store, Plus, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
-import { getAllLojas, createLojaComUsuario, toggleLojaAtivo, deleteLoja } from "../../../services/adminAuth";
+import { Store, Plus, RefreshCw, Eye, EyeOff, CheckCircle, AlertCircle, ToggleLeft, ToggleRight, Trash2, Pencil } from "lucide-react";
+import { getAllLojas, createLojaComUsuario, toggleLojaAtivo, deleteLoja, updateLojaInfo, updateLojaSenha } from "../../../services/adminAuth";
 
 function slugify(str) {
   return str
@@ -199,6 +199,113 @@ function CredenciaisModal({ loja, usuario, onClose }) {
   );
 }
 
+function EditModal({ loja, onSaved, onClose }) {
+  const [nome,       setNome]       = useState(loja.nome);
+  const [senha,      setSenha]      = useState("");
+  const [showSenha,  setShowSenha]  = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!nome.trim()) return;
+    if (senha && senha.length < 6) { setError("Senha deve ter pelo menos 6 caracteres."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      if (nome.trim() !== loja.nome) await updateLojaInfo(loja.id, nome.trim());
+      if (senha) await updateLojaSenha(loja.id, senha);
+      onSaved({ ...loja, nome: nome.trim() });
+    } catch (err) {
+      setError(err.message || "Erro ao salvar alterações.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="flex items-center justify-between mb-5">
+          <p className="font-semibold text-gray-900">Editar barbearia</p>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Nome da barbearia</label>
+            <input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              required
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Identificador (SSID)
+              <span className="ml-1 text-gray-400 font-normal">— não editável</span>
+            </label>
+            <input
+              value={loja.slug || "—"}
+              readOnly
+              className="w-full border border-gray-100 bg-gray-50 rounded-xl px-3 py-2.5 text-sm font-mono text-gray-400 cursor-not-allowed"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Nova senha
+              <span className="ml-1 text-gray-400 font-normal">— deixe em branco para não alterar</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showSenha ? "text" : "password"}
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSenha(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showSenha ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+              <AlertCircle size={14} className="shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-1">
+            <button
+              type="submit"
+              disabled={saving || !nome.trim()}
+              className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {saving ? "Salvando..." : "Salvar alterações"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminLojas() {
   const [lojas,       setLojas]       = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -206,6 +313,7 @@ export default function AdminLojas() {
   const [sucesso,     setSucesso]     = useState(null); // { loja, usuario }
   const [error,       setError]       = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null); // lojaId
+  const [editLoja,    setEditLoja]    = useState(null);   // loja sendo editada
 
   const load = useCallback(async () => {
     try {
@@ -233,6 +341,11 @@ export default function AdminLojas() {
     } catch (err) {
       setError(err.message || "Erro ao atualizar status.");
     }
+  };
+
+  const handleEditSaved = (lojaAtualizada) => {
+    setLojas((prev) => prev.map((l) => l.id === lojaAtualizada.id ? lojaAtualizada : l));
+    setEditLoja(null);
   };
 
   const handleDelete = async (lojaId) => {
@@ -323,6 +436,13 @@ export default function AdminLojas() {
                   <td className="px-5 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
+                        onClick={() => setEditLoja(loja)}
+                        className="p-1 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50"
+                        title="Editar"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
                         onClick={() => handleToggle(loja)}
                         className="text-gray-400 hover:text-gray-600 transition-colors"
                       >
@@ -368,6 +488,14 @@ export default function AdminLojas() {
           loja={sucesso.loja}
           usuario={sucesso.usuario}
           onClose={() => setSucesso(null)}
+        />
+      )}
+
+      {editLoja && (
+        <EditModal
+          loja={editLoja}
+          onSaved={handleEditSaved}
+          onClose={() => setEditLoja(null)}
         />
       )}
     </div>

@@ -193,6 +193,35 @@ export async function deleteLoja(lojaId) {
   if (error) throw error;
 }
 
+export async function updateLojaInfo(lojaId, nome) {
+  const { error } = await adminAuthClient
+    .from("lojas")
+    .update({ nome })
+    .eq("id", lojaId);
+  if (error) throw error;
+
+  // Sincroniza full_name no profile vinculado
+  await adminAuthClient
+    .from("profiles")
+    .update({ full_name: nome })
+    .eq("loja_id", lojaId);
+}
+
+export async function updateLojaSenha(lojaId, novaSenha) {
+  // Busca o profile para obter o auth user id
+  const { data: profile, error: profileErr } = await adminAuthClient
+    .from("profiles")
+    .select("id")
+    .eq("loja_id", lojaId)
+    .single();
+  if (profileErr) throw profileErr;
+
+  const { error } = await tempClient.auth.admin.updateUserById(profile.id, {
+    password: novaSenha,
+  });
+  if (error) throw error;
+}
+
 export async function deleteUser(userId) {
   // Deleta o usuário do Supabase Auth (cascata remove o profile)
   const { error } = await tempClient.auth.admin.deleteUser(userId);
