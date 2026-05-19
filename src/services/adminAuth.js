@@ -1,17 +1,31 @@
 /**
  * adminAuth — Supabase Auth + profiles CRUD for the admin area.
  * Only imported by admin components; never used in the barbershop app.
+ *
+ * Operações que requerem service_role são delegadas às Vercel API routes
+ * em /api/admin/* para que a service key nunca chegue ao bundle do browser.
  */
 import { adminAuthClient } from "./adminAuthClient";
-import { createClient } from "@supabase/supabase-js";
 
-// Cliente service-role para criar usuários sem confirmação de email e sem
-// afetar a sessão do admin. Service key dá bypass em RLS — use só aqui.
-const tempClient = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_SERVICE_KEY,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+// ── Helper: obtém o JWT do admin para autenticar nas API routes ──
+
+async function getAdminToken() {
+  const { data: { session } } = await adminAuthClient.auth.getSession();
+  if (!session?.access_token) throw new Error("Sessão expirada. Faça login novamente.");
+  return session.access_token;
+}
+
+async function adminFetch(path, body) {
+  const token = await getAdminToken();
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.erro || "Erro na requisição");
+  return data;
+}
 
 // ── Auth ────────────────────────────────────────────────────────
 
@@ -99,9 +113,9 @@ export async function getAppStats() {
     adminAuthClient.from("configuracoes").select("chave, valor").in("chave", ["app_senha"]),
   ]);
   return {
-    totalClients:      clients.count ?? 0,
+    totalClients:        clients.count ?? 0,
     activeSubscriptions: subs.count ?? 0,
-    hasAppPassword:    (configs.data ?? []).some((c) => c.chave === "app_senha" && c.valor),
+    hasAppPassword:      (configs.data ?? []).some((c) => c.chave === "app_senha" && c.valor),
   };
 }
 
@@ -127,38 +141,7 @@ export async function getAllSubscriptions() {
 // ── Lojas ────────────────────────────────────────────────────────
 
 export async function createLojaComUsuario(nome, slug, senha) {
-  const email = `${slug}@loja.storepro`;
-
-  // 1. Cria a loja
-  const { data: loja, error: lojaErr } = await adminAuthClient
-    .from("lojas")
-    .insert({ nome, slug })
-    .select()
-    .single();
-  if (lojaErr) throw lojaErr;
-
-  // 2. Cria o usuário via admin API (service key bypassa confirmação de email e RLS)
-  const { data: authData, error: authErr } = await tempClient.auth.admin.createUser({
-    email,
-    password: senha,
-    email_confirm: true,
-    user_metadata: { full_name: nome, loja_id: loja.id },
-  });
-  if (authErr) {
-    await adminAuthClient.from("lojas").delete().eq("id", loja.id);
-    throw authErr;
-  }
-
-  // 3. Vincula o profile à loja (trigger handle_new_auth_user já faz isso via metadata,
-  //    mas garantimos com upsert caso o trigger não tenha rodado ainda)
-  if (authData.user) {
-    await tempClient
-      .from("profiles")
-      .upsert({ id: authData.user.id, email, full_name: nome, role: "user", loja_id: loja.id },
-               { onConflict: "id" });
-  }
-
-  return { loja, usuario: authData.user };
+  return adminFetch("/api/admin/criar-loja", { nome, slug, senha });
 }
 
 export async function getAllLojas() {
@@ -189,8 +172,7 @@ export async function toggleLojaAtivo(lojaId, ativo) {
 }
 
 export async function deleteLoja(lojaId) {
-  const { error } = await tempClient.rpc("admin_delete_loja", { p_loja_id: lojaId });
-  if (error) throw error;
+  return adminFetch("/api/admin/deletar-loja", { lojaId });
 }
 
 export async function updateLojaInfo(lojaId, nome) {
@@ -200,7 +182,6 @@ export async function updateLojaInfo(lojaId, nome) {
     .eq("id", lojaId);
   if (error) throw error;
 
-  // Sincroniza full_name no profile vinculado
   await adminAuthClient
     .from("profiles")
     .update({ full_name: nome })
@@ -208,24 +189,11 @@ export async function updateLojaInfo(lojaId, nome) {
 }
 
 export async function updateLojaSenha(lojaId, novaSenha) {
-  // Busca o profile para obter o auth user id
-  const { data: profile, error: profileErr } = await adminAuthClient
-    .from("profiles")
-    .select("id")
-    .eq("loja_id", lojaId)
-    .single();
-  if (profileErr) throw profileErr;
-
-  const { error } = await tempClient.auth.admin.updateUserById(profile.id, {
-    password: novaSenha,
-  });
-  if (error) throw error;
+  return adminFetch("/api/admin/atualizar-senha", { lojaId, novaSenha });
 }
 
 export async function deleteUser(userId) {
-  // Deleta o usuário do Supabase Auth (cascata remove o profile)
-  const { error } = await tempClient.auth.admin.deleteUser(userId);
-  if (error) throw error;
+  return adminFetch("/api/admin/deletar-usuario", { userId });
 }
 
 export async function assignUserToLoja(userId, lojaId) {
