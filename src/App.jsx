@@ -1,30 +1,45 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Store, Lock, AlertTriangle, LogOut } from "lucide-react";
 import Sidebar from "./components/layout/Sidebar";
 import ProdutoList from "./components/produto/ProdutoList";
 import ProdutoForm from "./components/produto/ProdutoForm";
-import Dashboard from "./components/views/Dashboard";
-import Sobre from "./components/views/Sobre";
-import EmBreve from "./components/views/EmBreve";
-import Agenda from "./components/views/Agenda";
-import Servicos from "./components/views/Servicos";
-import Barbeiros from "./components/views/Barbeiros";
-import Comandas from "./components/views/Comandas";
-import ClientesLista, { PlanosManager } from "./components/views/ClientesLista";
-import Relatorios from "./components/views/Relatorios";
-import Caixa from "./components/views/Caixa";
-import Configuracoes from "./components/views/Configuracoes";
-import PaginaAssinatura from "./components/views/PaginaAssinatura";
-import AdminApp from "./components/admin/AdminApp";
-import ResetPassword from "./components/admin/ResetPassword";
 import AppLogin from "./components/app/AppLogin";
-import Cadastro from "./components/app/Cadastro";
 import { useAppAuth } from "./hooks/useAppAuth";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
 import { supabase } from "./services/supabase";
+
+// ─── Lazy imports — rotas especiais (nunca precisam estar no bundle principal) ─
+const AdminApp       = lazy(() => import("./components/admin/AdminApp"));
+const ResetPassword  = lazy(() => import("./components/admin/ResetPassword"));
+const Cadastro       = lazy(() => import("./components/app/Cadastro"));
+const PaginaAssinatura = lazy(() => import("./components/views/PaginaAssinatura"));
+
+// ─── Lazy imports — views do app (carregadas sob demanda) ──────────────────────
+const Agenda       = lazy(() => import("./components/views/Agenda"));
+const Comandas     = lazy(() => import("./components/views/Comandas"));
+const Dashboard    = lazy(() => import("./components/views/Dashboard"));
+const Relatorios   = lazy(() => import("./components/views/Relatorios"));
+const Caixa        = lazy(() => import("./components/views/Caixa"));
+const Barbeiros    = lazy(() => import("./components/views/Barbeiros"));
+const Servicos     = lazy(() => import("./components/views/Servicos"));
+const Configuracoes = lazy(() => import("./components/views/Configuracoes"));
+const Sobre        = lazy(() => import("./components/views/Sobre"));
+const EmBreve      = lazy(() => import("./components/views/EmBreve"));
+const ClientesLista = lazy(() => import("./components/views/ClientesLista"));
+const PlanosManager = lazy(() =>
+  import("./components/views/ClientesLista").then((m) => ({ default: m.PlanosManager }))
+);
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <div className="w-8 h-8 rounded-2xl bg-indigo-600 animate-pulse" />
+    </div>
+  );
+}
 
 // ─── Detecção de rotas especiais ─────────────────────────────────
 const isPublicRoute  = window.location.pathname.startsWith("/assinar");
@@ -194,11 +209,10 @@ function SenhaModal({ onConfirmar, onFechar }) {
 }
 
 export default function App() {
-  // Rotas especiais renderizadas sem o shell do app principal
-  if (isPublicRoute)  return <PaginaAssinatura />;
-  if (isResetRoute)   return <ResetPassword />;
-  if (isCadastroRoute) return <Cadastro />;
-  if (isAdminRoute)   return <AdminApp />;
+  if (isPublicRoute)   return <Suspense fallback={<PageLoader />}><PaginaAssinatura /></Suspense>;
+  if (isResetRoute)    return <Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>;
+  if (isCadastroRoute) return <Suspense fallback={<PageLoader />}><Cadastro /></Suspense>;
+  if (isAdminRoute)    return <Suspense fallback={<PageLoader />}><AdminApp /></Suspense>;
 
   return <AppInterno />;
 }
@@ -529,54 +543,53 @@ function AppPrincipal() {
             exit="exit"
             transition={pageTransition}
           >
-            {view === "configuracoes" ? (
-              <Configuracoes />
-            ) : view === "sobre" ? (
-              <Sobre />
-            ) : view === "servicos" ? (
-              <Servicos />
-            ) : view === "barbeiros" ? (
-              <Barbeiros />
-            ) : view === "financeiro" ? (
-              <Dashboard
-                produtos={produtos}
-                setView={navegar}
-              />
-            ) : view === "caixa" ? (
-              <Caixa />
-            ) : view === "comandas" ? (
-              <Comandas onAtendimentoFinalizado={carregarDashboard} />
-            ) : view === "clientes_lista" ? (
-              <ClientesLista />
-            ) : view === "planos" ? (
-              <PlanosManager />
-            ) : view === "relatorios" ? (
-              <Relatorios />
-            ) : view === "agenda" ? (
-              <Agenda
-                onAtendimentoFinalizado={carregarDashboard}
-                onAbrirComanda={onAbrirComanda}
-              />
-            ) : VIEWS_ESTOQUE.includes(view) ? (
-              <ProdutoList
-                titulo={
-                  view === "estoque_baixo" ? "Estoque Baixo" :
-                  view === "estoque_bar" ? "Bar" :
-                  view === "estoque_loja" ? "Loja" :
-                  "Estoque"
-                }
-                produtos={produtosFiltrados}
-                categorias={categorias}
-                onEditar={handleEditar}
-                onDeletar={handleDeletar}
-                onNovo={handleNovo}
-                onAtualizarQuantidade={handleAtualizarQuantidade}
-                historicoEstoque={historicoEstoque}
-                mostrarBotaoNovo={true}
-              />
-            ) : (
-              <EmBreve modulo={view} />
-            )}
+            <Suspense fallback={<PageLoader />}>
+              {view === "configuracoes" ? (
+                <Configuracoes />
+              ) : view === "sobre" ? (
+                <Sobre />
+              ) : view === "servicos" ? (
+                <Servicos />
+              ) : view === "barbeiros" ? (
+                <Barbeiros />
+              ) : view === "financeiro" ? (
+                <Dashboard produtos={produtos} setView={navegar} />
+              ) : view === "caixa" ? (
+                <Caixa />
+              ) : view === "comandas" ? (
+                <Comandas onAtendimentoFinalizado={carregarDashboard} />
+              ) : view === "clientes_lista" ? (
+                <ClientesLista />
+              ) : view === "planos" ? (
+                <PlanosManager />
+              ) : view === "relatorios" ? (
+                <Relatorios />
+              ) : view === "agenda" ? (
+                <Agenda
+                  onAtendimentoFinalizado={carregarDashboard}
+                  onAbrirComanda={onAbrirComanda}
+                />
+              ) : VIEWS_ESTOQUE.includes(view) ? (
+                <ProdutoList
+                  titulo={
+                    view === "estoque_baixo" ? "Estoque Baixo" :
+                    view === "estoque_bar" ? "Bar" :
+                    view === "estoque_loja" ? "Loja" :
+                    "Estoque"
+                  }
+                  produtos={produtosFiltrados}
+                  categorias={categorias}
+                  onEditar={handleEditar}
+                  onDeletar={handleDeletar}
+                  onNovo={handleNovo}
+                  onAtualizarQuantidade={handleAtualizarQuantidade}
+                  historicoEstoque={historicoEstoque}
+                  mostrarBotaoNovo={true}
+                />
+              ) : (
+                <EmBreve modulo={view} />
+              )}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
         </div>
