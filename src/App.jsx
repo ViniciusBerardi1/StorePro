@@ -12,10 +12,11 @@ import { db } from "./services/supabaseDb";
 import { supabase } from "./services/supabase";
 
 // ─── Lazy imports — rotas especiais (nunca precisam estar no bundle principal) ─
-const AdminApp       = lazy(() => import("./components/admin/AdminApp"));
-const ResetPassword  = lazy(() => import("./components/admin/ResetPassword"));
-const Cadastro       = lazy(() => import("./components/app/Cadastro"));
+const AdminApp         = lazy(() => import("./components/admin/AdminApp"));
+const ResetPassword    = lazy(() => import("./components/admin/ResetPassword"));
+const Cadastro         = lazy(() => import("./components/app/Cadastro"));
 const PaginaAssinatura = lazy(() => import("./components/views/PaginaAssinatura"));
+const BarbeiroApp      = lazy(() => import("./components/barbeiro/BarbeiroApp"));
 
 // ─── Lazy imports — views do app (carregadas sob demanda) ──────────────────────
 const Agenda       = lazy(() => import("./components/views/Agenda"));
@@ -42,10 +43,11 @@ function PageLoader() {
 }
 
 // ─── Detecção de rotas especiais ─────────────────────────────────
-const isPublicRoute  = window.location.pathname.startsWith("/assinar");
-const isAdminRoute   = window.location.pathname.startsWith("/admin");
-const isResetRoute   = window.location.pathname.startsWith("/reset-password");
-const isCadastroRoute = window.location.pathname.startsWith("/cadastro");
+const isPublicRoute    = window.location.pathname.startsWith("/assinar");
+const isAdminRoute     = window.location.pathname.startsWith("/admin");
+const isResetRoute     = window.location.pathname.startsWith("/reset-password");
+const isCadastroRoute  = window.location.pathname.startsWith("/cadastro");
+const isBarbeiroRoute  = window.location.pathname.startsWith("/barbeiro");
 
 const VIEWS_ESTOQUE = ["estoque", "estoque_baixo", "produtos", "estoque_loja", "estoque_bar"];
 
@@ -213,6 +215,7 @@ export default function App() {
   if (isResetRoute)    return <Suspense fallback={<PageLoader />}><ResetPassword /></Suspense>;
   if (isCadastroRoute) return <Suspense fallback={<PageLoader />}><Cadastro /></Suspense>;
   if (isAdminRoute)    return <Suspense fallback={<PageLoader />}><AdminApp /></Suspense>;
+  if (isBarbeiroRoute) return <Suspense fallback={<PageLoader />}><BarbeiroApp /></Suspense>;
 
   return <AppInterno />;
 }

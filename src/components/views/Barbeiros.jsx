@@ -22,6 +22,7 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
   const [form, setForm] = useState({
     nome: barbeiro?.nome ?? "",
     gcal_color_id: barbeiro?.gcal_color_id ?? "9",
+    codigo_acesso: barbeiro?.codigo_acesso ?? "",
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
@@ -31,6 +32,8 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
     if (!form.nome.trim()) return setErro("Informe o nome do barbeiro.");
     if (coresEmUso.includes(form.gcal_color_id))
       return setErro("Esta cor já está em uso por outro barbeiro.");
+    if (form.codigo_acesso && !/^\d{4,10}$/.test(form.codigo_acesso))
+      return setErro("Código de acesso deve ter 4 a 10 dígitos numéricos.");
     setErro(null);
     setSalvando(true);
     try {
@@ -124,6 +127,24 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
                 </span>
               )}
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
+              Código de acesso do portal{" "}
+              <span className="text-gray-400 font-normal">(4–10 dígitos)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.codigo_acesso}
+              onChange={(e) => setForm((f) => ({ ...f, codigo_acesso: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+              placeholder="Ex: 1234"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">
+              Usado pelo barbeiro para entrar em <span className="font-medium">/barbeiro</span>
+            </p>
           </div>
 
           {erro && (
@@ -259,6 +280,13 @@ export default function Barbeiros() {
                       style={{ backgroundColor: cor.hex }}
                     />
                     {cor.label}
+                    {b.codigo_acesso && (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <span className="font-mono">{"·".repeat(b.codigo_acesso.length)}</span>
+                        <span className="text-gray-300">portal</span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
