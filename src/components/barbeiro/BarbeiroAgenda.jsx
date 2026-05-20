@@ -115,8 +115,9 @@ export default function BarbeiroAgenda() {
         `/api/barbeiro/agenda?ini=${ini.toISOString()}&fim=${fim.toISOString()}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.erro ?? "Erro");
+      let data;
+      try { data = await res.json(); } catch { data = {}; }
+      if (!res.ok) throw new Error(data.erro ?? `Erro ${res.status}`);
       setAtendimentos(data.atendimentos ?? []);
     } catch (e) {
       setErro(e.message);
