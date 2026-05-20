@@ -29,6 +29,8 @@ function getPool() {
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
+// Colunas extras por linha: desconto_calculado, desconto_alvo, valor_servicos_comanda,
+// valor_bar_comanda, valor_loja_comanda — usadas em JS para distribuir o desconto por item.
 const SQL_COMANDAS = `
   SELECT
     c.created_at                              AS data,
@@ -39,7 +41,12 @@ const SQL_COMANDAS = `
     s->>'nome'                                AS descricao,
     1                                         AS quantidade,
     (s->>'valor')::numeric                    AS valor_unitario,
-    (s->>'valor')::numeric                    AS valor_total
+    (s->>'valor')::numeric                    AS valor_total,
+    COALESCE((c.desconto->>'valor_calculado')::numeric, 0) AS desconto_calculado,
+    COALESCE(c.desconto->>'alvo', 'total')    AS desconto_alvo,
+    COALESCE(c.valor_servicos, 0)::numeric    AS valor_servicos_comanda,
+    COALESCE(c.valor_bar,      0)::numeric    AS valor_bar_comanda,
+    COALESCE(c.valor_loja,     0)::numeric    AS valor_loja_comanda
   FROM comandas c
   LEFT JOIN barbeiros b ON b.id = c.barbeiro_id
   CROSS JOIN LATERAL jsonb_array_elements(
@@ -61,7 +68,12 @@ const SQL_COMANDAS = `
     i->>'nome',
     (i->>'quantidade')::int,
     (i->>'preco_venda')::numeric,
-    (i->>'quantidade')::int * (i->>'preco_venda')::numeric
+    (i->>'quantidade')::int * (i->>'preco_venda')::numeric,
+    COALESCE((c.desconto->>'valor_calculado')::numeric, 0),
+    COALESCE(c.desconto->>'alvo', 'total'),
+    COALESCE(c.valor_servicos, 0)::numeric,
+    COALESCE(c.valor_bar,      0)::numeric,
+    COALESCE(c.valor_loja,     0)::numeric
   FROM comandas c
   LEFT JOIN barbeiros b ON b.id = c.barbeiro_id
   CROSS JOIN LATERAL jsonb_array_elements(
@@ -82,7 +94,12 @@ const SQL_COMANDAS = `
     i->>'nome',
     (i->>'quantidade')::int,
     (i->>'preco_venda')::numeric,
-    (i->>'quantidade')::int * (i->>'preco_venda')::numeric
+    (i->>'quantidade')::int * (i->>'preco_venda')::numeric,
+    COALESCE((c.desconto->>'valor_calculado')::numeric, 0),
+    COALESCE(c.desconto->>'alvo', 'total'),
+    COALESCE(c.valor_servicos, 0)::numeric,
+    COALESCE(c.valor_bar,      0)::numeric,
+    COALESCE(c.valor_loja,     0)::numeric
   FROM comandas c
   LEFT JOIN barbeiros b ON b.id = c.barbeiro_id
   CROSS JOIN LATERAL jsonb_array_elements(
@@ -96,15 +113,17 @@ const SQL_COMANDAS = `
   UNION ALL
 
   SELECT
-    c.created_at                              AS data,
-    c.id                                      AS comanda_id,
-    COALESCE(b.nome, 'Sem barbeiro')          AS barbeiro,
-    COALESCE(c.cliente_nome, '—')             AS cliente,
-    'SERVICO_PLANO'                           AS tipo,
-    s->>'nome'                                AS descricao,
-    1                                         AS quantidade,
-    (s->>'valor')::numeric                    AS valor_unitario,
-    (s->>'valor')::numeric                    AS valor_total
+    c.created_at, c.id,
+    COALESCE(b.nome, 'Sem barbeiro'),
+    COALESCE(c.cliente_nome, '—'),
+    'SERVICO_PLANO',
+    s->>'nome',
+    1,
+    (s->>'valor')::numeric,
+    (s->>'valor')::numeric,
+    0::numeric,
+    'none'::text,
+    0::numeric, 0::numeric, 0::numeric
   FROM comandas c
   LEFT JOIN barbeiros b ON b.id = c.barbeiro_id
   CROSS JOIN LATERAL jsonb_array_elements(
@@ -141,17 +160,78 @@ const SQL_PLANOS = `
 
 const SQL_KPIS = `
   SELECT
-    COUNT(DISTINCT c.id)                                            AS total_comandas,
-    COUNT(DISTINCT c.cliente_id)                                    AS clientes_unicos,
-    COALESCE(SUM(c.valor_total), 0)                                 AS receita_bruta,
-    COALESCE(SUM(c.valor_servicos), 0)                              AS receita_servicos,
-    COALESCE(SUM(c.valor_bar), 0)                                   AS receita_bar,
-    COALESCE(SUM(c.valor_loja), 0)                                  AS receita_loja,
-    COALESCE(SUM(c.beneficio_desconto), 0)                          AS total_descontos,
-    COALESCE(SUM(c.valor_total - COALESCE(c.beneficio_desconto,0)), 0) AS receita_liquida,
+    COUNT(DISTINCT c.id)  AS total_comandas,
+    COUNT(DISTINCT c.cliente_id) AS clientes_unicos,
+
+    -- Bruto: soma dos preços de tabela antes de qualquer desconto
+    COALESCE(SUM(c.valor_servicos + c.valor_bar + c.valor_loja), 0) AS receita_bruta,
+    COALESCE(SUM(c.valor_servicos), 0) AS receita_servicos_bruta,
+    COALESCE(SUM(c.valor_bar),      0) AS receita_bar_bruta,
+    COALESCE(SUM(c.valor_loja),     0) AS receita_loja_bruta,
+
+    -- Descontos separados para transparência no DRE
+    COALESCE(SUM(COALESCE((c.desconto->>'valor_calculado')::numeric, 0)), 0) AS desconto_manual,
+    COALESCE(SUM(COALESCE(c.beneficio_desconto, 0)), 0)                      AS desconto_beneficio,
+    COALESCE(
+      SUM(COALESCE((c.desconto->>'valor_calculado')::numeric, 0)) +
+      SUM(COALESCE(c.beneficio_desconto, 0))
+    , 0) AS total_descontos,
+
+    -- Líquido por categoria (bruto - desconto manual distribuído proporcionalmente)
+    COALESCE(SUM(
+      CASE COALESCE(c.desconto->>'alvo', 'total')
+        WHEN 'bar'  THEN c.valor_servicos
+        WHEN 'loja' THEN c.valor_servicos
+        WHEN 'servicos' THEN
+          GREATEST(0, c.valor_servicos
+            - COALESCE((c.desconto->>'valor_calculado')::numeric, 0))
+        ELSE
+          CASE WHEN (c.valor_servicos + c.valor_bar + c.valor_loja) > 0
+            THEN GREATEST(0, c.valor_servicos
+              - COALESCE((c.desconto->>'valor_calculado')::numeric, 0)
+                * c.valor_servicos / (c.valor_servicos + c.valor_bar + c.valor_loja))
+            ELSE c.valor_servicos END
+      END
+    ), 0) AS receita_servicos_liquida,
+
+    COALESCE(SUM(
+      CASE COALESCE(c.desconto->>'alvo', 'total')
+        WHEN 'servicos' THEN c.valor_bar
+        WHEN 'loja'     THEN c.valor_bar
+        WHEN 'bar' THEN
+          GREATEST(0, c.valor_bar
+            - COALESCE((c.desconto->>'valor_calculado')::numeric, 0))
+        ELSE
+          CASE WHEN (c.valor_servicos + c.valor_bar + c.valor_loja) > 0
+            THEN GREATEST(0, c.valor_bar
+              - COALESCE((c.desconto->>'valor_calculado')::numeric, 0)
+                * c.valor_bar / (c.valor_servicos + c.valor_bar + c.valor_loja))
+            ELSE c.valor_bar END
+      END
+    ), 0) AS receita_bar_liquida,
+
+    COALESCE(SUM(
+      CASE COALESCE(c.desconto->>'alvo', 'total')
+        WHEN 'servicos' THEN c.valor_loja
+        WHEN 'bar'      THEN c.valor_loja
+        WHEN 'loja' THEN
+          GREATEST(0, c.valor_loja
+            - COALESCE((c.desconto->>'valor_calculado')::numeric, 0))
+        ELSE
+          CASE WHEN (c.valor_servicos + c.valor_bar + c.valor_loja) > 0
+            THEN GREATEST(0, c.valor_loja
+              - COALESCE((c.desconto->>'valor_calculado')::numeric, 0)
+                * c.valor_loja / (c.valor_servicos + c.valor_bar + c.valor_loja))
+            ELSE c.valor_loja END
+      END
+    ), 0) AS receita_loja_liquida,
+
+    -- Líquido final: o que entrou no caixa (valor_total já é pós-desconto)
+    COALESCE(SUM(c.valor_total), 0) AS receita_liquida,
+
     CASE WHEN COUNT(DISTINCT c.id) > 0
       THEN ROUND(SUM(c.valor_total) / COUNT(DISTINCT c.id), 2)
-      ELSE 0 END                                                    AS ticket_medio
+      ELSE 0 END AS ticket_medio
   FROM comandas c
   WHERE c.status = 'fechada'
     AND c.created_at >= $1::timestamptz
@@ -168,18 +248,41 @@ const SQL_DIARIO = `
 `;
 
 const SQL_TOP_SERVICOS = `
+  WITH svc_items AS (
+    SELECT
+      s->>'nome'                                              AS servico,
+      (s->>'valor')::numeric                                  AS valor,
+      COALESCE(c.valor_servicos, 0)::numeric                  AS vs,
+      COALESCE(c.valor_bar,      0)::numeric                  AS vb,
+      COALESCE(c.valor_loja,     0)::numeric                  AS vl,
+      COALESCE((c.desconto->>'valor_calculado')::numeric, 0)  AS desc_calc,
+      COALESCE(c.desconto->>'alvo', 'total')                  AS desc_alvo
+    FROM comandas c
+    CROSS JOIN LATERAL jsonb_array_elements(
+      COALESCE(NULLIF(c.servicos, 'null'::jsonb), '[]'::jsonb)
+    ) AS s
+    WHERE c.status = 'fechada'
+      AND c.created_at >= $1::timestamptz
+      AND c.created_at <= $2::timestamptz
+      AND (s->>'via_plano')::boolean IS NOT TRUE
+  )
   SELECT
-    s->>'nome'                           AS servico,
-    COUNT(*)                             AS qtd,
-    SUM((s->>'valor')::numeric)          AS total
-  FROM comandas c
-  CROSS JOIN LATERAL jsonb_array_elements(
-    COALESCE(NULLIF(c.servicos, 'null'::jsonb), '[]'::jsonb)
-  ) AS s
-  WHERE c.status = 'fechada'
-    AND c.created_at >= $1::timestamptz
-    AND c.created_at <= $2::timestamptz
-  GROUP BY s->>'nome'
+    servico,
+    COUNT(*) AS qtd,
+    SUM(
+      CASE desc_alvo
+        WHEN 'bar'  THEN valor
+        WHEN 'loja' THEN valor
+        WHEN 'servicos' THEN
+          CASE WHEN vs > 0 THEN GREATEST(0, valor - desc_calc * valor / vs) ELSE valor END
+        ELSE
+          CASE WHEN (vs + vb + vl) > 0
+            THEN GREATEST(0, valor - desc_calc * valor / (vs + vb + vl))
+            ELSE valor END
+      END
+    ) AS total
+  FROM svc_items
+  GROUP BY servico
   ORDER BY total DESC
   LIMIT 5
 `;
@@ -281,13 +384,39 @@ function fmtDateLocal(ts) {
   });
 }
 
+// Distribui o desconto da comanda proporcionalmente ao item. Retorna o valor efetivo líquido.
+function calcEfetivoItem(row) {
+  const bruto     = Number(row.valor_total);
+  const desconto  = Number(row.desconto_calculado || 0);
+  if (desconto <= 0) return bruto;
+
+  const alvo = row.desconto_alvo || "total";
+  const tipo = row.tipo;
+  const vs = Number(row.valor_servicos_comanda || 0);
+  const vb = Number(row.valor_bar_comanda      || 0);
+  const vl = Number(row.valor_loja_comanda     || 0);
+
+  let baseTipo, baseTotal;
+  if      (alvo === "servicos" && tipo === "SERVICO")       { baseTipo = desconto; baseTotal = vs; }
+  else if (alvo === "bar"      && tipo === "PRODUTO_BAR")   { baseTipo = desconto; baseTotal = vb; }
+  else if (alvo === "loja"     && tipo === "PRODUTO_LOJA")  { baseTipo = desconto; baseTotal = vl; }
+  else if (alvo === "total")                                 { baseTipo = desconto; baseTotal = vs + vb + vl; }
+  else return bruto; // desconto não se aplica a este tipo de item
+
+  if (baseTotal <= 0) return bruto;
+  return Math.max(0, bruto - baseTipo * (bruto / baseTotal));
+}
+
+// Agrupa itens por descrição somando valor efetivo (pós-desconto) e bruto separadamente.
 function groupByDesc(rows) {
   const map = {};
   for (const r of rows) {
     const k = r.descricao;
-    if (!map[k]) map[k] = { descricao: k, quantidade: 0, valor: 0 };
-    map[k].quantidade += Number(r.quantidade);
-    map[k].valor      += Number(r.valor_total);
+    const efetivo = calcEfetivoItem(r);
+    if (!map[k]) map[k] = { descricao: k, quantidade: 0, valor: 0, valor_bruto: 0 };
+    map[k].quantidade  += Number(r.quantidade);
+    map[k].valor       += efetivo;
+    map[k].valor_bruto += Number(r.valor_total);
   }
   return Object.values(map).sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR"));
 }
@@ -381,12 +510,13 @@ function buildResumo(wb, kpi, diario, topServicos, periodo) {
   r = secaoHeader(ws, r, "📊  Indicadores do Período", 5);
 
   const kpiData = [
-    ["Comandas Fechadas",    Number(kpi.total_comandas),   null],
-    ["Clientes Atendidos",   Number(kpi.clientes_unicos),  null],
-    ["Receita Bruta",        Number(kpi.receita_bruta),    "moeda"],
-    ["Ticket Médio",         Number(kpi.ticket_medio),     "moeda"],
-    ["Descontos Aplicados",  Number(kpi.total_descontos),  "moeda"],
-    ["Receita Líquida",      Number(kpi.receita_liquida),  "moeda"],
+    ["Comandas Fechadas",             Number(kpi.total_comandas),   null],
+    ["Clientes Atendidos",            Number(kpi.clientes_unicos),  null],
+    ["Receita Bruta (tabela)",        Number(kpi.receita_bruta),    "moeda"],
+    ["(−) Descontos manuais",         Number(kpi.desconto_manual),  "moeda"],
+    ["(−) Descontos benefícios/plano",Number(kpi.desconto_beneficio),"moeda"],
+    ["Receita Líquida (caixa)",       Number(kpi.receita_liquida),  "moeda"],
+    ["Ticket Médio",                  Number(kpi.ticket_medio),     "moeda"],
   ];
 
   for (const [label, valor, fmt] of kpiData) {
@@ -406,25 +536,40 @@ function buildResumo(wb, kpi, diario, topServicos, periodo) {
   }
   r++;
 
-  // ── Receita por Categoria ──
-  r = secaoHeader(ws, r, "💰  Receita por Categoria", 5);
+  // ── Receita por Categoria (valores líquidos, pós-desconto) ──
+  r = secaoHeader(ws, r, "💰  Receita por Categoria (líquida, pós-desconto)", 5);
 
   const cats = [
-    ["Serviços",  kpi.receita_servicos],
-    ["Bar",       kpi.receita_bar],
-    ["Loja",      kpi.receita_loja],
+    ["Serviços",  kpi.receita_servicos_liquida, kpi.receita_servicos_bruta],
+    ["Bar",       kpi.receita_bar_liquida,      kpi.receita_bar_bruta],
+    ["Loja",      kpi.receita_loja_liquida,     kpi.receita_loja_bruta],
   ];
   const totalCat = cats.reduce((s, [, v]) => s + Number(v), 0);
 
-  for (const [cat, val] of cats) {
+  // Header da tabela de categorias com Bruto/Desconto/Líquido/%
+  const hdrCat = ws.getRow(r);
+  ["Categoria", "Bruto (tabela)", "Descontos", "Líquido", "% Líquido"].forEach((lbl, i) => {
+    hdrCat.getCell(i + 1).value = lbl;
+    hdrCat.getCell(i + 1).font  = { bold: true };
+    hdrCat.getCell(i + 1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
+    hdrCat.getCell(i + 1).alignment = { horizontal: i === 0 ? "left" : "center" };
+    borda(hdrCat.getCell(i + 1));
+  });
+  r++;
+
+  for (const [cat, liq, bruto] of cats) {
     const row = ws.getRow(r);
-    const pct  = totalCat > 0 ? (Number(val) / totalCat) : 0;
+    const desc = Number(bruto) - Number(liq);
+    const pct  = totalCat > 0 ? Number(liq) / totalCat : 0;
     row.getCell(1).value = cat;
-    moeda(row.getCell(2), val);
-    row.getCell(3).value  = pct;
-    row.getCell(3).numFmt = "0.0%";
-    row.getCell(3).alignment = { horizontal: "center" };
-    [1, 2, 3].forEach(c => borda(row.getCell(c)));
+    moeda(row.getCell(2), bruto);
+    moeda(row.getCell(3), desc);
+    row.getCell(3).font = { color: { argb: COR.orangeText } };
+    moeda(row.getCell(4), liq);
+    row.getCell(5).value  = pct;
+    row.getCell(5).numFmt = "0.0%";
+    row.getCell(5).alignment = { horizontal: "center" };
+    [1, 2, 3, 4, 5].forEach(c => borda(row.getCell(c)));
     r++;
   }
   r++;
@@ -528,11 +673,16 @@ function buildDRE(wb, kpi, cmv, periodo) {
   const cmvLoja = Number(cmv.cmv_loja) || 0;
   const cmvTotal = cmvBar + cmvLoja;
 
-  const recBruta    = Number(kpi.receita_bruta)    || 0;
-  const descontos   = Number(kpi.total_descontos)  || 0;
-  const recLiquida  = Number(kpi.receita_liquida)  || 0;
-  const lucroBruto  = recLiquida - cmvTotal;
-  const margem      = recLiquida > 0 ? lucroBruto / recLiquida : 0;
+  const recBruta       = Number(kpi.receita_bruta)          || 0;
+  const recSvcBruta    = Number(kpi.receita_servicos_bruta)  || 0;
+  const recBarBruta    = Number(kpi.receita_bar_bruta)       || 0;
+  const recLojaBruta   = Number(kpi.receita_loja_bruta)      || 0;
+  const descontoManual = Number(kpi.desconto_manual)         || 0;
+  const descontoBenef  = Number(kpi.desconto_beneficio)      || 0;
+  const totalDescontos = Number(kpi.total_descontos)         || 0;
+  const recLiquida     = Number(kpi.receita_liquida)         || 0;
+  const lucroBruto     = recLiquida - cmvTotal;
+  const margem         = recLiquida > 0 ? lucroBruto / recLiquida : 0;
 
   function linhaDRE(label, valor, nivel = 0, destaque = false, vermelho = false) {
     const row = ws.getRow(r);
@@ -570,17 +720,21 @@ function buildDRE(wb, kpi, cmv, periodo) {
   r++;
 
   // Bloco de Receita
-  r = secaoHeader(ws, r, "RECEITA BRUTA", 3, COR.medBlue);
-  linhaDRE("(+) Serviços",        kpi.receita_servicos, 1); r++;
-  linhaDRE("(+) Bar",             kpi.receita_bar,      1); r++;
-  linhaDRE("(+) Loja",            kpi.receita_loja,     1); r++;
-  linhaDRE("= RECEITA BRUTA",     recBruta,              0, true);  r++;
+  r = secaoHeader(ws, r, "RECEITA BRUTA (preços de tabela, antes de descontos)", 3, COR.medBlue);
+  linhaDRE("(+) Serviços",    recSvcBruta,  1); r++;
+  linhaDRE("(+) Bar",         recBarBruta,  1); r++;
+  linhaDRE("(+) Loja",        recLojaBruta, 1); r++;
+  linhaDRE("= RECEITA BRUTA", recBruta,     0, true); r++;
   r++;
 
   // Descontos
   r = secaoHeader(ws, r, "DEDUÇÕES", 3, COR.medBlue);
-  linhaDRE("(-) Descontos de Planos / Benefícios", descontos, 1); r++;
-  linhaDRE("= RECEITA LÍQUIDA",   recLiquida, 0, true); r++;
+  linhaDRE("(-) Descontos manuais (comanda)",      descontoManual, 1); r++;
+  linhaDRE("(-) Descontos benefícios / planos",    descontoBenef,  1); r++;
+  linhaDRE("= TOTAL DEDUÇÕES",                     totalDescontos, 0, true, totalDescontos > 0); r++;
+  r++;
+  r = secaoHeader(ws, r, "RECEITA LÍQUIDA (o que entrou no caixa)", 3, COR.medBlue);
+  linhaDRE("= RECEITA LÍQUIDA", recLiquida, 0, true); r++;
   r++;
 
   // CMV
@@ -903,11 +1057,12 @@ function buildPagamento(wb, rows, planos, periodo) {
   const ws = wb.addWorksheet("Pagamento");
 
   ws.columns = [
-    { key: "a", width: 42 },
-    { key: "b", width: 10 },
-    { key: "c", width: 18 },
-    { key: "d", width: 16 },
-    { key: "e", width: 16 },
+    { key: "a", width: 38 },
+    { key: "b", width: 8  },
+    { key: "c", width: 16 },
+    { key: "d", width: 20 },
+    { key: "e", width: 14 },
+    { key: "f", width: 16 },
   ];
 
   const bMap = {};
@@ -937,15 +1092,15 @@ function buildPagamento(wb, rows, planos, periodo) {
   cTitulo.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.darkBlue } };
   cTitulo.alignment = { vertical: "middle", horizontal: "center" };
   ws.getRow(r).height = 30;
-  ws.mergeCells(`A${r}:E${r}`);
+  ws.mergeCells(`A${r}:F${r}`);
   r++;
 
   const cInstr = ws.getCell(`A${r}`);
-  cInstr.value = `Gerado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}  •  Preencha "% Comissão" (coluna D) com valor decimal (ex: 0,40 = 40%)`;
+  cInstr.value = `Gerado em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}  •  Preencha "% Comissão" (coluna E) com valor decimal (ex: 0,40 = 40%)  •  Comissão calculada sobre Vlr Líquido`;
   cInstr.font  = { italic: true, size: 9, color: { argb: "FF555555" } };
   cInstr.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
   cInstr.alignment = { horizontal: "center" };
-  ws.mergeCells(`A${r}:E${r}`);
+  ws.mergeCells(`A${r}:F${r}`);
   r++;
 
   r++;
@@ -959,11 +1114,11 @@ function buildPagamento(wb, rows, planos, periodo) {
     cBarbeiro.font  = { bold: true, size: 12, color: { argb: COR.white } };
     cBarbeiro.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.medBlue } };
     ws.getRow(r).height = 24;
-    ws.mergeCells(`A${r}:E${r}`);
+    ws.mergeCells(`A${r}:F${r}`);
     r++;
 
     // Column headers
-    ["Descrição", "Qtd", "Total Gerado", "% Comissão", "A Pagar"].forEach((lbl, i) => {
+    ["Descrição", "Qtd", "Vlr Bruto", "Vlr Líquido (c/ desc.)", "% Comissão", "A Pagar"].forEach((lbl, i) => {
       const c = ws.getRow(r).getCell(i + 1);
       c.value = lbl;
       c.font  = { bold: true, size: 10 };
@@ -975,7 +1130,8 @@ function buildPagamento(wb, rows, planos, periodo) {
 
     const aPayRefs = [];
 
-    // Renders one type section; returns the row index of the subtotal row
+    // renderTipo: 6 colunas — Descrição | Qtd | Bruto | Líquido (c/desc) | % Comissão | A Pagar
+    // A Pagar é calculada sobre a coluna D (Líquido), que já reflete descontos.
     const renderTipo = (catLabel, items, isPlanos) => {
       if (items.length === 0) return;
 
@@ -983,7 +1139,7 @@ function buildPagamento(wb, rows, planos, periodo) {
       ws.getCell(`A${r}`).value = catLabel;
       ws.getCell(`A${r}`).font  = { bold: true, size: 10, color: { argb: COR.medBlue } };
       ws.getCell(`A${r}`).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
-      ws.mergeCells(`A${r}:E${r}`);
+      ws.mergeCells(`A${r}:F${r}`);
       r++;
 
       const ini = r;
@@ -996,7 +1152,9 @@ function buildPagamento(wb, rows, planos, periodo) {
           rw.getCell(2).alignment = { horizontal: "center" };
           rw.getCell(3).value  = Number(plano.valor);
           rw.getCell(3).numFmt = '"R$"#,##0.00';
-          [1, 2, 3].forEach(ci => borda(rw.getCell(ci)));
+          rw.getCell(4).value  = Number(plano.valor); // planos não têm desconto manual
+          rw.getCell(4).numFmt = '"R$"#,##0.00';
+          [1, 2, 3, 4].forEach(ci => borda(rw.getCell(ci)));
           r++;
         }
       } else {
@@ -1005,14 +1163,17 @@ function buildPagamento(wb, rows, planos, periodo) {
           rw.getCell(1).value = `   ${item.descricao}`;
           rw.getCell(2).value = item.quantidade;
           rw.getCell(2).alignment = { horizontal: "center" };
-          rw.getCell(3).value  = item.valor;
+          rw.getCell(3).value  = item.valor_bruto; // bruto (tabela)
           rw.getCell(3).numFmt = '"R$"#,##0.00';
-          [1, 2, 3].forEach(ci => borda(rw.getCell(ci)));
+          rw.getCell(3).font   = { color: { argb: COR.grayDark }, italic: true };
+          rw.getCell(4).value  = item.valor;       // líquido (pós-desconto)
+          rw.getCell(4).numFmt = '"R$"#,##0.00';
+          [1, 2, 3, 4].forEach(ci => borda(rw.getCell(ci)));
           r++;
         }
       }
 
-      // Subtotal row: label | qty_blank | SUM formula | yellow % input | A Pagar formula
+      // Subtotal: Bruto=SUM(C), Líquido=SUM(D), % editável em E, A Pagar = D*E
       const rSub = r;
       const st   = ws.getRow(r);
 
@@ -1024,34 +1185,42 @@ function buildPagamento(wb, rows, planos, periodo) {
       st.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
       borda(st.getCell(2));
 
+      // Bruto total
       st.getCell(3).value  = { formula: `SUM(C${ini}:C${rSub - 1})` };
       st.getCell(3).numFmt = '"R$"#,##0.00';
-      st.getCell(3).font   = { bold: true };
+      st.getCell(3).font   = { bold: true, italic: true, color: { argb: COR.grayDark } };
       st.getCell(3).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
       borda(st.getCell(3));
 
-      // % Comissão — yellow, editable
-      st.getCell(4).value  = null;
-      st.getCell(4).numFmt = "0%";
-      st.getCell(4).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.yellow } };
+      // Líquido total (base de comissão)
+      st.getCell(4).value  = { formula: `SUM(D${ini}:D${rSub - 1})` };
+      st.getCell(4).numFmt = '"R$"#,##0.00';
       st.getCell(4).font   = { bold: true };
-      st.getCell(4).alignment = { horizontal: "center" };
-      st.getCell(4).border = {
+      st.getCell(4).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
+      borda(st.getCell(4));
+
+      // % Comissão — amarelo, editável
+      st.getCell(5).value  = null;
+      st.getCell(5).numFmt = "0%";
+      st.getCell(5).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.yellow } };
+      st.getCell(5).font   = { bold: true };
+      st.getCell(5).alignment = { horizontal: "center" };
+      st.getCell(5).border = {
         top:    { style: "medium", color: { argb: COR.yellowBrd } },
         bottom: { style: "medium", color: { argb: COR.yellowBrd } },
         left:   { style: "medium", color: { argb: COR.yellowBrd } },
         right:  { style: "medium", color: { argb: COR.yellowBrd } },
       };
 
-      // A Pagar — formula = total * %
-      st.getCell(5).value  = { formula: `C${rSub}*D${rSub}` };
-      st.getCell(5).numFmt = '"R$"#,##0.00';
-      st.getCell(5).font   = { bold: true, color: { argb: COR.greenText } };
-      st.getCell(5).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.greenBg } };
-      borda(st.getCell(5));
+      // A Pagar = Líquido × % (D * E)
+      st.getCell(6).value  = { formula: `D${rSub}*E${rSub}` };
+      st.getCell(6).numFmt = '"R$"#,##0.00';
+      st.getCell(6).font   = { bold: true, color: { argb: COR.greenText } };
+      st.getCell(6).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: COR.greenBg } };
+      borda(st.getCell(6));
 
       st.height = 22;
-      aPayRefs.push(`E${rSub}`);
+      aPayRefs.push(`F${rSub}`);
       r++;
     };
 
@@ -1064,11 +1233,11 @@ function buildPagamento(wb, rows, planos, periodo) {
     const rowTotal = ws.getRow(r);
     rowTotal.getCell(1).value = "TOTAL A PAGAR";
     rowTotal.getCell(1).font  = { bold: true, size: 12, color: { argb: COR.greenText } };
-    rowTotal.getCell(5).value  = aPayRefs.length ? { formula: aPayRefs.join("+") } : 0;
-    rowTotal.getCell(5).numFmt = '"R$"#,##0.00';
-    rowTotal.getCell(5).font   = { bold: true, size: 12, color: { argb: COR.greenText } };
+    rowTotal.getCell(6).value  = aPayRefs.length ? { formula: aPayRefs.join("+") } : 0;
+    rowTotal.getCell(6).numFmt = '"R$"#,##0.00';
+    rowTotal.getCell(6).font   = { bold: true, size: 12, color: { argb: COR.greenText } };
     rowTotal.height = 24;
-    [1, 2, 3, 4, 5].forEach(ci => {
+    [1, 2, 3, 4, 5, 6].forEach(ci => {
       rowTotal.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.greenBg } };
       borda(rowTotal.getCell(ci));
     });
@@ -1083,7 +1252,7 @@ function buildPagamento(wb, rows, planos, periodo) {
       cPlanoHdr.font  = { bold: true, size: 10, color: { argb: COR.medBlue } };
       cPlanoHdr.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
       cPlanoHdr.alignment = { horizontal: "center" };
-      ws.mergeCells(`A${r}:E${r}`);
+      ws.mergeCells(`A${r}:F${r}`);
       r++;
 
       const ini = r;
@@ -1092,15 +1261,17 @@ function buildPagamento(wb, rows, planos, periodo) {
         rw.getCell(1).value = `   ${item.descricao}`;
         rw.getCell(2).value = item.quantidade;
         rw.getCell(2).alignment = { horizontal: "center" };
-        rw.getCell(3).value  = item.valor;
+        rw.getCell(3).value  = item.valor_bruto;
         rw.getCell(3).numFmt = '"R$"#,##0.00';
         rw.getCell(3).font   = { color: { argb: COR.grayDark } };
-        [1, 2, 3].forEach(ci => {
+        rw.getCell(4).value  = item.valor;
+        rw.getCell(4).numFmt = '"R$"#,##0.00';
+        rw.getCell(4).font   = { color: { argb: COR.grayDark } };
+        [1, 2, 3, 4].forEach(ci => {
           rw.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
           borda(rw.getCell(ci));
         });
-        // Cols D e E ficam vazias mas com fundo igual
-        [4, 5].forEach(ci => {
+        [5, 6].forEach(ci => {
           rw.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.blueBg } };
           borda(rw.getCell(ci));
         });
@@ -1110,10 +1281,10 @@ function buildPagamento(wb, rows, planos, periodo) {
       const stPlano = ws.getRow(r);
       stPlano.getCell(1).value = "Total via Plano (informativo)";
       stPlano.getCell(1).font  = { bold: true, italic: true, color: { argb: COR.medBlue } };
-      stPlano.getCell(3).value  = { formula: `SUM(C${ini}:C${r - 1})` };
-      stPlano.getCell(3).numFmt = '"R$"#,##0.00';
-      stPlano.getCell(3).font   = { bold: true, italic: true, color: { argb: COR.medBlue } };
-      [1, 2, 3, 4, 5].forEach(ci => {
+      stPlano.getCell(4).value  = { formula: `SUM(D${ini}:D${r - 1})` };
+      stPlano.getCell(4).numFmt = '"R$"#,##0.00';
+      stPlano.getCell(4).font   = { bold: true, italic: true, color: { argb: COR.medBlue } };
+      [1, 2, 3, 4, 5, 6].forEach(ci => {
         stPlano.getCell(ci).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
         borda(stPlano.getCell(ci));
       });
@@ -1139,10 +1310,12 @@ function buildBar(wb, rows) {
     { key: "descricao",     width: 30 },
     { key: "quantidade",    width: 8  },
     { key: "valor_unitario",width: 14 },
-    { key: "valor_total",   width: 14 },
+    { key: "valor_bruto",   width: 14 },
+    { key: "desconto",      width: 12 },
+    { key: "valor_liq",     width: 14 },
   ];
 
-  const header = ws.addRow(["Data", "Comanda", "Barbeiro", "Produto", "Qtd", "Valor Unit.", "Valor Total"]);
+  const header = ws.addRow(["Data", "Comanda", "Barbeiro", "Produto", "Qtd", "Valor Unit.", "Vlr Bruto", "Desconto", "Vlr Líquido"]);
   header.font      = { bold: true, color: { argb: COR.white } };
   header.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: COR.darkBlue } };
   header.alignment = { vertical: "middle", horizontal: "center" };
@@ -1152,11 +1325,17 @@ function buildBar(wb, rows) {
   aviso.getCell(1).font = { italic: true, color: { argb: "FFC77800" } };
   aviso.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.yellow } };
   aviso.height = 18;
-  ws.mergeCells("A2:G2");
+  ws.mergeCells("A2:I2");
 
   const barItems = rows.filter((r) => r.tipo === "PRODUTO_BAR");
 
+  let somaBruto = 0, somaDesc = 0, somaLiq = 0;
   for (const item of barItems) {
+    const bruto   = Number(item.valor_total);
+    const efetivo = calcEfetivoItem(item);
+    const desc    = bruto - efetivo;
+    somaBruto += bruto; somaDesc += desc; somaLiq += efetivo;
+
     const row = ws.addRow({
       data:           fmtDateLocal(item.data),
       comanda_id:     Number(item.comanda_id),
@@ -1164,88 +1343,28 @@ function buildBar(wb, rows) {
       descricao:      item.descricao,
       quantidade:     Number(item.quantidade),
       valor_unitario: Number(item.valor_unitario),
-      valor_total:    Number(item.valor_total),
+      valor_bruto:    bruto,
+      desconto:       desc,
+      valor_liq:      efetivo,
     });
     row.getCell("valor_unitario").numFmt = '"R$"#,##0.00';
-    row.getCell("valor_total").numFmt    = '"R$"#,##0.00';
+    row.getCell("valor_bruto").numFmt    = '"R$"#,##0.00';
+    row.getCell("desconto").numFmt       = '"R$"#,##0.00';
+    row.getCell("valor_liq").numFmt      = '"R$"#,##0.00';
+    if (desc > 0) row.getCell("desconto").font = { color: { argb: COR.orangeText } };
   }
 
   if (barItems.length > 0) {
     const totalBar = ws.addRow({
       descricao:   "TOTAL BAR",
-      valor_total: barItems.reduce((s, r) => s + Number(r.valor_total), 0),
+      valor_bruto: somaBruto,
+      desconto:    somaDesc,
+      valor_liq:   somaLiq,
     });
     totalBar.font = { bold: true };
-    totalBar.getCell("valor_total").numFmt = '"R$"#,##0.00';
-  }
-
-  const lastRow = ws.lastRow.number;
-  for (let rr = 1; rr <= lastRow; rr++) {
-    for (let c = 1; c <= 7; c++) {
-      ws.getCell(rr, c).border = {
-        top:    { style: "thin", color: { argb: COR.border } },
-        left:   { style: "thin", color: { argb: COR.border } },
-        bottom: { style: "thin", color: { argb: COR.border } },
-        right:  { style: "thin", color: { argb: COR.border } },
-      };
-    }
-  }
-
-  ws.autoFilter = { from: "A1", to: "G1" };
-  ws.views = [{ state: "frozen", ySplit: 1 }];
-}
-
-// ─── Aba Detalhes ─────────────────────────────────────────────────────────────
-
-function buildDetalhes(wb, rows) {
-  const ws = wb.addWorksheet("Detalhes");
-
-  ws.columns = [
-    { header: "Data",           key: "data",          width: 20 },
-    { header: "Comanda",        key: "comanda_id",    width: 10 },
-    { header: "Barbeiro",       key: "barbeiro",      width: 20 },
-    { header: "Cliente",        key: "cliente",       width: 24 },
-    { header: "Tipo",           key: "tipo",          width: 14 },
-    { header: "Descrição",      key: "descricao",     width: 28 },
-    { header: "Quantidade",     key: "quantidade",    width: 12 },
-    { header: "Valor Unitário", key: "valor_unitario",width: 16 },
-    { header: "Valor Total",    key: "valor_total",   width: 16 },
-  ];
-
-  const headerRow = ws.getRow(1);
-  headerRow.font      = { bold: true, color: { argb: COR.white } };
-  headerRow.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: COR.darkBlue } };
-  headerRow.alignment = { vertical: "middle", horizontal: "center" };
-  headerRow.height    = 22;
-
-  for (const row of rows) {
-    const added = ws.addRow({
-      data:           fmtDateLocal(row.data),
-      comanda_id:     Number(row.comanda_id),
-      barbeiro:       row.barbeiro,
-      cliente:        row.cliente,
-      tipo:           row.tipo,
-      descricao:      row.descricao,
-      quantidade:     Number(row.quantidade),
-      valor_unitario: Number(row.valor_unitario),
-      valor_total:    Number(row.valor_total),
-    });
-    if (added.number % 2 === 0) {
-      added.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
-    }
-    added.getCell("valor_unitario").numFmt = '"R$"#,##0.00';
-    added.getCell("valor_total").numFmt    = '"R$"#,##0.00';
-  }
-
-  if (rows.length > 0) {
-    const totalRow = ws.addRow({
-      cliente:    `${rows.length} itens`,
-      descricao:  "TOTAL",
-      valor_total: rows.reduce((s, r) => s + Number(r.valor_total), 0),
-    });
-    totalRow.font = { bold: true };
-    totalRow.getCell("valor_total").numFmt  = '"R$"#,##0.00';
-    totalRow.getCell("descricao").alignment = { horizontal: "right" };
+    totalBar.getCell("valor_bruto").numFmt = '"R$"#,##0.00';
+    totalBar.getCell("desconto").numFmt    = '"R$"#,##0.00';
+    totalBar.getCell("valor_liq").numFmt   = '"R$"#,##0.00';
   }
 
   const lastRow = ws.lastRow.number;
@@ -1261,6 +1380,101 @@ function buildDetalhes(wb, rows) {
   }
 
   ws.autoFilter = { from: "A1", to: "I1" };
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+}
+
+// ─── Aba Detalhes ─────────────────────────────────────────────────────────────
+
+function buildDetalhes(wb, rows) {
+  const ws = wb.addWorksheet("Detalhes");
+
+  // 10 colunas: Data Comanda Barbeiro Cliente Tipo Descrição Qtd Bruto Desconto Líquido
+  ws.columns = [
+    { header: "Data",         key: "data",         width: 20 },
+    { header: "Comanda",      key: "comanda_id",   width: 10 },
+    { header: "Barbeiro",     key: "barbeiro",     width: 20 },
+    { header: "Cliente",      key: "cliente",      width: 24 },
+    { header: "Tipo",         key: "tipo",         width: 14 },
+    { header: "Descrição",    key: "descricao",    width: 28 },
+    { header: "Qtd",          key: "quantidade",   width: 8  },
+    { header: "Vlr Bruto",    key: "valor_bruto",  width: 14 },
+    { header: "Desconto",     key: "desconto",     width: 14 },
+    { header: "Vlr Líquido",  key: "valor_liq",    width: 14 },
+  ];
+
+  const headerRow = ws.getRow(1);
+  headerRow.font      = { bold: true, color: { argb: COR.white } };
+  headerRow.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: COR.darkBlue } };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.height    = 22;
+
+  let somaBruto = 0, somaDesc = 0, somaLiq = 0;
+
+  for (const row of rows) {
+    const bruto   = Number(row.valor_total);
+    const efetivo = calcEfetivoItem(row);
+    const desc    = bruto - efetivo;
+
+    somaBruto += bruto;
+    somaDesc  += desc;
+    somaLiq   += efetivo;
+
+    const added = ws.addRow({
+      data:        fmtDateLocal(row.data),
+      comanda_id:  Number(row.comanda_id),
+      barbeiro:    row.barbeiro,
+      cliente:     row.cliente,
+      tipo:        row.tipo,
+      descricao:   row.descricao,
+      quantidade:  Number(row.quantidade),
+      valor_bruto: bruto,
+      desconto:    desc,
+      valor_liq:   efetivo,
+    });
+
+    if (added.number % 2 === 0) {
+      added.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.grayBg } };
+    }
+    added.getCell("valor_bruto").numFmt = '"R$"#,##0.00';
+    added.getCell("desconto").numFmt    = '"R$"#,##0.00';
+    added.getCell("valor_liq").numFmt   = '"R$"#,##0.00';
+    if (desc > 0) {
+      added.getCell("desconto").font = { color: { argb: COR.orangeText } };
+      added.getCell("valor_liq").font = { bold: true };
+    }
+  }
+
+  if (rows.length > 0) {
+    const totalRow = ws.addRow({
+      cliente:     `${rows.length} itens`,
+      descricao:   "TOTAL",
+      valor_bruto: somaBruto,
+      desconto:    somaDesc,
+      valor_liq:   somaLiq,
+    });
+    totalRow.font = { bold: true };
+    totalRow.getCell("valor_bruto").numFmt = '"R$"#,##0.00';
+    totalRow.getCell("desconto").numFmt    = '"R$"#,##0.00';
+    totalRow.getCell("valor_liq").numFmt   = '"R$"#,##0.00';
+    totalRow.getCell("descricao").alignment = { horizontal: "right" };
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach(c => {
+      totalRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR.lightBlue } };
+    });
+  }
+
+  const lastRow = ws.lastRow.number;
+  for (let rr = 1; rr <= lastRow; rr++) {
+    for (let c = 1; c <= 10; c++) {
+      ws.getCell(rr, c).border = {
+        top:    { style: "thin", color: { argb: COR.border } },
+        left:   { style: "thin", color: { argb: COR.border } },
+        bottom: { style: "thin", color: { argb: COR.border } },
+        right:  { style: "thin", color: { argb: COR.border } },
+      };
+    }
+  }
+
+  ws.autoFilter = { from: "A1", to: "J1" };
   ws.views = [{ state: "frozen", ySplit: 1 }];
 }
 

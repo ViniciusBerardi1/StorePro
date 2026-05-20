@@ -71,6 +71,14 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
           const qLoja = {};
           (cmd.itens_loja ?? []).forEach((i) => { qLoja[i.produto_id] = i.quantidade; });
           setQtdLoja(qLoja);
+
+          if (cmd.desconto) {
+            setDesconto({
+              tipo: cmd.desconto.tipo || "percent",
+              valor: String(cmd.desconto.valor || ""),
+              alvo: cmd.desconto.alvo || "total",
+            });
+          }
         }
       })
       .catch(() => {})
@@ -109,7 +117,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
     .reduce((sum, p) => sum + Number(p.preco_venda || 0) * (qtdLoja[p.id] || 0), 0);
 
   const subtotal = totalServicos + totalBar + totalLoja;
-  const valorDesconto = bloqueado ? 0 : calcDesconto(desconto, totalServicos, totalBar, totalLoja);
+  const valorDesconto = calcDesconto(desconto, totalServicos, totalBar, totalLoja);
   const total = Math.max(0, subtotal - valorDesconto);
   const hasItems = servicosSel.size > 0 || Object.keys(qtdBar).length > 0 || Object.keys(qtdLoja).length > 0;
 

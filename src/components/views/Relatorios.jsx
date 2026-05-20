@@ -257,6 +257,33 @@ function gerarInsights(atendimentos, prevAtendimentos, comandas, clientes, barbe
   return insights;
 }
 
+// ─── Valores efetivos da comanda (desconto distribuído) ──────────
+
+function efetivosComanda(cmd) {
+  const vs = Number(cmd.valor_servicos || 0);
+  const vb = Number(cmd.valor_bar || 0);
+  const vl = Number(cmd.valor_loja || 0);
+  const vd = Number(cmd.desconto?.valor_calculado || 0);
+  const alvo = cmd.desconto?.alvo;
+
+  if (vd <= 0) return { valor_servicos: vs, valor_bar: vb, valor_loja: vl };
+
+  let ds = 0, db = 0, dl = 0;
+  if (alvo === "servicos") ds = Math.min(vd, vs);
+  else if (alvo === "bar") db = Math.min(vd, vb);
+  else if (alvo === "loja") dl = Math.min(vd, vl);
+  else {
+    const sub = vs + vb + vl;
+    if (sub > 0) { ds = vd * (vs / sub); db = vd * (vb / sub); dl = vd * (vl / sub); }
+  }
+
+  return {
+    valor_servicos: Math.max(0, vs - ds),
+    valor_bar: Math.max(0, vb - db),
+    valor_loja: Math.max(0, vl - dl),
+  };
+}
+
 // ─── Aba: Insights ────────────────────────────────────────────────
 
 function TabInsights({ insights }) {
@@ -301,7 +328,7 @@ function TabInsights({ insights }) {
 
 // ─── Aba: Resumo ──────────────────────────────────────────────────
 
-function TabResumo({ atendimentos, prevAtendimentos }) {
+function TabResumo({ atendimentos, prevAtendimentos, comandas }) {
   const ok = atendimentos.filter((a) => a.status === "concluido");
   const pOk = prevAtendimentos.filter((a) => a.status === "concluido");
 
@@ -313,13 +340,17 @@ function TabResumo({ atendimentos, prevAtendimentos }) {
   const pTicket = pOk.length > 0 ? pFat / pOk.length : 0;
   const cancelados = atendimentos.filter((a) => a.status === "cancelado").length;
 
-  // Serviços mais vendidos
+  // Serviços mais vendidos — valores efetivos da comanda (com desconto aplicado)
   const mapaServico = {};
-  for (const a of ok) {
-    for (const s of a.servicos || []) {
-      if (!mapaServico[s.nome]) mapaServico[s.nome] = { nome: s.nome, count: 0, receita: 0 };
-      mapaServico[s.nome].count++;
-      mapaServico[s.nome].receita += Number(s.valor || 0);
+  for (const cmd of comandas) {
+    const svcs = cmd.servicos || [];
+    if (!svcs.length) continue;
+    const { valor_servicos: efSvc } = efetivosComanda(cmd);
+    const rawSvc = svcs.reduce((s, sv) => s + Number(sv.valor || 0), 0);
+    for (const sv of svcs) {
+      if (!mapaServico[sv.nome]) mapaServico[sv.nome] = { nome: sv.nome, count: 0, receita: 0 };
+      mapaServico[sv.nome].count++;
+      mapaServico[sv.nome].receita += rawSvc > 0 ? (Number(sv.valor) / rawSvc) * efSvc : 0;
     }
   }
   const servicos = Object.values(mapaServico).sort((a, b) => b.count - a.count);
@@ -492,11 +523,26 @@ function TabBarbeiros({ atendimentos, comandas, barbeiros, assinaturas = [], car
     const barbId = cmd.barbeiro_id ?? atendBarbeiro[cmd.atendimento_id];
     if (!barbId) continue;
     const entry = getEntry(barbId);
-    for (const item of [...(cmd.itens_bar || []), ...(cmd.itens_loja || [])]) {
+
+    const { valor_bar: efBar, valor_loja: efLoja } = efetivosComanda(cmd);
+    const rawBar  = (cmd.itens_bar  || []).reduce((s, i) => s + (i.quantidade || 1) * Number(i.preco_venda || 0), 0);
+    const rawLoja = (cmd.itens_loja || []).reduce((s, i) => s + (i.quantidade || 1) * Number(i.preco_venda || 0), 0);
+
+    for (const item of (cmd.itens_bar || [])) {
       if (!entry.produtos[item.nome]) entry.produtos[item.nome] = { count: 0, receita: 0 };
-      entry.produtos[item.nome].count += item.quantidade || 1;
-      entry.produtos[item.nome].receita += (item.quantidade || 1) * Number(item.preco_venda || 0);
+      const qtd = item.quantidade || 1;
+      entry.produtos[item.nome].count += qtd;
+      const rawItem = qtd * Number(item.preco_venda || 0);
+      entry.produtos[item.nome].receita += rawBar > 0 ? (rawItem / rawBar) * efBar : rawItem;
     }
+    for (const item of (cmd.itens_loja || [])) {
+      if (!entry.produtos[item.nome]) entry.produtos[item.nome] = { count: 0, receita: 0 };
+      const qtd = item.quantidade || 1;
+      entry.produtos[item.nome].count += qtd;
+      const rawItem = qtd * Number(item.preco_venda || 0);
+      entry.produtos[item.nome].receita += rawLoja > 0 ? (rawItem / rawLoja) * efLoja : rawItem;
+    }
+
     for (const s of (cmd.servicos || [])) {
       if (s.via_plano) entry.servicosViaPlano[s.nome] = (entry.servicosViaPlano[s.nome] || 0) + 1;
     }
@@ -881,15 +927,17 @@ function TabRetencao({ atendimentos, clientesUltimaVisita }) {
 
 // ─── Aba: Serviços ────────────────────────────────────────────────
 
-function TabServicos({ atendimentos }) {
-  const ok = atendimentos.filter((a) => a.status === "concluido");
-
+function TabServicos({ comandas }) {
   const mapa = {};
-  for (const a of ok) {
-    for (const s of a.servicos || []) {
-      if (!mapa[s.nome]) mapa[s.nome] = { nome: s.nome, count: 0, receita: 0 };
-      mapa[s.nome].count++;
-      mapa[s.nome].receita += Number(s.valor || 0);
+  for (const cmd of comandas) {
+    const svcs = cmd.servicos || [];
+    if (!svcs.length) continue;
+    const { valor_servicos: efSvc } = efetivosComanda(cmd);
+    const rawSvc = svcs.reduce((s, sv) => s + Number(sv.valor || 0), 0);
+    for (const sv of svcs) {
+      if (!mapa[sv.nome]) mapa[sv.nome] = { nome: sv.nome, count: 0, receita: 0 };
+      mapa[sv.nome].count++;
+      mapa[sv.nome].receita += rawSvc > 0 ? (Number(sv.valor) / rawSvc) * efSvc : 0;
     }
   }
   const lista = Object.values(mapa).sort((a, b) => b.count - a.count);
@@ -897,14 +945,14 @@ function TabServicos({ atendimentos }) {
   const receitaTotal  = lista.reduce((s, i) => s + i.receita, 0);
   const topServico    = lista[0]?.nome ?? "—";
 
-  if (!ok.length) return (
-    <Card><p className="text-sm text-gray-400 text-center py-8">Nenhum atendimento concluído no período.</p></Card>
+  if (!comandas.length || !lista.length) return (
+    <Card><p className="text-sm text-gray-400 text-center py-8">Nenhuma comanda fechada no período.</p></Card>
   );
 
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard icon={Scissors} label="Serviços realizados" valor={totalServicos} sub={`${ok.length} atendimentos`} />
+        <KpiCard icon={Scissors} label="Serviços realizados" valor={totalServicos} sub={`${comandas.length} comanda${comandas.length !== 1 ? "s" : ""}`} />
         <KpiCard icon={DollarSign} label="Receita de serviços" valor={BRL(receitaTotal)} sub="valor total" />
         <KpiCard icon={Trophy} label="Mais realizado" valor={topServico} sub={lista[0] ? `${lista[0].count}× · ${BRL(lista[0].receita)}` : undefined} />
         <KpiCard icon={CreditCard} label="Ticket médio/serviço" valor={BRL(totalServicos > 0 ? receitaTotal / totalServicos : 0)} sub="por serviço" />
@@ -968,17 +1016,25 @@ function TabProdutos({ comandas }) {
   const mapaLoja = {};
 
   for (const cmd of comandas) {
+    const { valor_bar: efBar, valor_loja: efLoja } = efetivosComanda(cmd);
+    const rawBar  = (cmd.itens_bar  || []).reduce((s, i) => s + (i.quantidade || 1) * Number(i.preco_venda || 0), 0);
+    const rawLoja = (cmd.itens_loja || []).reduce((s, i) => s + (i.quantidade || 1) * Number(i.preco_venda || 0), 0);
+
     for (const item of cmd.itens_bar || []) {
       if (!item.nome) continue;
       if (!mapaBar[item.nome]) mapaBar[item.nome] = { nome: item.nome, count: 0, receita: 0 };
-      mapaBar[item.nome].count   += item.quantidade || 1;
-      mapaBar[item.nome].receita += (item.quantidade || 1) * Number(item.preco_venda || 0);
+      const qtd = item.quantidade || 1;
+      mapaBar[item.nome].count   += qtd;
+      const rawItem = qtd * Number(item.preco_venda || 0);
+      mapaBar[item.nome].receita += rawBar > 0 ? (rawItem / rawBar) * efBar : rawItem;
     }
     for (const item of cmd.itens_loja || []) {
       if (!item.nome) continue;
       if (!mapaLoja[item.nome]) mapaLoja[item.nome] = { nome: item.nome, count: 0, receita: 0 };
-      mapaLoja[item.nome].count   += item.quantidade || 1;
-      mapaLoja[item.nome].receita += (item.quantidade || 1) * Number(item.preco_venda || 0);
+      const qtd = item.quantidade || 1;
+      mapaLoja[item.nome].count   += qtd;
+      const rawItem = qtd * Number(item.preco_venda || 0);
+      mapaLoja[item.nome].receita += rawLoja > 0 ? (rawItem / rawLoja) * efLoja : rawItem;
     }
   }
 
@@ -1498,8 +1554,8 @@ export default function Relatorios() {
           transition={{ duration: 0.18 }}
         >
           {tab === "insights"  && <TabInsights insights={insights} />}
-          {tab === "resumo"    && <TabResumo atendimentos={atendimentos} prevAtendimentos={prevAtendimentos} />}
-          {tab === "servicos"  && <TabServicos atendimentos={atendimentos} />}
+          {tab === "resumo"    && <TabResumo atendimentos={atendimentos} prevAtendimentos={prevAtendimentos} comandas={comandas} />}
+          {tab === "servicos"  && <TabServicos comandas={comandas} />}
           {tab === "produtos"  && <TabProdutos comandas={comandas} />}
           {tab === "horarios"  && <TabHorarios atendimentos={atendimentos} />}
           {tab === "clientes"  && <TabClientes atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
