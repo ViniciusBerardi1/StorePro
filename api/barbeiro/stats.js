@@ -7,7 +7,6 @@ export default async function handler(req, res) {
     const barbeiro = await requireBarbeiro(req, res);
     if (!barbeiro) return;
 
-    // Mês atual no servidor (ou parâmetros opcionais)
     const agora = new Date();
     const ano = Number(req.query.ano) || agora.getFullYear();
     const mes = Number(req.query.mes) || (agora.getMonth() + 1);
@@ -24,7 +23,7 @@ export default async function handler(req, res) {
 
     const baseCmds = serviceClient
       .from("comandas")
-      .select("id, valor_total, valor_servicos, valor_bar, valor_loja, status, itens_bar, itens_loja")
+      .select("id, valor_total, valor_bar, valor_loja, itens_bar, itens_loja")
       .eq("barbeiro_id", barbeiro.barbeiro_id)
       .eq("status", "fechada")
       .gte("created_at", ini)
@@ -41,46 +40,49 @@ export default async function handler(req, res) {
     const ats  = atsRes.data  ?? [];
     const cmds = cmdsRes.data ?? [];
 
-    // Counts — espelha TabBarbeiros
     const concluidos = ats.filter((a) => a.status === "concluido");
     const agendados  = ats.filter((a) => a.status === "agendado").length;
     const cancelados = ats.filter((a) => a.status === "cancelado").length;
 
-    // Faturamento de serviços = valor_total dos atendimentos concluídos
-    // (mesma fórmula: entry.faturamento += a.valor_total)
+    // Faturamento serviços — espelha: entry.faturamento += a.valor_total
     const faturamentoServicos = concluidos.reduce((s, a) => s + Number(a.valor_total || 0), 0);
 
-    // Receita de produtos = bar + loja das comandas fechadas (brutas — sem desconto proporcional
-    // para manter leveza no serverless; desconto já está absorvido no valor_total da comanda)
+    // Horas trabalhadas — espelha: entry.minutos += s.duracao_minutos || 30
+    let minutos = 0;
+    const contServicos = {};
+    for (const a of concluidos) {
+      for (const s of (a.servicos || [])) {
+        minutos += s.duracao_minutos || 30;
+        if (!s.via_plano) contServicos[s.nome] = (contServicos[s.nome] || 0) + 1;
+      }
+    }
+
+    // Produtos das comandas fechadas
     const receitaBar  = cmds.reduce((s, c) => s + Number(c.valor_bar  || 0), 0);
     const receitaLoja = cmds.reduce((s, c) => s + Number(c.valor_loja || 0), 0);
     const receitaProdutos = receitaBar + receitaLoja;
 
-    // Receita líquida total da comanda (pós-desconto)
+    // Contagem de itens distintos (todas as comandas)
+    const totalItens = cmds.reduce((s, c) => {
+      return s
+        + (c.itens_bar  || []).reduce((x, i) => x + (i.quantidade || 1), 0)
+        + (c.itens_loja || []).reduce((x, i) => x + (i.quantidade || 1), 0);
+    }, 0);
+
+    // Receita líquida pós-desconto
     const receitaLiquida = cmds.reduce((s, c) => s + Number(c.valor_total || 0), 0);
 
-    // Ticket médio = faturamento serviços / concluídos (igual ao sistema principal)
+    // Ticket médio = faturamento / concluídos (igual ao sistema principal)
     const ticket = concluidos.length > 0 ? faturamentoServicos / concluidos.length : 0;
 
-    // Serviço mais realizado no mês
-    const contServicos = {};
-    for (const a of concluidos) {
-      for (const s of (a.servicos || [])) {
-        if (!s.via_plano) contServicos[s.nome] = (contServicos[s.nome] || 0) + 1;
-      }
-    }
+    // Ranking de serviços
     const rankServicos = Object.entries(contServicos)
       .sort((a, z) => z[1] - a[1])
       .map(([nome, count]) => ({ nome, count }));
 
     return res.status(200).json({
       periodo: { ano, mes },
-      atendimentos: {
-        total:     ats.length,
-        concluidos: concluidos.length,
-        agendados,
-        cancelados,
-      },
+      atendimentos: { total: ats.length, concluidos: concluidos.length, agendados, cancelados },
       financeiro: {
         faturamentoServicos,
         receitaBar,
@@ -90,6 +92,7 @@ export default async function handler(req, res) {
         ticket,
         comandasFechadas: cmds.length,
       },
+      horas: { minutos, totalItens },
       rankServicos,
     });
   } catch (err) {
