@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
-import { Users, AlertTriangle } from "lucide-react";
+import { Users, AlertTriangle, Copy, Check } from "lucide-react";
 import { PageHeader } from "../ui/DS";
 
 export const GCAL_CORES = {
@@ -39,7 +39,12 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
     try {
       await onSalvar({ ...barbeiro, ...form, nome: form.nome.trim() });
     } catch (e) {
-      setErro(e.message);
+      const msg = e?.message ?? "";
+      if (msg.includes("23505") || msg.includes("unique") || msg.includes("codigo_acesso")) {
+        setErro("Este código já está em uso por outro barbeiro. Escolha um diferente.");
+      } else {
+        setErro(msg || "Erro ao salvar. Tente novamente.");
+      }
     } finally {
       setSalvando(false);
     }
@@ -182,6 +187,14 @@ export default function Barbeiros() {
   const [editando, setEditando] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [erro, setErro] = useState(null);
+  const [copiadoId, setCopiadoId] = useState(null);
+
+  const copiarCodigo = useCallback((id, codigo) => {
+    navigator.clipboard.writeText(codigo).then(() => {
+      setCopiadoId(id);
+      setTimeout(() => setCopiadoId(null), 1800);
+    });
+  }, []);
 
   const carregar = async () => {
     try {
@@ -274,17 +287,38 @@ export default function Barbeiros() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-800 text-sm">{b.nome}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                  <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                     <span
-                      className="inline-block w-2.5 h-2.5 rounded-full"
+                      className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: cor.hex }}
                     />
                     {cor.label}
-                    {b.codigo_acesso && (
+                    {b.codigo_acesso ? (
                       <>
                         <span className="text-gray-200">·</span>
-                        <span className="font-mono">{"·".repeat(b.codigo_acesso.length)}</span>
-                        <span className="text-gray-300">portal</span>
+                        <button
+                          onClick={() => copiarCodigo(b.id, b.codigo_acesso)}
+                          title="Clique para copiar o código do portal"
+                          className="inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 rounded-md px-1.5 py-0.5 font-mono text-xs transition-colors"
+                        >
+                          {copiadoId === b.id ? (
+                            <>
+                              <Check size={10} className="text-green-500" />
+                              <span className="text-green-600 not-italic text-[10px]">copiado</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>{b.codigo_acesso}</span>
+                              <Copy size={10} className="opacity-50" />
+                            </>
+                          )}
+                        </button>
+                        <span className="text-[10px] text-gray-300">portal /barbeiro</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <span className="text-amber-500 text-[10px]">sem código de acesso</span>
                       </>
                     )}
                   </p>
