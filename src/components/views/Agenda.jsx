@@ -844,6 +844,7 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
   const [diaSelecionado, setDiaSelecionado] = useState(new Date());
   const [eventos, setEventos] = useState([]);
   const [barbeiros, setBarbeiros] = useState([]);
+  const barbeirosRef = useRef([]);
   const [filtroBarbeiro, setFiltroBarbeiro] = useState(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState(null);
@@ -866,6 +867,8 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
     db.getServicos().then((s) => setServicosDisponiveis(s.filter((sv) => sv.ativo))).catch(() => {});
     carregarHorariosEspeciais();
   }, []);
+
+  useEffect(() => { barbeirosRef.current = barbeiros; }, [barbeiros]);
 
   // Recarrega eventos quando a comanda lateral finaliza um atendimento
   useEffect(() => {
@@ -903,7 +906,32 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
       inicio.setHours(0, 0, 0, 0);
       const fim = new Date(dias[6]);
       fim.setHours(23, 59, 59, 999);
-      setEventos(await getEventos(inicio, fim));
+      const evts = await getEventos(inicio, fim);
+      setEventos(evts);
+
+      // Sync future events to atendimentos so barbeiro portal can see them
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      for (const ev of evts) {
+        const dataHora = ev.start?.dateTime ?? ev.start?.date;
+        if (!dataHora || new Date(dataHora) < hoje) continue;
+        const clienteNome =
+          (ev.summary || "").replace(/^✅\s*/, "").split(/\s*[-—]\s*/).pop().trim() || "Cliente";
+        let barbeiro_id = null;
+        if (ev.colorId) {
+          const barb = barbeirosRef.current.find((b) => b.gcal_color_id === ev.colorId);
+          if (barb) barbeiro_id = barb.id;
+        }
+        db.addAtendimento({
+          gcal_event_id: ev.id,
+          data_hora: dataHora,
+          cliente_nome: clienteNome,
+          ...(barbeiro_id ? { barbeiro_id } : {}),
+          servicos: [],
+          valor_total: 0,
+          status: "agendado",
+        }, { soInserir: true }).catch(() => {});
+      }
     } catch (e) {
       setErro(e.message);
     } finally {

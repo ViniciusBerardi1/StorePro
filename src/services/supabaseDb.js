@@ -239,7 +239,7 @@ async function saveComanda(comanda) {
   return criarComanda(comanda);
 }
 
-async function addAtendimento(a) {
+async function addAtendimento(a, { soInserir = false } = {}) {
   const { id: _id, ...payload } = a;
 
   if (payload.gcal_event_id) {
@@ -251,6 +251,7 @@ async function addAtendimento(a) {
       .maybeSingle();
 
     if (existente?.id) {
+      if (soInserir) return existente.id; // bulk sync: preserva status concluido/cancelado existente
       // Já existe — atualiza em vez de inserir
       const { error } = await supabase
         .from("atendimentos")
