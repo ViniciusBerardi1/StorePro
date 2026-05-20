@@ -1,4 +1,4 @@
-const CACHE_NAME = 'storepro-v4';
+const CACHE_NAME = 'storepro-v5';
 
 const APP_SHELL = ['/', '/manifest.json', '/favicon-192.png', '/favicon-512.png', '/storeprologo.png', '/favicon.svg'];
 
@@ -21,9 +21,11 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(e.request.url);
 
-  // Ignora requisições para APIs externas (Supabase, Google, etc.)
-  // O SW só gerencia arquivos do próprio app
+  // Ignora requisições externas (Supabase, Google, etc.)
   if (url.origin !== self.location.origin) return;
+
+  // Nunca cacheia chamadas de API — respostas são dinâmicas e autenticadas
+  if (url.pathname.startsWith('/api/')) return;
 
   const { pathname } = url;
   // Navegações SPA (qualquer rota que retorna index.html) e assets de código
