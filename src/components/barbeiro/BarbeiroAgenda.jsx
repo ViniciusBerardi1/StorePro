@@ -83,7 +83,7 @@ function CardAtendimento({ at }) {
 }
 
 export default function BarbeiroAgenda() {
-  const { token } = useBarbeiroAuth();
+  const { token, logout } = useBarbeiroAuth();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [diaAtivo, setDiaAtivo] = useState(() => {
     const hoje = new Date();
@@ -112,6 +112,7 @@ export default function BarbeiroAgenda() {
       );
       let data;
       try { data = await res.json(); } catch { data = {}; }
+      if (res.status === 401) { logout(); return; }
       if (!res.ok) throw new Error(data.erro ?? `Erro ${res.status}`);
       setAtendimentos(data.atendimentos ?? []);
     } catch (e) {

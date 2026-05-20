@@ -87,6 +87,7 @@ export default function BarberoPerfil() {
       .then(async (r) => {
         let data;
         try { data = await r.json(); } catch { data = {}; }
+        if (r.status === 401) { logout(); return; }
         if (!r.ok) throw new Error(data.erro ?? `Erro ${r.status}`);
         setStats(data);
       })
