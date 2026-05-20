@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
     const filtros = serviceClient
       .from("atendimentos")
-      .select("id, cliente_nome, servicos, status, data_hora, valor_total, evento_gcal")
+      .select("id, cliente_nome, servicos, status, data_hora, valor_total")
       .eq("barbeiro_id", barbeiro.barbeiro_id)
       .gte("data_hora", ini)
       .lte("data_hora", fim)

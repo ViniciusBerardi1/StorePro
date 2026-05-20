@@ -44,13 +44,8 @@ function CardAtendimento({ at }) {
   const StatusIcon = status.icon;
   const servicos = Array.isArray(at.servicos) ? at.servicos : [];
 
-  const hora = at.evento_gcal?.start?.dateTime
-    ? formatHora(at.evento_gcal.start.dateTime)
-    : formatHora(at.data_hora);
-
-  const horaFim = at.evento_gcal?.end?.dateTime
-    ? formatHora(at.evento_gcal.end.dateTime)
-    : null;
+  const hora = formatHora(at.data_hora);
+  const horaFim = null;
 
   return (
     <motion.div
