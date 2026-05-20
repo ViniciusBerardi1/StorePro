@@ -485,6 +485,20 @@ function AppPrincipal() {
           { fonte: "agenda", gcal_event_id: evento.id, cliente_id: cliente_id ?? null, barbeiro_id: barbeiro_id ?? null }
         ).catch(() => {});
       }
+
+      // Sincroniza atendimento no banco para o portal do barbeiro conseguir ver
+      // agendamentos futuros (GCal não é acessível pelo portal)
+      const dataHora = evento.start?.dateTime ?? evento.start?.date ?? new Date().toISOString();
+      db.addAtendimento({
+        gcal_event_id: evento.id,
+        data_hora: dataHora,
+        cliente_nome: clienteNome,
+        ...(cliente_id ? { cliente_id } : {}),
+        ...(barbeiro_id ? { barbeiro_id } : {}),
+        servicos: servicosPreSel,
+        valor_total: valorServicos,
+        status: "agendado",
+      }).catch(() => {});
       setView("comandas");
     } catch (e) {
       console.error("Erro ao criar comanda:", e);
