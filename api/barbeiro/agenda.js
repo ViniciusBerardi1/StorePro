@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     // Fonte 1: atendimentos (agendado + concluido + cancelado)
     const qAts = serviceClient
       .from("atendimentos")
-      .select("id, cliente_nome, servicos, status, data_hora, valor_total")
+      .select("id, gcal_event_id, cliente_nome, servicos, status, data_hora, valor_total")
       .eq("barbeiro_id", base.barbeiro_id)
       .gte("data_hora", ini)
       .lte("data_hora", fim)
