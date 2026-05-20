@@ -11,17 +11,23 @@ export default async function handler(req, res) {
     return res.status(400).json({ erro: "Parâmetros ini e fim obrigatórios" });
   }
 
-  const { data, error } = await serviceClient
+  let query = serviceClient
     .from("atendimentos")
     .select("id, cliente_nome, servicos, status, data_hora, valor_total, evento_gcal")
     .eq("barbeiro_id", barbeiro.barbeiro_id)
-    .eq("loja_id", barbeiro.loja_id)
     .gte("data_hora", ini)
     .lte("data_hora", fim)
     .order("data_hora");
 
+  // Filtra por loja apenas quando disponível
+  if (barbeiro.loja_id) {
+    query = query.eq("loja_id", barbeiro.loja_id);
+  }
+
+  const { data, error } = await query;
+
   if (error) {
-    return res.status(500).json({ erro: "Erro ao buscar agenda" });
+    return res.status(500).json({ erro: error.message, codigo: error.code });
   }
 
   return res.status(200).json({ atendimentos: data ?? [] });
