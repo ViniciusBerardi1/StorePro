@@ -282,6 +282,25 @@ async function deleteAtendimento(id) {
   if (error) throw error;
 }
 
+// Remove atendimentos "agendado" cujo gcal_event_id não está mais na lista de
+// eventos do Google Calendar para o período — evita duplicatas após deleção de evento.
+async function removeAtendimentosOrfaos(ini, fim, gcalIds) {
+  const { data } = await supabase
+    .from("atendimentos")
+    .select("id, gcal_event_id")
+    .eq("status", "agendado")
+    .not("gcal_event_id", "is", null)
+    .gte("data_hora", ini.toISOString())
+    .lte("data_hora", fim.toISOString());
+
+  if (!data?.length) return;
+
+  const orfaos = data.filter((a) => !gcalIds.has(a.gcal_event_id)).map((a) => a.id);
+  if (!orfaos.length) return;
+
+  await supabase.from("atendimentos").delete().in("id", orfaos);
+}
+
 // ─── Serviços ─────────────────────────────────────────────────────
 async function getServicos() {
   const { data, error } = await supabase.from("servicos").select("*").order("nome");
@@ -829,6 +848,7 @@ export const db = {
   addAtendimento,
   updateAtendimento,
   deleteAtendimento,
+  removeAtendimentosOrfaos,
   getServicos,
   addServico,
   updateServico,

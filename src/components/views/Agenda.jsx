@@ -909,6 +909,10 @@ export default function Agenda({ onAtendimentoFinalizado, onAbrirComanda, refres
       const evts = await getEventos(inicio, fim);
       setEventos(evts);
 
+      // Remove atendimentos cujo evento foi deletado do GCal (evita duplicatas no portal)
+      const gcalIds = new Set(evts.map((ev) => ev.id));
+      db.removeAtendimentosOrfaos(inicio, fim, gcalIds).catch(() => {});
+
       // Sync future events to atendimentos so barbeiro portal can see them
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
