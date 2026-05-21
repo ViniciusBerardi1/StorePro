@@ -1,8 +1,7 @@
 -- ============================================================
 -- STOREPRO — SCHEMA COMPLETO
 -- Roda do zero em qualquer projeto Supabase novo.
--- Ordem: extensões → tabelas base → tabelas dependentes →
---        índices → funções → triggers → RLS
+-- Ordem: extensões → tabelas → índices → funções → triggers → RLS
 -- ============================================================
 
 -- ── Extensões ────────────────────────────────────────────────
@@ -37,7 +36,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 
 -- ============================================================
--- 3. CATEGORIAS (global — não tem loja_id)
+-- 3. CATEGORIAS (global — sem loja_id)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS categorias (
   id         SERIAL      PRIMARY KEY,
@@ -49,22 +48,22 @@ CREATE TABLE IF NOT EXISTS categorias (
 -- 4. PRODUTOS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS produtos (
-  id              SERIAL      PRIMARY KEY,
-  nome            TEXT        NOT NULL,
-  cor             TEXT        DEFAULT '',
-  foto            TEXT        DEFAULT '',
-  categoria_id    INT         REFERENCES categorias(id) ON DELETE SET NULL,
-  quantidade      INT         NOT NULL DEFAULT 0,
-  estoque_minimo  INT         NOT NULL DEFAULT 1,
-  tipo            TEXT        NOT NULL DEFAULT 'loja' CHECK (tipo IN ('loja', 'bar')),
-  custo           NUMERIC(10,2),
-  preco           NUMERIC(10,2),
-  loja_id         UUID        REFERENCES lojas(id) ON DELETE CASCADE,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id             SERIAL        PRIMARY KEY,
+  nome           TEXT          NOT NULL,
+  cor            TEXT          DEFAULT '',
+  foto           TEXT          DEFAULT '',
+  categoria_id   INT           REFERENCES categorias(id) ON DELETE SET NULL,
+  quantidade     INT           NOT NULL DEFAULT 0,
+  estoque_minimo INT           NOT NULL DEFAULT 1,
+  tipo           TEXT          NOT NULL DEFAULT 'loja' CHECK (tipo IN ('loja', 'bar')),
+  custo          NUMERIC(10,2),
+  preco          NUMERIC(10,2),
+  loja_id        UUID          REFERENCES lojas(id) ON DELETE CASCADE,
+  created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
--- 5. HISTÓRICO DE ESTOQUE
+-- 5. HISTÓRICO DE ESTOQUE (append-only)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS historico (
   id                  SERIAL      PRIMARY KEY,
@@ -84,41 +83,43 @@ CREATE TABLE IF NOT EXISTS historico (
 -- 6. CLIENTES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS clientes (
-  id             SERIAL      PRIMARY KEY,
-  nome           TEXT        NOT NULL,
-  telefone       TEXT,
-  email          TEXT,
-  data_cadastro  DATE        DEFAULT CURRENT_DATE,
-  observacoes    TEXT,
-  foto           TEXT,
-  loja_id        UUID        REFERENCES lojas(id) ON DELETE CASCADE,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id            SERIAL      PRIMARY KEY,
+  nome          TEXT        NOT NULL,
+  telefone      TEXT,
+  email         TEXT,
+  data_cadastro DATE        DEFAULT CURRENT_DATE,
+  observacoes   TEXT,
+  foto          TEXT,
+  loja_id       UUID        REFERENCES lojas(id) ON DELETE CASCADE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
 -- 7. SERVIÇOS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS servicos (
-  id         SERIAL      PRIMARY KEY,
-  nome       TEXT        NOT NULL,
-  duracao    INT         DEFAULT 30,
+  id         SERIAL        PRIMARY KEY,
+  nome       TEXT          NOT NULL,
+  duracao    INT           DEFAULT 30,
   valor      NUMERIC(10,2) NOT NULL DEFAULT 0,
-  ativo      BOOLEAN     NOT NULL DEFAULT true,
-  loja_id    UUID        REFERENCES lojas(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  ativo      BOOLEAN       NOT NULL DEFAULT true,
+  loja_id    UUID          REFERENCES lojas(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
 -- 8. BARBEIROS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS barbeiros (
-  id             SERIAL      PRIMARY KEY,
-  nome           TEXT        NOT NULL,
-  foto           TEXT,
-  ativo          BOOLEAN     NOT NULL DEFAULT true,
-  gcal_color_id  TEXT,
-  loja_id        UUID        REFERENCES lojas(id) ON DELETE CASCADE,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id            SERIAL      PRIMARY KEY,
+  nome          TEXT        NOT NULL,
+  foto          TEXT,
+  ativo         BOOLEAN     NOT NULL DEFAULT true,
+  gcal_color_id TEXT,
+  codigo_acesso VARCHAR(10) UNIQUE,
+  ultimo_login  TIMESTAMPTZ,
+  loja_id       UUID        REFERENCES lojas(id) ON DELETE CASCADE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
@@ -172,16 +173,16 @@ CREATE TABLE IF NOT EXISTS comandas (
 );
 
 -- ============================================================
--- 11. COMANDA_EVENTOS (log de ações sobre comandas)
+-- 11. COMANDA_EVENTOS (append-only)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS comanda_eventos (
-  id          SERIAL        PRIMARY KEY,
-  comanda_id  INT           REFERENCES comandas(id) ON DELETE CASCADE,
-  tipo        TEXT          NOT NULL,
-  descricao   TEXT,
-  payload     JSONB         DEFAULT '{}',
-  loja_id     UUID          REFERENCES lojas(id) ON DELETE CASCADE,
-  created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  id         SERIAL      PRIMARY KEY,
+  comanda_id INT         REFERENCES comandas(id) ON DELETE CASCADE,
+  tipo       TEXT        NOT NULL,
+  descricao  TEXT,
+  payload    JSONB       DEFAULT '{}',
+  loja_id    UUID        REFERENCES lojas(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
@@ -203,35 +204,35 @@ CREATE TABLE IF NOT EXISTS planos (
 -- 13. ASSINATURAS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS assinaturas (
-  id                       SERIAL        PRIMARY KEY,
-  cliente_id               INT           REFERENCES clientes(id) ON DELETE SET NULL,
-  plano_id                 INT           REFERENCES planos(id) ON DELETE SET NULL,
-  barbeiro_id              INT           REFERENCES barbeiros(id) ON DELETE SET NULL,
-  status                   TEXT          NOT NULL DEFAULT 'ativa'
-                           CHECK (status IN ('ativa','pendente','inadimplente','cancelada','expirada')),
-  data_inicio              DATE,
-  data_renovacao           DATE,
-  valor                    NUMERIC(10,2),
-  gateway                  TEXT,
-  gateway_subscription_id  TEXT,
-  observacoes              TEXT,
-  loja_id                  UUID          REFERENCES lojas(id) ON DELETE CASCADE,
-  created_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  id                      SERIAL        PRIMARY KEY,
+  cliente_id              INT           REFERENCES clientes(id) ON DELETE SET NULL,
+  plano_id                INT           REFERENCES planos(id) ON DELETE SET NULL,
+  barbeiro_id             INT           REFERENCES barbeiros(id) ON DELETE SET NULL,
+  status                  TEXT          NOT NULL DEFAULT 'ativa'
+                          CHECK (status IN ('ativa','pendente','inadimplente','cancelada','expirada')),
+  data_inicio             DATE,
+  data_renovacao          DATE,
+  valor                   NUMERIC(10,2),
+  gateway                 TEXT,
+  gateway_subscription_id TEXT,
+  observacoes             TEXT,
+  loja_id                 UUID          REFERENCES lojas(id) ON DELETE CASCADE,
+  created_at              TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
 -- 14. USO_BENEFICIOS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS uso_beneficios (
-  id             SERIAL        PRIMARY KEY,
-  assinatura_id  INT           REFERENCES assinaturas(id) ON DELETE CASCADE,
-  comanda_id     INT           REFERENCES comandas(id) ON DELETE CASCADE,
-  ciclo          TEXT          NOT NULL,
-  beneficio_id   TEXT,
-  estornado      BOOLEAN       NOT NULL DEFAULT false,
-  loja_id        UUID          REFERENCES lojas(id) ON DELETE CASCADE,
-  created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  id            SERIAL      PRIMARY KEY,
+  assinatura_id INT         REFERENCES assinaturas(id) ON DELETE CASCADE,
+  comanda_id    INT         REFERENCES comandas(id) ON DELETE CASCADE,
+  ciclo         TEXT        NOT NULL,
+  beneficio_id  TEXT,
+  estornado     BOOLEAN     NOT NULL DEFAULT false,
+  loja_id       UUID        REFERENCES lojas(id) ON DELETE CASCADE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
@@ -252,7 +253,7 @@ CREATE TABLE IF NOT EXISTS sessoes_caixa (
 );
 
 -- ============================================================
--- 16. MOVIMENTOS_CAIXA
+-- 16. MOVIMENTOS_CAIXA (append-only)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS movimentos_caixa (
   id         SERIAL        PRIMARY KEY,
@@ -288,19 +289,18 @@ CREATE TABLE IF NOT EXISTS configuracoes (
   loja_id    UUID        REFERENCES lojas(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS configuracoes_chave_loja_uq ON configuracoes(chave, loja_id);
 
 -- ============================================================
 -- 19. WEBHOOK_LOGS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS webhook_logs (
-  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  gateway     TEXT,
-  evento      TEXT,
-  processado  BOOLEAN     NOT NULL DEFAULT false,
-  erro        TEXT,
-  payload     JSONB,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  gateway    TEXT,
+  evento     TEXT,
+  processado BOOLEAN     NOT NULL DEFAULT false,
+  erro       TEXT,
+  payload    JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
@@ -317,10 +317,25 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 -- ============================================================
+-- 21. BARBEIRO_TOKENS (sessões do portal do barbeiro)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS barbeiro_tokens (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  barbeiro_id INT         NOT NULL REFERENCES barbeiros(id) ON DELETE CASCADE,
+  loja_id     UUID        NOT NULL REFERENCES lojas(id)     ON DELETE CASCADE,
+  token       TEXT        UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
+  expires_at  TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
 -- ÍNDICES
 -- ============================================================
 CREATE UNIQUE INDEX IF NOT EXISTS lojas_slug_uq
   ON lojas(slug) WHERE slug IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS configuracoes_chave_loja_uq
+  ON configuracoes(chave, loja_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sessoes_caixa_uma_aberta
   ON sessoes_caixa(loja_id, status) WHERE status = 'aberta';
@@ -328,14 +343,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sessoes_caixa_uma_aberta
 CREATE UNIQUE INDEX IF NOT EXISTS idx_horarios_especiais_data_loja
   ON horarios_especiais(data, loja_id);
 
-CREATE INDEX IF NOT EXISTS idx_atendimentos_data_hora  ON atendimentos(data_hora);
-CREATE INDEX IF NOT EXISTS idx_atendimentos_cliente_id ON atendimentos(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_atendimentos_loja_id    ON atendimentos(loja_id);
-CREATE INDEX IF NOT EXISTS idx_comandas_status         ON comandas(status) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_comandas_loja_id        ON comandas(loja_id);
-CREATE INDEX IF NOT EXISTS idx_assinaturas_cliente_id  ON assinaturas(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_assinaturas_status      ON assinaturas(status);
-CREATE INDEX IF NOT EXISTS idx_profiles_loja_id        ON profiles(loja_id);
+CREATE INDEX IF NOT EXISTS idx_atendimentos_data_hora   ON atendimentos(data_hora);
+CREATE INDEX IF NOT EXISTS idx_atendimentos_cliente_id  ON atendimentos(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_atendimentos_loja_id     ON atendimentos(loja_id);
+CREATE INDEX IF NOT EXISTS idx_comandas_status          ON comandas(status) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_comandas_loja_id         ON comandas(loja_id);
+CREATE INDEX IF NOT EXISTS idx_assinaturas_cliente_id   ON assinaturas(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_assinaturas_status       ON assinaturas(status);
+CREATE INDEX IF NOT EXISTS idx_profiles_loja_id         ON profiles(loja_id);
+CREATE INDEX IF NOT EXISTS idx_barbeiro_tokens_token    ON barbeiro_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_barbeiro_tokens_barbeiro ON barbeiro_tokens(barbeiro_id);
 
 -- ============================================================
 -- FUNÇÕES AUXILIARES
@@ -350,7 +367,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Retorna o role do usuário atual (sem loop de RLS)
+-- Retorna o role do usuário atual (SECURITY DEFINER evita loop de RLS)
 CREATE OR REPLACE FUNCTION get_my_role()
 RETURNS TEXT AS $$
   SELECT role FROM profiles WHERE id = auth.uid();
@@ -362,7 +379,7 @@ RETURNS UUID AS $$
   SELECT loja_id FROM profiles WHERE id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- Preenche loja_id automaticamente em INSERT (quando não informado)
+-- Preenche loja_id automaticamente em INSERT quando não informado
 CREATE OR REPLACE FUNCTION auto_set_loja_id()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -395,22 +412,53 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- Guard append-only para tabelas de auditoria.
+-- Respeita a variável de sessão app.admin_delete_override para
+-- permitir deleção em cascata quando admin_delete_loja é chamado.
+CREATE OR REPLACE FUNCTION fn_bloquear_mutacao_auditoria()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF current_setting('app.admin_delete_override', true) = 'true' THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION
+    'Tabela de auditoria "%" é append-only. Registro id=% não pode ser alterado nem deletado.',
+    TG_TABLE_NAME, COALESCE(OLD.id::text, '?')
+    USING ERRCODE = 'P0020';
+END;
+$$;
+
+-- Exclui uma loja e todos os seus dados em cascata.
+-- Usa SET LOCAL para permitir que os triggers append-only cedam durante
+-- o delete administrativo; reverte automaticamente ao fim da transação.
+CREATE OR REPLACE FUNCTION admin_delete_loja(p_loja_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  SET LOCAL app.admin_delete_override = 'true';
+  DELETE FROM lojas WHERE id = p_loja_id;
+END;
+$$;
+
 -- ============================================================
 -- TRIGGERS
 -- ============================================================
 
 -- updated_at
-DROP TRIGGER IF EXISTS lojas_updated_at      ON lojas;
-DROP TRIGGER IF EXISTS profiles_updated_at   ON profiles;
-DROP TRIGGER IF EXISTS comandas_updated_at   ON comandas;
+DROP TRIGGER IF EXISTS lojas_updated_at       ON lojas;
+DROP TRIGGER IF EXISTS profiles_updated_at    ON profiles;
+DROP TRIGGER IF EXISTS comandas_updated_at    ON comandas;
 DROP TRIGGER IF EXISTS assinaturas_updated_at ON assinaturas;
 
 CREATE TRIGGER lojas_updated_at
-  BEFORE UPDATE ON lojas FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+  BEFORE UPDATE ON lojas       FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 CREATE TRIGGER profiles_updated_at
-  BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+  BEFORE UPDATE ON profiles    FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 CREATE TRIGGER comandas_updated_at
-  BEFORE UPDATE ON comandas FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+  BEFORE UPDATE ON comandas    FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 CREATE TRIGGER assinaturas_updated_at
   BEFORE UPDATE ON assinaturas FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 
@@ -425,11 +473,27 @@ BEGIN
     'horarios_especiais','configuracoes'
   ] LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_auto_loja_id ON %I', t);
-    EXECUTE format('CREATE TRIGGER trg_auto_loja_id
-      BEFORE INSERT ON %I
-      FOR EACH ROW EXECUTE FUNCTION auto_set_loja_id()', t);
+    EXECUTE format('
+      CREATE TRIGGER trg_auto_loja_id
+        BEFORE INSERT ON %I
+        FOR EACH ROW EXECUTE FUNCTION auto_set_loja_id()', t);
   END LOOP;
 END $$;
+
+-- Append-only: impede UPDATE/DELETE em tabelas de auditoria
+DROP TRIGGER IF EXISTS trg_append_only ON historico;
+DROP TRIGGER IF EXISTS trg_append_only ON comanda_eventos;
+DROP TRIGGER IF EXISTS trg_append_only ON movimentos_caixa;
+
+CREATE TRIGGER trg_append_only
+  BEFORE UPDATE OR DELETE ON historico
+  FOR EACH ROW EXECUTE FUNCTION fn_bloquear_mutacao_auditoria();
+CREATE TRIGGER trg_append_only
+  BEFORE UPDATE OR DELETE ON comanda_eventos
+  FOR EACH ROW EXECUTE FUNCTION fn_bloquear_mutacao_auditoria();
+CREATE TRIGGER trg_append_only
+  BEFORE UPDATE OR DELETE ON movimentos_caixa
+  FOR EACH ROW EXECUTE FUNCTION fn_bloquear_mutacao_auditoria();
 
 -- Cria profile após novo usuário no Auth
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
@@ -443,11 +507,10 @@ CREATE TRIGGER on_auth_user_created
 
 -- profiles
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "profiles_select_own_or_admin"    ON profiles;
-DROP POLICY IF EXISTS "profiles_update_own_or_admin"    ON profiles;
-DROP POLICY IF EXISTS "profiles_insert_admin"           ON profiles;
-DROP POLICY IF EXISTS "profiles_insert_trigger_or_admin" ON profiles;
-DROP POLICY IF EXISTS "profiles_delete_admin"           ON profiles;
+DROP POLICY IF EXISTS "profiles_select_own_or_admin"      ON profiles;
+DROP POLICY IF EXISTS "profiles_update_own_or_admin"      ON profiles;
+DROP POLICY IF EXISTS "profiles_insert_trigger_or_admin"  ON profiles;
+DROP POLICY IF EXISTS "profiles_delete_admin"             ON profiles;
 
 CREATE POLICY "profiles_select_own_or_admin" ON profiles
   FOR SELECT USING (auth.uid() = id OR get_my_role() = 'admin');
@@ -466,6 +529,7 @@ CREATE POLICY "profiles_delete_admin" ON profiles
 ALTER TABLE lojas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS lojas_admin ON lojas;
 DROP POLICY IF EXISTS lojas_read  ON lojas;
+
 CREATE POLICY lojas_admin ON lojas FOR ALL TO authenticated
   USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
 CREATE POLICY lojas_read ON lojas FOR SELECT TO authenticated
@@ -476,8 +540,9 @@ ALTER TABLE categorias ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS cat_read      ON categorias;
 DROP POLICY IF EXISTS cat_write     ON categorias;
 DROP POLICY IF EXISTS cat_anon_read ON categorias;
+
 CREATE POLICY cat_read      ON categorias FOR SELECT TO authenticated USING (true);
-CREATE POLICY cat_anon_read ON categorias FOR SELECT TO anon       USING (true);
+CREATE POLICY cat_anon_read ON categorias FOR SELECT TO anon          USING (true);
 CREATE POLICY cat_write     ON categorias FOR ALL    TO authenticated
   USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
 
@@ -493,15 +558,25 @@ BEGIN
   ] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS loja_isolation ON %I', t);
-    EXECUTE format(
-      'CREATE POLICY loja_isolation ON %I
-         FOR ALL TO authenticated
-         USING (get_my_role() = ''admin'' OR loja_id = get_my_loja_id())
-         WITH CHECK (get_my_role() = ''admin'' OR loja_id = get_my_loja_id())',
+    EXECUTE format('
+      CREATE POLICY loja_isolation ON %I
+        FOR ALL TO authenticated
+        USING (get_my_role() = ''admin'' OR loja_id = get_my_loja_id())
+        WITH CHECK (get_my_role() = ''admin'' OR loja_id = get_my_loja_id())',
       t
     );
   END LOOP;
 END $$;
+
+-- ============================================================
+-- PERMISSÕES
+-- ============================================================
+
+-- admin_delete_loja: somente service_role (chamado pelas API routes do admin)
+REVOKE ALL ON FUNCTION admin_delete_loja(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION admin_delete_loja(UUID) FROM anon;
+REVOKE ALL ON FUNCTION admin_delete_loja(UUID) FROM authenticated;
+GRANT  EXECUTE ON FUNCTION admin_delete_loja(UUID) TO service_role;
 
 -- ============================================================
 -- DADOS INICIAIS
@@ -512,12 +587,12 @@ INSERT INTO categorias (nome) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
--- STORED PROCEDURES (stubs — implementar conforme necessário)
+-- STORED PROCEDURES (RPCs usadas pelo app)
 -- ============================================================
--- As seguintes RPCs são usadas pelo app e precisam ser criadas:
+-- As seguintes funções precisam ser criadas no banco:
 --   cancelar_comanda(p_comanda_id INT, p_motivo TEXT)
 --   baixar_estoque_comanda(items JSONB)
 --   abrir_caixa(p_valor_abertura NUMERIC, p_aberto_por TEXT)
 --   fechar_caixa(p_sessao_id INT, p_valor_fechamento NUMERIC, p_fechado_por TEXT)
 --   registrar_movimento_caixa(p_sessao_id INT, p_tipo TEXT, p_valor NUMERIC, p_motivo TEXT)
--- Se não existirem, o app usa fallback em JavaScript.
+-- O app usa fallback em JavaScript quando essas RPCs não existem.
