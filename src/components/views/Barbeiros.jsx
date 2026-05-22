@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
-import { Users, AlertTriangle, Copy, Check } from "lucide-react";
+import { Users, AlertTriangle, Copy, Check, Percent } from "lucide-react";
 import { PageHeader } from "../ui/DS";
 
 export const GCAL_CORES = {
@@ -23,9 +23,19 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
     nome: barbeiro?.nome ?? "",
     gcal_color_id: barbeiro?.gcal_color_id ?? "9",
     codigo_acesso: barbeiro?.codigo_acesso ?? "",
+    comissoes: {
+      servico:   barbeiro?.comissoes?.servico   ?? "",
+      adicional: barbeiro?.comissoes?.adicional ?? "",
+      produto:   barbeiro?.comissoes?.produto   ?? "",
+    },
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
+
+  const setComissao = (campo) => (e) => {
+    const raw = e.target.value;
+    setForm((f) => ({ ...f, comissoes: { ...f.comissoes, [campo]: raw } }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,10 +44,18 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
       return setErro("Esta cor já está em uso por outro barbeiro.");
     if (form.codigo_acesso && !/^\d{4,10}$/.test(form.codigo_acesso))
       return setErro("Código de acesso deve ter 4 a 10 dígitos numéricos.");
+
+    const toNum = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : Math.min(100, Math.max(0, n)); };
+    const comissoes = {
+      servico:   toNum(form.comissoes.servico),
+      adicional: toNum(form.comissoes.adicional),
+      produto:   toNum(form.comissoes.produto),
+    };
+
     setErro(null);
     setSalvando(true);
     try {
-      await onSalvar({ ...barbeiro, ...form, nome: form.nome.trim() });
+      await onSalvar({ ...barbeiro, ...form, nome: form.nome.trim(), comissoes });
     } catch (e) {
       const msg = e?.message ?? "";
       if (msg.includes("23505") || msg.includes("unique") || msg.includes("codigo_acesso")) {
@@ -150,6 +168,38 @@ function BarbeiroForm({ barbeiro, coresEmUso = [], onSalvar, onFechar }) {
             <p className="text-[11px] text-gray-400 mt-1">
               Usado pelo barbeiro para entrar em <span className="font-medium">/barbeiro</span>
             </p>
+          </div>
+
+          {/* Comissões */}
+          <div className="border border-indigo-100 bg-indigo-50/50 rounded-xl px-4 py-3 flex flex-col gap-3">
+            <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1.5">
+              <Percent size={12} strokeWidth={2.5} />Comissões (%)
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { campo: "servico",   label: "Serviço" },
+                { campo: "adicional", label: "Adicional" },
+                { campo: "produto",   label: "Produto" },
+              ].map(({ campo, label }) => (
+                <div key={campo}>
+                  <label className="text-[10px] font-medium text-gray-500 mb-1 block">{label}</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={form.comissoes[campo]}
+                      onChange={setComissao(campo)}
+                      placeholder="—"
+                      className="w-full border border-gray-200 rounded-xl pl-3 pr-6 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-indigo-400">Deixe em branco para usar a regra padrão da loja.</p>
           </div>
 
           {erro && (
@@ -322,6 +372,22 @@ export default function Barbeiros() {
                       </>
                     )}
                   </p>
+                  {/* Badges de comissão */}
+                  {b.comissoes && Object.values(b.comissoes).some((v) => v != null) && (
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {[
+                        { key: "servico",   label: "Serv." },
+                        { key: "adicional", label: "Adic." },
+                        { key: "produto",   label: "Prod." },
+                      ].map(({ key, label }) =>
+                        b.comissoes[key] != null ? (
+                          <span key={key} className="inline-flex items-center gap-0.5 text-[10px] bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-md px-1.5 py-0.5 font-medium">
+                            {label} {b.comissoes[key]}%
+                          </span>
+                        ) : null
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
