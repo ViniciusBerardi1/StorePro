@@ -140,7 +140,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
         status: "aberta",
         servicos: servicos
           .filter((s) => servicosSel.has(s.id))
-          .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor), duracao_minutos: s.duracao_minutos || 30 })),
+          .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor), duracao_minutos: s.duracao_minutos || 30, adicional: s.adicional ?? false })),
         itens_bar: produtosBar
           .filter((p) => qtdBar[p.id])
           .map((p) => ({ produto_id: p.id, nome: p.nome, preco_venda: Number(p.preco_venda || 0), quantidade: qtdBar[p.id] })),
@@ -175,7 +175,7 @@ export default function Comanda({ evento, barbeiros = [], onFechar, onFinalizar 
     try {
       const servicosCompletos = servicos
         .filter((s) => servicosSel.has(s.id))
-        .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor), duracao_minutos: s.duracao_minutos || 30 }));
+        .map((s) => ({ id: s.id, nome: s.nome, valor: Number(s.valor), duracao_minutos: s.duracao_minutos || 30, adicional: s.adicional ?? false }));
 
       const itensBarCompletos = produtosBar
         .filter((p) => qtdBar[p.id])
