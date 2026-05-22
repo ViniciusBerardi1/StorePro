@@ -32,7 +32,7 @@ export async function requireBarbeiro(req, res) {
 
     const { data: barbeiro, error: barbErr } = await serviceClient
       .from("barbeiros")
-      .select("nome, ativo")
+      .select("nome, ativo, comissoes")
       .eq("id", session.barbeiro_id)
       .single();
 
@@ -50,6 +50,7 @@ export async function requireBarbeiro(req, res) {
       barbeiro_id: session.barbeiro_id,
       loja_id: session.loja_id,
       nome: barbeiro.nome,
+      comissoes: barbeiro.comissoes ?? {},
     };
   } catch (err) {
     res.status(500).json({ erro: err.message, tipo: "auth_excecao" });

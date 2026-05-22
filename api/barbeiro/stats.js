@@ -50,10 +50,14 @@ export default async function handler(req, res) {
     // Horas trabalhadas — espelha: entry.minutos += s.duracao_minutos || 30
     let minutos = 0;
     const contServicos = {};
+    let brutoServico   = 0; // serviços normais
+    let brutoAdicional = 0; // serviços adicionais
     for (const a of concluidos) {
       for (const s of (a.servicos || [])) {
         minutos += s.duracao_minutos || 30;
         if (!s.via_plano) contServicos[s.nome] = (contServicos[s.nome] || 0) + 1;
+        if (s.adicional) brutoAdicional += Number(s.valor || 0);
+        else             brutoServico   += Number(s.valor || 0);
       }
     }
 
@@ -80,6 +84,17 @@ export default async function handler(req, res) {
       .sort((a, z) => z[1] - a[1])
       .map(([nome, count]) => ({ nome, count }));
 
+    // Comissões — calcula por tipo usando as taxas do barbeiro
+    const taxas = barbeiro.comissoes ?? {};
+    const pct   = (v) => v != null ? Number(v) / 100 : null;
+    const comissaoServico   = pct(taxas.servico)   != null ? brutoServico   * pct(taxas.servico)   : null;
+    const comissaoAdicional = pct(taxas.adicional) != null ? brutoAdicional * pct(taxas.adicional) : null;
+    const comissaoProduto   = pct(taxas.produto)   != null ? receitaProdutos * pct(taxas.produto)  : null;
+    const comissaoTotal     = [comissaoServico, comissaoAdicional, comissaoProduto]
+      .filter((v) => v != null)
+      .reduce((s, v) => s + v, 0);
+    const temComissao = comissaoServico != null || comissaoAdicional != null || comissaoProduto != null;
+
     return res.status(200).json({
       periodo: { ano, mes },
       atendimentos: { total: ats.length, concluidos: concluidos.length, agendados, cancelados },
@@ -94,6 +109,24 @@ export default async function handler(req, res) {
       },
       horas: { minutos, totalItens },
       rankServicos,
+      comissoes: temComissao ? {
+        taxas: {
+          servico:   taxas.servico   ?? null,
+          adicional: taxas.adicional ?? null,
+          produto:   taxas.produto   ?? null,
+        },
+        bruto: {
+          servico:   brutoServico,
+          adicional: brutoAdicional,
+          produto:   receitaProdutos,
+        },
+        valores: {
+          servico:   comissaoServico,
+          adicional: comissaoAdicional,
+          produto:   comissaoProduto,
+          total:     comissaoTotal,
+        },
+      } : null,
     });
   } catch (err) {
     return res.status(500).json({ erro: err.message });

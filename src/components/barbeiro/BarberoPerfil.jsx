@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Scissors, DollarSign, Clock, ShoppingBag, TrendingUp, CheckCircle, Calendar, XCircle } from "lucide-react";
+import { Scissors, DollarSign, Clock, ShoppingBag, TrendingUp, CheckCircle, Calendar, XCircle, Percent, PlusCircle } from "lucide-react";
 import { useBarbeiroAuth } from "../../hooks/useBarbeiroAuth";
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -271,6 +271,62 @@ export default function BarberoPerfil() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Comissões do mês */}
+          {stats.comissoes && (
+            <div className="bg-gray-900 border border-indigo-900/40 rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-indigo-900/30 flex items-center gap-2">
+                <Percent size={13} className="text-indigo-400" />
+                <p className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Minhas comissões — {mesLabel}</p>
+              </div>
+              <div className="divide-y divide-gray-800/60">
+                {/* Serviços */}
+                {stats.comissoes.valores.servico != null && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Scissors size={13} className="text-gray-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-400">Serviços</p>
+                        <p className="text-[10px] text-gray-600">{brl(stats.comissoes.bruto.servico)} × {stats.comissoes.taxas.servico}%</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-white shrink-0">{brl(stats.comissoes.valores.servico)}</span>
+                  </div>
+                )}
+                {/* Adicionais */}
+                {stats.comissoes.valores.adicional != null && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <PlusCircle size={13} className="text-amber-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-400">Adicionais</p>
+                        <p className="text-[10px] text-gray-600">{brl(stats.comissoes.bruto.adicional)} × {stats.comissoes.taxas.adicional}%</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-white shrink-0">{brl(stats.comissoes.valores.adicional)}</span>
+                  </div>
+                )}
+                {/* Produtos */}
+                {stats.comissoes.valores.produto != null && (
+                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ShoppingBag size={13} className="text-gray-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-400">Produtos</p>
+                        <p className="text-[10px] text-gray-600">{brl(stats.comissoes.bruto.produto)} × {stats.comissoes.taxas.produto}%</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-white shrink-0">{brl(stats.comissoes.valores.produto)}</span>
+                  </div>
+                )}
+                {/* Total */}
+                <div className="px-4 py-3 bg-indigo-950/30 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-indigo-300">Total a receber</span>
+                  <span className="text-base font-bold text-indigo-300">{brl(stats.comissoes.valores.total)}</span>
+                </div>
               </div>
             </div>
           )}
