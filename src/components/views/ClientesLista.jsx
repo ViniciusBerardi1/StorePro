@@ -68,8 +68,8 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
   const abrirForm = (base = null) => {
     const hoje = new Date().toISOString().slice(0, 10);
     setForm(base
-      ? { ...base, plano_id: base.plano_id ?? "", valor: base.valor ?? "", gateway: base.gateway ?? "", gateway_subscription_id: base.gateway_subscription_id ?? "", data_renovacao: base.data_renovacao ?? "", observacoes: base.observacoes ?? "", barbeiro_id: base.barbeiro_id ?? "" }
-      : { status: "ativa", plano_id: "", data_inicio: hoje, data_renovacao: "", valor: "", gateway: "", gateway_subscription_id: "", observacoes: "", barbeiro_id: "" }
+      ? { ...base, plano_id: base.plano_id ?? "", valor: base.valor ?? "", gateway: base.gateway ?? "", gateway_subscription_id: base.gateway_subscription_id ?? "", data_renovacao: base.data_renovacao ?? "", observacoes: base.observacoes ?? "", barbeiro_id: base.barbeiro_id ?? "", forma_pagamento: base.forma_pagamento ?? "" }
+      : { status: "ativa", plano_id: "", data_inicio: hoje, data_renovacao: "", valor: "", gateway: "", gateway_subscription_id: "", observacoes: "", barbeiro_id: "", forma_pagamento: "" }
     );
     setShowForm(true);
   };
@@ -90,6 +90,7 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
         observacoes:    form.observacoes    || null,
         gateway:        form.gateway        || null,
         gateway_subscription_id: form.gateway_subscription_id || null,
+        forma_pagamento: form.forma_pagamento || null,
       });
       setShowForm(false);
       carregar();
@@ -252,11 +253,25 @@ function AssinaturaSection({ clienteId, barbeiros = [] }) {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1 block">Valor (R$)</label>
-            <input type="number" step="0.01" min="0" value={form.valor ?? ""} onChange={set("valor")}
-              placeholder="0,00"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Valor (R$)</label>
+              <input type="number" step="0.01" min="0" value={form.valor ?? ""} onChange={set("valor")}
+                placeholder="0,00"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Forma de pagamento</label>
+              <select value={form.forma_pagamento ?? ""} onChange={set("forma_pagamento")}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
+                <option value="">Não informado</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="pix">Pix</option>
+                <option value="debito">Débito</option>
+                <option value="credito">Crédito</option>
+                <option value="boleto">Boleto</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">

@@ -629,7 +629,7 @@ async function getAssinaturasAtivas() {
 
   const { data, error } = await supabase
     .from("assinaturas")
-    .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo, beneficios)")
+    .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, forma_pagamento, planos(id, nome, valor, intervalo, beneficios)")
     .eq("status", "ativa")
     .order("created_at", { ascending: false });
 
@@ -638,7 +638,7 @@ async function getAssinaturasAtivas() {
     // Fallback: beneficios column may not exist yet
     const { data: data2, error: error2 } = await supabase
       .from("assinaturas")
-      .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, planos(id, nome, valor, intervalo)")
+      .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, forma_pagamento, planos(id, nome, valor, intervalo)")
       .eq("status", "ativa")
       .order("created_at", { ascending: false });
     if (error2) throw new Error(error2.message);

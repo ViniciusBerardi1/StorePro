@@ -1388,6 +1388,132 @@ function DateRangePicker({ dataIni, dataFim, onChange }) {
   );
 }
 
+// ─── TabPlanos ────────────────────────────────────────────────────
+
+const FORMA_PAG_LABEL = { dinheiro: "Dinheiro", pix: "Pix", credito: "Crédito", debito: "Débito", boleto: "Boleto" };
+const FORMA_PAG_CLS   = { dinheiro: "bg-gray-100 text-gray-600", pix: "bg-sky-100 text-sky-700", credito: "bg-purple-100 text-purple-700", debito: "bg-blue-100 text-blue-700", boleto: "bg-orange-100 text-orange-700" };
+
+function TabPlanos({ assinaturas = [], barbeiros = [], dataIni, dataFim }) {
+  const [filtroPag, setFiltroPag] = useState("todos");
+
+  // Entradas no período = assinaturas cuja data_inicio cai no intervalo selecionado
+  const entradasPeriodo = assinaturas.filter((a) => {
+    if (!a.data_inicio) return false;
+    return a.data_inicio >= dataIni && a.data_inicio <= dataFim;
+  });
+
+  // MRR total de todas as assinaturas ativas (independente do período)
+  const mrr = assinaturas.reduce((s, a) => s + Number(a.planos?.valor ?? a.valor ?? 0), 0);
+
+  // Total recebido no período (só entradas)
+  const totalPeriodo = entradasPeriodo.reduce((s, a) => s + Number(a.valor ?? a.planos?.valor ?? 0), 0);
+
+  const lista = filtroPag === "todos"
+    ? entradasPeriodo
+    : entradasPeriodo.filter((a) => (a.forma_pagamento ?? "") === filtroPag);
+
+  const formasPag = ["todos", ...new Set(entradasPeriodo.map((a) => a.forma_pagamento ?? ""))].filter(Boolean);
+  if (!formasPag.includes("todos")) formasPag.unshift("todos");
+
+  const nomeBarbeiro = (id) => barbeiros.find((b) => b.id === id)?.nome ?? null;
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card>
+          <p className="text-xs font-medium text-gray-400 mb-1">MRR atual</p>
+          <p className="text-xl font-bold text-emerald-600">{BRL(mrr)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{assinaturas.length} assinatura{assinaturas.length !== 1 ? "s" : ""} ativa{assinaturas.length !== 1 ? "s" : ""}</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-medium text-gray-400 mb-1">Novas no período</p>
+          <p className="text-xl font-bold text-gray-900">{entradasPeriodo.length}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">ativações</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-medium text-gray-400 mb-1">Recebido no período</p>
+          <p className="text-xl font-bold text-indigo-600">{BRL(totalPeriodo)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">entradas de planos</p>
+        </Card>
+      </div>
+
+      {/* Lista de entradas */}
+      <Card>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <SectionTitle icon={Crown}>Entradas de planos no período</SectionTitle>
+          {formasPag.length > 1 && (
+            <div className="flex gap-1 flex-wrap">
+              {formasPag.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFiltroPag(f)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${filtroPag === f ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                >
+                  {f === "todos" ? "Todas" : (FORMA_PAG_LABEL[f] ?? f)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {lista.length === 0 ? (
+          <div className="py-10 text-center">
+            <Crown size={28} className="mx-auto text-gray-200 mb-2" />
+            <p className="text-sm text-gray-400">Nenhuma ativação de plano no período.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b border-gray-100">
+                  <th className="pb-2 text-xs font-semibold text-gray-400 pr-4">Data</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-400 pr-4">Cliente</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-400 pr-4">Plano</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-400 pr-4 text-right">Valor</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-400 pr-4">Pagamento</th>
+                  <th className="pb-2 text-xs font-semibold text-gray-400 hidden lg:table-cell">Barbeiro</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {lista.map((a) => {
+                  const val = Number(a.valor ?? a.planos?.valor ?? 0);
+                  const fp  = a.forma_pagamento;
+                  return (
+                    <tr key={a.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="py-2.5 pr-4 text-gray-500 text-xs whitespace-nowrap">{fmtData(a.data_inicio)}</td>
+                      <td className="py-2.5 pr-4 font-medium text-gray-800 truncate max-w-[120px]">{a.clientes?.nome ?? "—"}</td>
+                      <td className="py-2.5 pr-4 text-gray-600 truncate max-w-[120px]">{a.planos?.nome ?? "—"}</td>
+                      <td className="py-2.5 pr-4 text-right font-semibold text-gray-900">{val > 0 ? BRL(val) : "—"}</td>
+                      <td className="py-2.5 pr-4">
+                        {fp ? (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${FORMA_PAG_CLS[fp] ?? "bg-gray-100 text-gray-600"}`}>
+                            {FORMA_PAG_LABEL[fp] ?? fp}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 text-xs text-gray-400 hidden lg:table-cell">{a.barbeiro_id ? (nomeBarbeiro(a.barbeiro_id) ?? `#${a.barbeiro_id}`) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-gray-200">
+                  <td colSpan={3} className="pt-2.5 text-xs font-semibold text-gray-500">Total</td>
+                  <td className="pt-2.5 text-right font-bold text-indigo-600">{BRL(lista.reduce((s, a) => s + Number(a.valor ?? a.planos?.valor ?? 0), 0))}</td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 // ─── Tabs ─────────────────────────────────────────────────────────
 
 const TABS = [
@@ -1398,6 +1524,7 @@ const TABS = [
   { id: "horarios",  Icon: Clock,    label: "Horários"  },
   { id: "clientes",  Icon: User,     label: "Clientes"  },
   { id: "barbeiros", Icon: Scissors, label: "Barbeiros" },
+  { id: "planos",    Icon: Crown,    label: "Planos"    },
   { id: "retencao",  Icon: Users,    label: "Retenção"  },
 ];
 
@@ -1560,6 +1687,7 @@ export default function Relatorios() {
           {tab === "horarios"  && <TabHorarios atendimentos={atendimentos} />}
           {tab === "clientes"  && <TabClientes atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
           {tab === "barbeiros" && <TabBarbeiros atendimentos={atendimentos} comandas={comandas} barbeiros={barbeiros} assinaturas={assinaturas} carteira={carteiraBarbeiros} detalhe={detalheBarbeiro} setDetalhe={setDetalheBarbeiro} />}
+          {tab === "planos"    && <TabPlanos assinaturas={assinaturas} barbeiros={barbeiros} dataIni={dataIni} dataFim={dataFim} />}
           {tab === "retencao"  && <TabRetencao atendimentos={atendimentos} clientesUltimaVisita={clientesUltimaVisita} />}
         </motion.div>
       )}

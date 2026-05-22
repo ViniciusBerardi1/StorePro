@@ -38,9 +38,8 @@ export async function getRelatoriosPeriodo(dataIni, dataFim) {
       // Assinaturas ativas durante o período: início <= fim E (renovação >= ini OU sem renovação)
       supabase
         .from("assinaturas")
-        .select("id, barbeiro_id, valor, status, data_inicio, data_renovacao, planos(nome, valor)")
+        .select("id, barbeiro_id, cliente_id, valor, status, data_inicio, data_renovacao, forma_pagamento, planos(nome, valor), clientes(nome)")
         .eq("status", "ativa")
-        .not("barbeiro_id", "is", null)
         .lte("data_inicio", fim)
         .or(`data_renovacao.gte.${ini},data_renovacao.is.null`),
     ]);
