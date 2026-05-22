@@ -4,7 +4,7 @@ import { db } from "../../services/supabaseDb";
 import {
   Scissors, Beer, ShoppingBag,
   Crown, Receipt, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
-  Pencil, Plus, ChevronLeft, Trash2,
+  Pencil, Plus, ChevronLeft, Trash2, CheckCheck,
 } from "lucide-react";
 import { PageHeader, ChannelChip, StatusPill } from "../ui/DS";
 import { fmtValor, fmtHora } from "../../utils/fmt";
@@ -661,6 +661,7 @@ function ComandaCardGrid({ comanda, assinaturaData, barbeiros, onClick }) {
 
 // ─── Página principal ───────────────────────────────────────────────────────
 export default function Comandas({ onAtendimentoFinalizado }) {
+  const [aba, setAba]                     = useState("abertas"); // "abertas" | "fechadas"
   const [comandas, setComandas]           = useState([]);
   const [servicos, setServicos]           = useState([]);
   const [produtosBar, setProdutosBar]     = useState([]);
@@ -675,6 +676,42 @@ export default function Comandas({ onAtendimentoFinalizado }) {
   const [comandaAberta, setComandaAberta] = useState(null);
   const [criandoNova, setCriandoNova]     = useState(false);
   const [clienteSel, setClienteSel]       = useState(null);
+
+  // ── Aba fechadas ─────────────────────────────────────────────────────────
+  const [fechadas, setFechadas]               = useState([]);
+  const [totalFechadas, setTotalFechadas]     = useState(0);
+  const [carregandoFechadas, setCarregandoFechadas] = useState(false);
+  const [carregandoMaisFechadas, setCarregandoMaisFechadas] = useState(false);
+  const paginaFechadas = useRef(0);
+
+  const carregarFechadas = useCallback(async () => {
+    setCarregandoFechadas(true);
+    paginaFechadas.current = 0;
+    try {
+      const { data, total } = await db.getComandasFechadas(0);
+      setFechadas(data);
+      setTotalFechadas(total);
+    } catch { /* silently fail */ }
+    finally { setCarregandoFechadas(false); }
+  }, []);
+
+  const carregarMaisFechadas = async () => {
+    setCarregandoMaisFechadas(true);
+    try {
+      const next = paginaFechadas.current + 1;
+      const { data } = await db.getComandasFechadas(next);
+      paginaFechadas.current = next;
+      setFechadas((prev) => [...prev, ...data]);
+    } catch { /* silently fail */ }
+    finally { setCarregandoMaisFechadas(false); }
+  };
+
+  useEffect(() => {
+    if (aba === "fechadas" && fechadas.length === 0 && !carregandoFechadas) {
+      carregarFechadas();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aba]);
   const [barbeiroCriando, setBarbeiroCriando] = useState(null);
   const [salvandoNova, setSalvandoNova]   = useState(false);
   const [erroNova, setErroNova]           = useState(null);
@@ -809,25 +846,45 @@ export default function Comandas({ onAtendimentoFinalizado }) {
     <div className="flex flex-col gap-5">
       <PageHeader
         eyebrow="Operação"
-        title={carregando ? "Comandas" : totalComandas === 0 ? "Comandas abertas" : `Comandas abertas · ${totalComandas}`}
+        title="Comandas"
         action={
           <div className="flex items-center gap-2">
             <button
-              onClick={carregar}
+              onClick={aba === "abertas" ? carregar : carregarFechadas}
               className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
               title="Atualizar"
             >
               <RefreshCw size={15} strokeWidth={2} />
             </button>
-            <button
-              onClick={() => { setCriandoNova(true); setClienteSel(null); }}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-            >
-              Nova comanda avulsa
-            </button>
+            {aba === "abertas" && (
+              <button
+                onClick={() => { setCriandoNova(true); setClienteSel(null); }}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+              >
+                Nova comanda avulsa
+              </button>
+            )}
           </div>
         }
       />
+
+      {/* Tabs abertas / fechadas */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setAba("abertas")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === "abertas" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          <Receipt size={14} strokeWidth={2} />
+          Abertas {!carregando && totalComandas > 0 && <span className="ml-0.5 text-xs text-indigo-500 font-semibold">{totalComandas}</span>}
+        </button>
+        <button
+          onClick={() => setAba("fechadas")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === "fechadas" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+        >
+          <CheckCheck size={14} strokeWidth={2} />
+          Fechadas {!carregandoFechadas && totalFechadas > 0 && <span className="ml-0.5 text-xs text-green-600 font-semibold">{totalFechadas}</span>}
+        </button>
+      </div>
 
       <AnimatePresence>
         {criandoNova && (
@@ -873,7 +930,8 @@ export default function Comandas({ onAtendimentoFinalizado }) {
         )}
       </AnimatePresence>
 
-      {carregando ? (
+      {/* ── Aba Abertas ── */}
+      {aba === "abertas" && (carregando ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="bg-white border border-gray-200 rounded-2xl h-32 animate-pulse" />
@@ -922,7 +980,70 @@ export default function Comandas({ onAtendimentoFinalizado }) {
             </button>
           )}
         </>
-      )}
+      ))}
+
+      {/* ── Aba Fechadas ── */}
+      {aba === "fechadas" && (carregandoFechadas ? (
+        <div className="flex flex-col gap-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-2xl h-16 animate-pulse" />
+          ))}
+        </div>
+      ) : fechadas.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-white border border-gray-200 rounded-2xl px-5 py-12 text-center"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+            <CheckCheck size={22} strokeWidth={1.5} className="text-gray-400" />
+          </div>
+          <p className="text-sm font-medium text-gray-500">Nenhuma comanda fechada ainda</p>
+        </motion.div>
+      ) : (
+        <>
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-[1fr_110px_110px_90px] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 border-b border-gray-100 bg-gray-50/60">
+              <div>Cliente</div>
+              <div>Barbeiro</div>
+              <div className="text-right">Valor</div>
+              <div className="text-right">Fechada</div>
+            </div>
+            {fechadas.map((cmd) => {
+              const barbeiro = barbeiros.find((b) => b.id === cmd.barbeiro_id);
+              const pagBadge = { pix: "Pix", debito: "Débito", credito: "Crédito", dinheiro: "Dinheiro" }[cmd.forma_pagamento];
+              return (
+                <div
+                  key={cmd.id}
+                  className="grid grid-cols-[1fr_110px_110px_90px] items-center px-5 py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{cmd.cliente_nome ?? "—"}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {cmd.valor_servicos > 0 && <span className="text-[10px] text-indigo-500">{fmtValor(cmd.valor_servicos)} serv.</span>}
+                      {cmd.valor_bar      > 0 && <span className="text-[10px] text-amber-500">{fmtValor(cmd.valor_bar)} bar</span>}
+                      {cmd.valor_loja     > 0 && <span className="text-[10px] text-emerald-500">{fmtValor(cmd.valor_loja)} loja</span>}
+                      {pagBadge && <span className="text-[10px] text-gray-400">· {pagBadge}</span>}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 truncate">{barbeiro?.nome ?? "—"}</div>
+                  <div className="text-sm font-bold text-gray-900 text-right tabular-nums">{fmtValor(cmd.valor_total)}</div>
+                  <div className="text-[11px] text-gray-400 text-right">{fmtTempo(cmd.updated_at)}</div>
+                </div>
+              );
+            })}
+          </div>
+          {fechadas.length < totalFechadas && (
+            <button
+              onClick={carregarMaisFechadas}
+              disabled={carregandoMaisFechadas}
+              className="text-sm text-indigo-500 hover:text-indigo-600 disabled:opacity-50 py-2 text-center"
+            >
+              {carregandoMaisFechadas ? "Carregando..." : `Ver mais (${totalFechadas - fechadas.length} restantes)`}
+            </button>
+          )}
+        </>
+      ))}
     </div>
   );
 }

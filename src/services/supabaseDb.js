@@ -491,6 +491,20 @@ async function getAtendimentosPeriodo(ini, fim) {
   return data ?? [];
 }
 
+async function getComandasFechadas(page = 0, pageSize = 20) {
+  const from = page * pageSize;
+  const to   = from + pageSize - 1;
+  const { data, error, count } = await supabase
+    .from("comandas")
+    .select("*", { count: "exact" })
+    .eq("status", "fechada")
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .range(from, to);
+  if (error) throw error;
+  return { data: data ?? [], total: count ?? 0 };
+}
+
 async function getComandasFechadasPeriodo(ini, fim) {
   const { data, error } = await supabase
     .from("comandas")
@@ -866,6 +880,7 @@ export const db = {
   deleteComanda,
   baixarEstoqueComanda,
   getAtendimentosPeriodo,
+  getComandasFechadas,
   getComandasFechadasPeriodo,
   getProdutosByTipo,
   setConfiguracao,
