@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../../services/supabaseDb";
-import { Scissors, Trash2, AlertTriangle, Pencil } from "lucide-react";
+import { Scissors, Trash2, AlertTriangle, Pencil, PlusCircle } from "lucide-react";
 import { PageHeader } from "../ui/DS";
 import { fmtValor } from "../../utils/fmt";
 
@@ -11,6 +11,7 @@ function ServicoForm({ servico, onSalvar, onFechar }) {
     valor: servico?.valor ?? "",
     duracao_minutos: servico?.duracao_minutos ?? 30,
     ativo: servico?.ativo ?? true,
+    adicional: servico?.adicional ?? false,
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState(null);
@@ -45,7 +46,7 @@ function ServicoForm({ servico, onSalvar, onFechar }) {
       >
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-semibold text-gray-800 text-base">
-            {servico ? "Editar serviço" : "Novo serviço"}
+            {servico ? (servico.adicional ? "Editar serviço adicional" : "Editar serviço") : "Novo serviço"}
           </h3>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">
             ✕
@@ -115,6 +116,21 @@ function ServicoForm({ servico, onSalvar, onFechar }) {
             />
             <span className="text-sm text-gray-600">Serviço ativo</span>
           </label>
+
+          <div className="border border-amber-100 bg-amber-50 rounded-xl px-4 py-3">
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.adicional}
+                onChange={set("adicional")}
+                className="w-4 h-4 accent-amber-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-amber-800">Serviço adicional</span>
+                <p className="text-[11px] text-amber-600 mt-0.5">Ex: hidratação, tratamento, produto aplicado. Terá regra de comissão própria.</p>
+              </div>
+            </label>
+          </div>
 
           {erro && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
@@ -214,8 +230,9 @@ export default function Servicos() {
     }
   };
 
-  const ativos = servicos.filter((s) => s.ativo);
-  const inativos = servicos.filter((s) => !s.ativo);
+  const ativos         = servicos.filter((s) => s.ativo && !s.adicional);
+  const adicionaisAtivos = servicos.filter((s) => s.ativo && s.adicional);
+  const inativos       = servicos.filter((s) => !s.ativo);
 
   return (
     <div className="flex flex-col gap-4">
@@ -256,11 +273,11 @@ export default function Servicos() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
+          {/* ── Serviços principais ── */}
           {ativos.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-              {/* Table header */}
               <div className="grid grid-cols-[1fr_100px_120px_56px] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 border-b border-gray-200 bg-gray-50/60">
-                <div>Serviço</div>
+                <div className="flex items-center gap-1.5"><Scissors size={11} strokeWidth={2.5} />Serviços</div>
                 <div>Duração</div>
                 <div className="text-right">Preço</div>
                 <div />
@@ -276,7 +293,7 @@ export default function Servicos() {
                     </span>
                     <div>
                       <div className="text-sm font-semibold text-gray-900">{s.nome}</div>
-                      <div className="text-[11px] text-gray-400">Serviço ativo</div>
+                      <div className="text-[11px] text-gray-400">Serviço</div>
                     </div>
                   </div>
                   <div className="text-sm text-gray-600 tabular-nums">
@@ -304,6 +321,55 @@ export default function Servicos() {
             </div>
           )}
 
+          {/* ── Serviços adicionais ── */}
+          {adicionaisAtivos.length > 0 && (
+            <div className="bg-white border border-amber-200 rounded-2xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_100px_120px_56px] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-amber-500 border-b border-amber-100 bg-amber-50/60">
+                <div className="flex items-center gap-1.5"><PlusCircle size={11} strokeWidth={2.5} />Serviços adicionais</div>
+                <div>Duração</div>
+                <div className="text-right">Preço</div>
+                <div />
+              </div>
+              {adicionaisAtivos.map((s) => (
+                <div
+                  key={s.id}
+                  className="grid grid-cols-[1fr_100px_120px_56px] items-center px-5 py-3.5 border-b border-amber-50 last:border-b-0 hover:bg-amber-50/40 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                      <PlusCircle size={15} strokeWidth={2.2} className="text-amber-600" />
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">{s.nome}</div>
+                      <div className="text-[11px] text-amber-500">Adicional</div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-600 tabular-nums">
+                    {s.duracao_minutos ? `${s.duracao_minutos} min` : "—"}
+                  </div>
+                  <div className="text-sm font-bold text-gray-900 text-right tabular-nums">{fmtValor(s.valor)}</div>
+                  <div className="flex justify-end gap-1">
+                    <button
+                      onClick={() => { setEditando(s); setShowForm(true); }}
+                      className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil size={14} strokeWidth={2} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmandoId(s.id)}
+                      className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      title="Excluir"
+                    >
+                      <Trash2 size={14} strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Inativos ── */}
           {inativos.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden opacity-60">
               <div className="px-5 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 border-b border-gray-200 bg-gray-50/60">
@@ -316,9 +382,14 @@ export default function Servicos() {
                 >
                   <div className="flex items-center gap-3">
                     <span className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                      <Scissors size={15} strokeWidth={2} className="text-gray-400" />
+                      {s.adicional
+                        ? <PlusCircle size={15} strokeWidth={2} className="text-gray-400" />
+                        : <Scissors size={15} strokeWidth={2} className="text-gray-400" />}
                     </span>
-                    <div className="text-sm font-medium text-gray-500 line-through">{s.nome}</div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-500 line-through">{s.nome}</div>
+                      {s.adicional && <div className="text-[10px] text-gray-400">Adicional</div>}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-400 tabular-nums">{fmtValor(s.valor)}</span>
