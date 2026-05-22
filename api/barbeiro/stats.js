@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     const baseCmds = serviceClient
       .from("comandas")
-      .select("id, atendimento_id, valor_total, valor_bar, valor_loja, itens_bar, itens_loja, servicos")
+      .select("id, valor_total, valor_bar, valor_loja, itens_bar, itens_loja")
       .eq("barbeiro_id", barbeiro.barbeiro_id)
       .eq("status", "fechada")
       .gte("created_at", ini)
@@ -55,16 +55,6 @@ export default async function handler(req, res) {
     for (const a of concluidos) {
       for (const s of (a.servicos || [])) {
         minutos += s.duracao_minutos || 30;
-        if (!s.via_plano) contServicos[s.nome] = (contServicos[s.nome] || 0) + 1;
-        if (s.adicional) brutoAdicional += Number(s.valor || 0);
-        else             brutoServico   += Number(s.valor || 0);
-      }
-    }
-
-    // Serviços de comandas avulsas fechadas (sem atendimento_id — evita dupla contagem)
-    for (const c of cmds) {
-      if (c.atendimento_id != null) continue; // já contado via atendimentos
-      for (const s of (c.servicos || [])) {
         if (!s.via_plano) contServicos[s.nome] = (contServicos[s.nome] || 0) + 1;
         if (s.adicional) brutoAdicional += Number(s.valor || 0);
         else             brutoServico   += Number(s.valor || 0);
