@@ -61,8 +61,10 @@ export function calcularBeneficios({
     } else if (b.tipo === "desconto_servico") {
       const srv = servicosSelecionados.find((s) => sameId(s.id, b.servico_id));
       if (!srv) continue;
+      const pct = Number(b.percentual);
+      if (!isFinite(pct) || pct <= 0) continue;
       const base = Number(srv.valor || 0);
-      const desconto = Math.round(base * (Number(b.percentual || 0) / 100) * 100) / 100;
+      const desconto = Math.round(base * (pct / 100) * 100) / 100;
       if (desconto <= 0) continue;
       beneficioDesconto += desconto;
       beneficiosAplicados.push({
@@ -82,9 +84,11 @@ export function calcularBeneficios({
         valor_desconto: desconto,
       });
     } else if (b.tipo === "desconto_geral") {
+      const pct = Number(b.percentual);
+      if (!isFinite(pct) || pct <= 0) continue;
       const totalSvcs = servicosSelecionados.reduce((sum, s) => sum + Number(s.valor || 0), 0);
       if (totalSvcs <= 0) continue;
-      const desconto = Math.round(totalSvcs * (Number(b.percentual || 0) / 100) * 100) / 100;
+      const desconto = Math.round(totalSvcs * (pct / 100) * 100) / 100;
       if (desconto <= 0) continue;
       beneficioDesconto += desconto;
       beneficiosAplicados.push({
@@ -103,6 +107,8 @@ export function calcularBeneficios({
         valor_desconto: desconto,
       });
     } else if (b.tipo === "desconto_produto") {
+      const pct = Number(b.percentual);
+      if (!isFinite(pct) || pct <= 0) continue;
       const matchLoja = itensLoja.find(
         (i) => (b.produto_id && (sameId(i.id, b.produto_id) || sameId(i.produto_id, b.produto_id))) ||
                (b.produto_nome && i.nome?.toLowerCase() === b.produto_nome?.toLowerCase())
@@ -115,7 +121,7 @@ export function calcularBeneficios({
       if (!item) continue;
       const qtd = item.quantidade || 1;
       const preco = Number(item.preco_venda || 0);
-      const desconto = Math.round(preco * qtd * (Number(b.percentual || 0) / 100) * 100) / 100;
+      const desconto = Math.round(preco * qtd * (pct / 100) * 100) / 100;
       if (desconto <= 0) continue;
       beneficioDesconto += desconto;
       beneficiosAplicados.push({

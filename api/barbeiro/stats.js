@@ -26,8 +26,8 @@ export default async function handler(req, res) {
       .select("id, valor_total, valor_bar, valor_loja, itens_bar, itens_loja")
       .eq("barbeiro_id", barbeiro.barbeiro_id)
       .eq("status", "fechada")
-      .gte("created_at", ini)
-      .lte("created_at", fim);
+      .gte("updated_at", ini)
+      .lte("updated_at", fim);
 
     const [atsRes, cmdsRes] = await Promise.all([
       barbeiro.loja_id ? baseAts.eq("loja_id", barbeiro.loja_id) : baseAts,

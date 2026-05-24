@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { db } from "../../services/supabaseDb";
+import { limparDadosOperacionais } from "../../services/supabaseDb";
 import { Store, BarChart2, Smartphone, Receipt, Calendar, Users, Package,
   Trash2, AlertTriangle, Loader2, CheckCircle2, Sparkles, Sparkle } from "lucide-react";
 
@@ -47,7 +47,7 @@ export default function Sobre() {
     setLimpandoEtapa(2);
     setErroLimpeza(null);
     try {
-      await db.limparDadosOperacionais();
+      await limparDadosOperacionais();
       setLimpandoEtapa(3);
     } catch (e) {
       console.error(e);

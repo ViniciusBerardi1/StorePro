@@ -345,32 +345,15 @@ async function setConfiguracao(chave, valor) {
   const v = typeof valor === "string" ? valor : JSON.stringify(valor);
   const { data, error: authError } = await supabase.auth.getUser();
   if (authError || !data?.user) throw new Error("Não autenticado");
-  const user = data.user;
+
   const { data: profile } = await supabase
-    .from("profiles").select("loja_id").eq("id", user.id).single();
+    .from("profiles").select("loja_id").eq("id", data.user.id).single();
   const lojaId = profile?.loja_id ?? null;
 
-  // Verifica se já existe linha para essa chave + loja
-  const { data: existing } = await supabase
+  const { error } = await supabase
     .from("configuracoes")
-    .select("chave")
-    .eq("chave", chave)
-    .eq("loja_id", lojaId)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from("configuracoes")
-      .update({ valor: v })
-      .eq("chave", chave)
-      .eq("loja_id", lojaId);
-    if (error) throw new Error(error.message);
-  } else {
-    const { error } = await supabase
-      .from("configuracoes")
-      .insert({ chave, valor: v, loja_id: lojaId });
-    if (error) throw new Error(error.message);
-  }
+    .upsert({ chave, valor: v, loja_id: lojaId }, { onConflict: "chave,loja_id" });
+  if (error) throw new Error(error.message);
 }
 
 async function getWebhookLogs(limit = 20) {
@@ -830,13 +813,26 @@ async function registrarMovimentoCaixa(sessaoId, tipo, valor, motivo = null) {
 }
 
 // ─── Limpeza de dados operacionais (uso em testes) ───────────────
-async function limparDadosOperacionais() {
-  // Ordem respeita dependências: primeiro tabelas filhas, depois pais
-  const tabelas = ["historico", "comandas", "atendimentos", "clientes"];
-  for (const tabela of tabelas) {
-    const { error } = await supabase.from(tabela).delete().neq("id", 0);
+// Exportada separadamente — não integra o objeto db para evitar chamada acidental.
+export async function limparDadosOperacionais() {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Não autenticado");
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles").select("loja_id").eq("id", user.id).single();
+  if (profileError || !profile?.loja_id) throw new Error("Loja não identificada");
+
+  const lojaId = profile.loja_id;
+
+  // Ordem respeita dependências: primeiro tabelas filhas, depois pais.
+  // historico não tem loja_id — depende do RLS para escopo correto.
+  const tabelasComLoja = ["comandas", "atendimentos", "clientes"];
+  for (const tabela of tabelasComLoja) {
+    const { error } = await supabase.from(tabela).delete().eq("loja_id", lojaId);
     if (error) throw error;
   }
+  const { error: errHist } = await supabase.from("historico").delete().neq("id", 0);
+  if (errHist) throw errHist;
 }
 
 // ─── Export (mesma interface do db.js) ───────────────────────────
@@ -899,7 +895,6 @@ export const db = {
   registrarUsoBeneficios,
   registrarEventoComanda,
   getEventosComanda,
-  limparDadosOperacionais,
   getSessaoCaixaAberta,
   getSessoesCaixa,
   getMovimentosCaixa,
