@@ -512,37 +512,8 @@ async function baixarEstoqueComanda(itens_bar = [], itens_loja = []) {
     quantidade,
   }));
 
-  // Tenta o RPC atômico primeiro (stored procedure baixar_estoque_comanda)
   const { error: rpcErr } = await supabase.rpc("baixar_estoque_comanda", { items });
-  if (!rpcErr) return;
-
-  // Fallback JS para bancos sem a stored procedure ainda deployada
-  console.warn("baixar_estoque_comanda RPC indisponível, usando fallback JS:", rpcErr.message);
-  const ids = items.map((i) => i.produto_id);
-  const { data: produtos, error } = await supabase
-    .from("produtos")
-    .select("id, quantidade, nome, cor, foto, categoria_id")
-    .in("id", ids);
-  if (error) throw error;
-
-  await Promise.all(
-    (produtos ?? []).map(async (prod) => {
-      const qtdAnterior = prod.quantidade ?? 0;
-      const novaQtd = Math.max(0, qtdAnterior - agregado[prod.id]);
-      const { error: ue } = await supabase
-        .from("produtos")
-        .update({ quantidade: novaQtd })
-        .eq("id", prod.id);
-      if (ue) throw ue;
-      if (qtdAnterior !== novaQtd) {
-        await registrarMovimento(
-          { id: prod.id, nome: prod.nome, cor: prod.cor, categoria_nome: "", foto: prod.foto },
-          qtdAnterior,
-          novaQtd
-        );
-      }
-    })
-  );
+  if (rpcErr) throw new Error(rpcErr.message);
 }
 
 // ─── Produtos por tipo (bar / loja) ──────────────────────────────
