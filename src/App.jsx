@@ -6,6 +6,8 @@ import ProdutoList from "./components/produto/ProdutoList";
 import ProdutoForm from "./components/produto/ProdutoForm";
 import AppLogin from "./components/app/AppLogin";
 import { useAppAuth } from "./hooks/useAppAuth";
+import { useEstoque } from "./hooks/useEstoque";
+import { useFinanceiroLock } from "./hooks/useFinanceiroLock";
 import Toast from "./components/ui/Toast";
 import ConfirmModal from "./components/ui/ConfirmModal";
 import { db } from "./services/supabaseDb";
@@ -225,139 +227,26 @@ function AppPrincipal() {
   const [view, setView] = useState(() => {
     const stored = localStorage.getItem("storepro_view") || "agenda";
     if (stored === "dashboard") return "agenda";
-    if (stored === "estoque") return "estoque_loja"; // migra view antiga
+    if (stored === "estoque") return "estoque_loja";
     if (stored.startsWith("cat_") && isNaN(Number(stored.replace("cat_", "")))) return "agenda";
     return stored;
   });
-  const [financeiroDesbloqueado, setFinanceiroDesbloqueado] = useState(false);
-  const [showSenhaModal, setShowSenhaModal] = useState(false);
-  const [pendingView, setPendingView] = useState("financeiro");
-  const [produtos, setProdutos] = useState([]);
-  const [categorias, setCategorias] = useState([]);
-  const [historicoEstoque, setHistoricoEstoque] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-  const [editando, setEditando] = useState(null);
-  const [showForm, setShowForm] = useState(false);
   const [toast, setToast] = useState(null);
-  const [confirmandoId, setConfirmandoId] = useState(null);
-  // ─── Auto-lock por inatividade (1 min) ──────────────────────────
-  const viewRef         = useRef(view);
-  const lastActivityRef = useRef(Date.now());
-  const checkRef        = useRef(null);
+  const viewRef = useRef(view);
 
   useEffect(() => { viewRef.current = view; }, [view]);
+  useEffect(() => { localStorage.setItem("storepro_view", view); }, [view]);
 
-  // Listeners de atividade — limpos na desmontagem do componente
-  useEffect(() => {
-    const atualizar = () => { lastActivityRef.current = Date.now(); };
-    const EVENTOS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
-    EVENTOS.forEach((ev) => window.addEventListener(ev, atualizar, { passive: true }));
-    return () => EVENTOS.forEach((ev) => window.removeEventListener(ev, atualizar));
-  }, []);
+  const estoque = useEstoque(setToast);
+  const { showSenhaModal, pendingView, precisaSenha, abrirModal, confirmar, fechar } = useFinanceiroLock(viewRef);
 
-  // Polling a cada 2s: só age quando desbloqueado
-  useEffect(() => {
-    if (!financeiroDesbloqueado) {
-      clearInterval(checkRef.current);
-      return;
+  const navegar = useCallback((destino) => {
+    if (precisaSenha(destino)) {
+      abrirModal(destino);
+    } else {
+      setView(destino);
     }
-
-    lastActivityRef.current = Date.now(); // zera contagem ao desbloquear
-
-    checkRef.current = setInterval(() => {
-      if (Date.now() - lastActivityRef.current >= 60_000) {
-        clearInterval(checkRef.current);
-        setFinanceiroDesbloqueado(false);
-        if (viewRef.current === "financeiro" || viewRef.current === "relatorios") {
-          setPendingView(viewRef.current);
-          setShowSenhaModal(true);
-        }
-      }
-    }, 2_000);
-
-    return () => clearInterval(checkRef.current);
-  }, [financeiroDesbloqueado]);
-
-  useEffect(() => {
-    localStorage.setItem("storepro_view", view);
-  }, [view]);
-
-  const carregar = useCallback(async () => {
-    try {
-      const [p, c, h] = await Promise.all([db.getProdutos(), db.getCategorias(), db.getHistorico()]);
-      setProdutos(p);
-      setCategorias(c);
-      setHistoricoEstoque(h ?? []);
-    } catch (err) {
-      console.error("erro ao carregar:", err);
-      setToast("Erro ao carregar dados. Tente novamente.");
-    } finally {
-      setCarregando(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
-
-  const carregarDashboard = useCallback(() => carregar(), [carregar]);
-
-  const handleSalvar = useCallback(async (produto) => {
-    try {
-      if (produto.id) {
-        await db.updateProduto(produto);
-        setToast("Produto atualizado!");
-      } else {
-        await db.addProduto(produto);
-        setToast("Produto adicionado!");
-      }
-      await carregar();
-      setShowForm(false);
-      setEditando(null);
-    } catch (err) {
-      console.error("erro ao salvar:", err);
-      setToast("Erro ao salvar. Tente novamente.");
-    }
-  }, [carregar]);
-
-  const handleEditar = useCallback((produto) => {
-    setEditando(produto);
-    setShowForm(true);
-  }, []);
-
-  const handleDeletar = useCallback((id) => {
-    setConfirmandoId(id);
-  }, []);
-
-  const confirmarDelete = useCallback(async () => {
-    try {
-      await db.deleteProduto(confirmandoId);
-      await carregar();
-      setToast("Produto removido.");
-    } catch (err) {
-      console.error("erro ao deletar:", err);
-      setToast("Erro ao remover. Tente novamente.");
-    } finally {
-      setConfirmandoId(null);
-    }
-  }, [confirmandoId, carregar]);
-
-  const handleNovo = useCallback(() => {
-    setEditando(null);
-    setShowForm(true);
-  }, []);
-
-  const handleAtualizarQuantidade = useCallback(async (produto, quantidade) => {
-    try {
-      const qtdAnterior = produto.quantidade ?? 0;
-      await db.updateProduto({ ...produto, quantidade });
-      await db.registrarMovimento(produto, qtdAnterior, quantidade);
-      await carregar();
-    } catch (err) {
-      console.error("erro ao atualizar quantidade:", err);
-      setToast("Erro ao atualizar quantidade.");
-    }
-  }, [carregar]);
+  }, [precisaSenha, abrirModal]);
 
   const onAbrirComanda = useCallback(async (evento, servicosPreSel = []) => {
     const clienteNome = (evento.summary || "")
@@ -377,7 +266,6 @@ function AppPrincipal() {
         if (barb) barbeiro_id = barb.id;
       }
 
-      // Vincula cliente_id pelo nome para habilitar benefícios de assinatura
       const clienteMatch = clientes.find(
         (c) => c.nome.trim().toLowerCase() === clienteNome.trim().toLowerCase()
       );
@@ -413,8 +301,6 @@ function AppPrincipal() {
         ).catch(() => {});
       }
 
-      // Sincroniza atendimento no banco para o portal do barbeiro conseguir ver
-      // agendamentos futuros (GCal não é acessível pelo portal)
       const dataHora = evento.start?.dateTime ?? evento.start?.date ?? new Date().toISOString();
       db.addAtendimento({
         gcal_event_id: evento.id,
@@ -429,42 +315,30 @@ function AppPrincipal() {
       setView("comandas");
     } catch (e) {
       console.error("Erro ao criar comanda:", e);
+      setToast("Erro ao criar comanda. Tente novamente.");
     }
-  }, []);
-
-  const navegar = useCallback((destino) => {
-    if ((destino === "financeiro" || destino === "relatorios") && !financeiroDesbloqueado) {
-      setPendingView(destino);
-      setShowSenhaModal(true);
-    } else {
-      setView(destino);
-    }
-  }, [financeiroDesbloqueado]);
+  }, [setToast]);
 
   const alertas = useMemo(() => ({
-    estoqueBaixo: produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1)).length,
-  }), [produtos]);
+    estoqueBaixo: estoque.produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1)).length,
+  }), [estoque.produtos]);
 
   const produtosFiltrados = useMemo(() => {
-    if (view === "estoque_baixo") return produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1));
-    if (view === "estoque_bar") return produtos.filter((p) => p.tipo === "bar");
-    if (view === "estoque_loja") return produtos.filter((p) => p.tipo !== "bar");
-    return produtos;
-  }, [view, produtos]);
+    if (view === "estoque_baixo") return estoque.produtos.filter((p) => p.quantidade <= (p.estoque_minimo ?? 1));
+    if (view === "estoque_bar") return estoque.produtos.filter((p) => p.tipo === "bar");
+    if (view === "estoque_loja") return estoque.produtos.filter((p) => p.tipo !== "bar");
+    return estoque.produtos;
+  }, [view, estoque.produtos]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800">
       <div className={`transition-all duration-300 ${showSenhaModal ? "blur-md pointer-events-none select-none" : ""}`}>
-        <Sidebar
-          view={view}
-          setView={navegar}
-          alertas={alertas}
-        />
+        <Sidebar view={view} setView={navegar} alertas={alertas} />
 
         <AnimatePresence>
           {VIEWS_ESTOQUE.includes(view) && (
             <motion.button
-              onClick={handleNovo}
+              onClick={estoque.handleNovo}
               initial={{ opacity: 0, scale: 0.8, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: -8 }}
@@ -477,71 +351,71 @@ function AppPrincipal() {
         </AnimatePresence>
 
         <main className="md:ml-60 pt-20 md:pt-8 px-4 md:px-8 pb-8">
-        <div className="max-w-[1280px] mx-auto">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={view}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={pageTransition}
-          >
-            <Suspense fallback={<PageLoader />}>
-              {view === "configuracoes" ? (
-                <Configuracoes />
-              ) : view === "sobre" ? (
-                <Sobre />
-              ) : view === "servicos" ? (
-                <Servicos />
-              ) : view === "barbeiros" ? (
-                <Barbeiros />
-              ) : view === "financeiro" ? (
-                <Dashboard produtos={produtos} setView={navegar} />
-              ) : view === "caixa" ? (
-                <Caixa />
-              ) : view === "comandas" ? (
-                <Comandas onAtendimentoFinalizado={carregarDashboard} />
-              ) : view === "clientes_lista" ? (
-                <ClientesLista />
-              ) : view === "planos" ? (
-                <PlanosManager />
-              ) : view === "relatorios" ? (
-                <Relatorios />
-              ) : view === "agenda" ? (
-                <Agenda
-                  onAtendimentoFinalizado={carregarDashboard}
-                  onAbrirComanda={onAbrirComanda}
-                />
-              ) : VIEWS_ESTOQUE.includes(view) ? (
-                <ProdutoList
-                  titulo={
-                    view === "estoque_baixo" ? "Estoque Baixo" :
-                    view === "estoque_bar" ? "Bar" :
-                    view === "estoque_loja" ? "Loja" :
-                    "Estoque"
-                  }
-                  produtos={produtosFiltrados}
-                  categorias={categorias}
-                  onEditar={handleEditar}
-                  onDeletar={handleDeletar}
-                  onNovo={handleNovo}
-                  onAtualizarQuantidade={handleAtualizarQuantidade}
-                  historicoEstoque={historicoEstoque}
-                  mostrarBotaoNovo={true}
-                />
-              ) : (
-                <EmBreve modulo={view} />
-              )}
-            </Suspense>
-          </motion.div>
-        </AnimatePresence>
-        </div>
+          <div className="max-w-[1280px] mx-auto">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={view}
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={pageTransition}
+              >
+                <Suspense fallback={<PageLoader />}>
+                  {view === "configuracoes" ? (
+                    <Configuracoes />
+                  ) : view === "sobre" ? (
+                    <Sobre />
+                  ) : view === "servicos" ? (
+                    <Servicos />
+                  ) : view === "barbeiros" ? (
+                    <Barbeiros />
+                  ) : view === "financeiro" ? (
+                    <Dashboard produtos={estoque.produtos} setView={navegar} />
+                  ) : view === "caixa" ? (
+                    <Caixa />
+                  ) : view === "comandas" ? (
+                    <Comandas onAtendimentoFinalizado={estoque.carregar} />
+                  ) : view === "clientes_lista" ? (
+                    <ClientesLista />
+                  ) : view === "planos" ? (
+                    <PlanosManager />
+                  ) : view === "relatorios" ? (
+                    <Relatorios />
+                  ) : view === "agenda" ? (
+                    <Agenda
+                      onAtendimentoFinalizado={estoque.carregar}
+                      onAbrirComanda={onAbrirComanda}
+                    />
+                  ) : VIEWS_ESTOQUE.includes(view) ? (
+                    <ProdutoList
+                      titulo={
+                        view === "estoque_baixo" ? "Estoque Baixo" :
+                        view === "estoque_bar" ? "Bar" :
+                        view === "estoque_loja" ? "Loja" :
+                        "Estoque"
+                      }
+                      produtos={produtosFiltrados}
+                      categorias={estoque.categorias}
+                      onEditar={estoque.handleEditar}
+                      onDeletar={estoque.handleDeletar}
+                      onNovo={estoque.handleNovo}
+                      onAtualizarQuantidade={estoque.handleAtualizarQuantidade}
+                      historicoEstoque={estoque.historicoEstoque}
+                      mostrarBotaoNovo={true}
+                    />
+                  ) : (
+                    <EmBreve modulo={view} />
+                  )}
+                </Suspense>
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </main>
       </div>
 
       <AnimatePresence>
-        {showForm && (
+        {estoque.showForm && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -549,12 +423,12 @@ function AppPrincipal() {
             transition={{ duration: 0.15 }}
           >
             <ProdutoForm
-              produto={editando}
-              categorias={categorias}
-              onSalvar={handleSalvar}
+              produto={estoque.editando}
+              categorias={estoque.categorias}
+              onSalvar={estoque.handleSalvar}
               onFechar={() => {
-                setShowForm(false);
-                setEditando(null);
+                estoque.setShowForm(false);
+                estoque.setEditando(null);
               }}
             />
           </motion.div>
@@ -562,10 +436,10 @@ function AppPrincipal() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {confirmandoId && (
+        {estoque.confirmandoId && (
           <ConfirmModal
-            onConfirmar={confirmarDelete}
-            onCancelar={() => setConfirmandoId(null)}
+            onConfirmar={estoque.confirmarDelete}
+            onCancelar={() => estoque.setConfirmandoId(null)}
           />
         )}
       </AnimatePresence>
@@ -579,15 +453,8 @@ function AppPrincipal() {
       <AnimatePresence>
         {showSenhaModal && (
           <SenhaModal
-            onConfirmar={() => {
-              setFinanceiroDesbloqueado(true);
-              setShowSenhaModal(false);
-              setView(pendingView);
-            }}
-            onFechar={() => {
-              setShowSenhaModal(false);
-              if (view === "financeiro" || view === "relatorios") setView("agenda");
-            }}
+            onConfirmar={() => confirmar(setView)}
+            onFechar={() => fechar(view, setView)}
           />
         )}
       </AnimatePresence>
