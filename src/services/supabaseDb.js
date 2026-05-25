@@ -626,26 +626,11 @@ async function getAssinaturasAtivas() {
     .eq("status", "ativa")
     .order("created_at", { ascending: false });
 
-  let result;
-  if (error) {
-    // Fallback: beneficios column may not exist yet
-    const { data: data2, error: error2 } = await supabase
-      .from("assinaturas")
-      .select("id, cliente_id, plano_id, status, data_inicio, data_renovacao, valor, gateway, gateway_subscription_id, forma_pagamento, planos(id, nome, valor, intervalo)")
-      .eq("status", "ativa")
-      .order("created_at", { ascending: false });
-    if (error2) throw new Error(error2.message);
-    result = (data2 ?? []).map((a) => ({
-      ...a,
-      planos: a.planos ? { ...a.planos, beneficios: [] } : null,
-    }));
-  } else {
-    result = data ?? [];
-  }
+  if (error) throw new Error(error.message);
 
-  _assinaturasCache   = result;
+  _assinaturasCache   = data ?? [];
   _assinaturasCacheTs = Date.now();
-  return result;
+  return _assinaturasCache;
 }
 
 async function getAssinaturasByCliente(clienteId) {
