@@ -30,3 +30,6 @@ src/seed.js
 .claude/
 # supabase/migrations/ — migrations rastreadas no repo
 graphify-out/
+
+# Análise interna — não vai para o GitHub
+ANALISE_TECNICA.md
