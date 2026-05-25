@@ -80,10 +80,6 @@ async function getHistorico() {
   return data;
 }
 
-async function limparHistorico() {
-  const { error } = await supabase.from("historico").delete().neq("id", 0);
-  if (error) throw error;
-}
 
 // Registra qualquer movimentação de estoque como evento independente
 async function registrarMovimento(produto, qtdAnterior, qtdNova) {
@@ -812,28 +808,6 @@ async function registrarMovimentoCaixa(sessaoId, tipo, valor, motivo = null) {
   return data;
 }
 
-// ─── Limpeza de dados operacionais (uso em testes) ───────────────
-// Exportada separadamente — não integra o objeto db para evitar chamada acidental.
-export async function limparDadosOperacionais() {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) throw new Error("Não autenticado");
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles").select("loja_id").eq("id", user.id).single();
-  if (profileError || !profile?.loja_id) throw new Error("Loja não identificada");
-
-  const lojaId = profile.loja_id;
-
-  // Ordem respeita dependências: primeiro tabelas filhas, depois pais.
-  // historico não tem loja_id — depende do RLS para escopo correto.
-  const tabelasComLoja = ["comandas", "atendimentos", "clientes"];
-  for (const tabela of tabelasComLoja) {
-    const { error } = await supabase.from(tabela).delete().eq("loja_id", lojaId);
-    if (error) throw error;
-  }
-  const { error: errHist } = await supabase.from("historico").delete().neq("id", 0);
-  if (errHist) throw errHist;
-}
 
 // ─── Export (mesma interface do db.js) ───────────────────────────
 export const db = {

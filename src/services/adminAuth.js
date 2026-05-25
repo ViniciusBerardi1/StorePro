@@ -107,15 +107,13 @@ export async function setUserActive(userId, isActive) {
 // ── Barbershop app stats (read-only, for the admin dashboard) ────
 
 export async function getAppStats() {
-  const [clients, subs, configs] = await Promise.all([
+  const [clients, subs] = await Promise.all([
     adminAuthClient.from("clientes").select("*", { count: "exact", head: true }),
     adminAuthClient.from("assinaturas").select("*", { count: "exact", head: true }).eq("ativa", true),
-    adminAuthClient.from("configuracoes").select("chave, valor").in("chave", ["app_senha"]),
   ]);
   return {
     totalClients:        clients.count ?? 0,
     activeSubscriptions: subs.count ?? 0,
-    hasAppPassword:      (configs.data ?? []).some((c) => c.chave === "app_senha" && c.valor),
   };
 }
 

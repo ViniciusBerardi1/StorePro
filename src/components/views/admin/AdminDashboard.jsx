@@ -149,20 +149,6 @@ export default function AdminDashboard() {
               </span>
             </li>
             <li className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Senha do app</span>
-              {loading ? (
-                <span className="h-3 w-16 bg-gray-200 rounded-full animate-pulse" />
-              ) : (
-                <span className={`inline-flex items-center gap-1.5 font-medium text-[12px]
-                  ${appStats?.hasAppPassword ? "text-emerald-600" : "text-amber-600"}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full
-                    ${appStats?.hasAppPassword ? "bg-emerald-500" : "bg-amber-400"}`}
-                  />
-                  {appStats?.hasAppPassword ? "Configurada" : "Não configurada"}
-                </span>
-              )}
-            </li>
-            <li className="flex items-center justify-between text-sm">
               <span className="text-gray-500">Usuários inativos</span>
               {loading ? (
                 <span className="h-3 w-10 bg-gray-200 rounded-full animate-pulse" />

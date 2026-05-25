@@ -148,16 +148,6 @@ export const db = {
       lista.sort((a, b) => new Date(b.data_zerado) - new Date(a.data_zerado))
     ),
 
-  limparHistorico: () =>
-    openDB().then((db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction("historico", "readwrite");
-        const req = tx.objectStore("historico").clear();
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      }),
-    ),
-
   // ─── Atendimentos ──────────────────────────────────────────────
   getAtendimentos: () =>
     getAll("atendimentos").then((lista) =>

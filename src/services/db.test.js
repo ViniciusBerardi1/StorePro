@@ -167,13 +167,3 @@ describe("db.addHistorico / db.getHistorico", () => {
     expect(historico[1].produto_nome).toBe("Antigo");
   });
 });
-
-describe("db.limparHistorico", () => {
-  it("remove todas as entradas do histórico", async () => {
-    await db.addHistorico({ produto_nome: "A", data_zerado: new Date().toISOString() });
-    await db.addHistorico({ produto_nome: "B", data_zerado: new Date().toISOString() });
-    await db.limparHistorico();
-    const historico = await db.getHistorico();
-    expect(historico).toHaveLength(0);
-  });
-});
