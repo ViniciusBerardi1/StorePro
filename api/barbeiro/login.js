@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { serviceClient } from "./_auth.js";
 
 export default async function handler(req, res) {
@@ -22,13 +23,15 @@ export default async function handler(req, res) {
     return res.status(403).json({ erro: "Acesso desativado" });
   }
 
-  const { data: session, error: tokenErr } = await serviceClient
-    .from("barbeiro_tokens")
-    .insert({ barbeiro_id: barbeiro.id, loja_id: barbeiro.loja_id })
-    .select("token")
-    .single();
+  // Gera token cru com 256 bits de entropia — apenas o hash SHA-256 vai ao banco
+  const rawToken  = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-  if (tokenErr || !session) {
+  const { error: tokenErr } = await serviceClient
+    .from("barbeiro_tokens")
+    .insert({ barbeiro_id: barbeiro.id, loja_id: barbeiro.loja_id, token_hash: tokenHash });
+
+  if (tokenErr) {
     return res.status(500).json({ erro: "Erro ao criar sessão" });
   }
 
@@ -37,8 +40,9 @@ export default async function handler(req, res) {
     .update({ ultimo_login: new Date().toISOString() })
     .eq("id", barbeiro.id);
 
+  // Retorna o token cru ao cliente — o banco nunca o vê
   return res.status(200).json({
-    token: session.token,
+    token: rawToken,
     barbeiro: { id: barbeiro.id, nome: barbeiro.nome, loja_id: barbeiro.loja_id },
   });
 }

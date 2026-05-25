@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS barbeiro_tokens (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   barbeiro_id INT         NOT NULL REFERENCES barbeiros(id) ON DELETE CASCADE,
   loja_id     UUID        NOT NULL REFERENCES lojas(id)     ON DELETE CASCADE,
-  token       TEXT        UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
+  token_hash  TEXT        UNIQUE NOT NULL,
   expires_at  TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -351,8 +351,8 @@ CREATE INDEX IF NOT EXISTS idx_comandas_loja_id         ON comandas(loja_id);
 CREATE INDEX IF NOT EXISTS idx_assinaturas_cliente_id   ON assinaturas(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_assinaturas_status       ON assinaturas(status);
 CREATE INDEX IF NOT EXISTS idx_profiles_loja_id         ON profiles(loja_id);
-CREATE INDEX IF NOT EXISTS idx_barbeiro_tokens_token    ON barbeiro_tokens(token);
-CREATE INDEX IF NOT EXISTS idx_barbeiro_tokens_barbeiro ON barbeiro_tokens(barbeiro_id);
+CREATE INDEX IF NOT EXISTS idx_barbeiro_tokens_token_hash ON barbeiro_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_barbeiro_tokens_barbeiro   ON barbeiro_tokens(barbeiro_id);
 
 -- ============================================================
 -- FUNÇÕES AUXILIARES

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
 export const serviceClient = createClient(
@@ -14,10 +15,13 @@ export async function requireBarbeiro(req, res) {
       return null;
     }
 
+    // Nunca buscamos pelo token cru — apenas pelo hash SHA-256
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
     const { data: session, error: tokenErr } = await serviceClient
       .from("barbeiro_tokens")
       .select("barbeiro_id, loja_id, expires_at")
-      .eq("token", token)
+      .eq("token_hash", tokenHash)
       .maybeSingle();
 
     if (tokenErr || !session) {
